@@ -1,4 +1,4 @@
-import { TinyColor } from '@ctrl/tinycolor';
+import { TinyColor } from './tinycolor';
 
 export function isDarkColor(color: string) {
   return new TinyColor(color).isDark();

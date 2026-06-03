@@ -1,0 +1,86 @@
+/**
+ * Platform plugin marketplace API / 平台端插件市场 API
+ */
+import type { InstallPreview } from '#/api/admin/plugin';
+
+import { requestClient } from '#/utils/request';
+
+const BASE_URL = '/admin/plugins';
+
+/** Marketplace plugin card / 市场插件卡片 */
+export interface MarketplacePluginItem {
+  name: string;
+  slug: string;
+  display_name: string;
+  description: string;
+  icon: string;
+  version: string;
+  author: string;
+  tier: string;
+  pricing_type: string;
+  price: null | number;
+  rating: null | number;
+  downloads: number;
+  tags: string[];
+  is_installed: boolean;
+  installed_version: null | string;
+}
+
+/** Marketplace plugin detail / 市场插件详情 */
+export interface MarketplacePluginDetail extends MarketplacePluginItem {
+  readme: null | string;
+  changelog: null | string;
+  screenshots: string[];
+  homepage: null | string;
+  repository_url: null | string;
+  compatibility_ok: boolean;
+  platform_version_required: null | string;
+}
+
+/** Update info / 更新信息 */
+export interface PluginUpdateInfo {
+  name: string;
+  current_version: string;
+  latest_version: string;
+  slug: string;
+}
+
+/** Marketplace list / 市场列表 */
+export function getMarketplaceListApi(params?: Record<string, unknown>) {
+  return requestClient.get(`${BASE_URL}/marketplace`, { params });
+}
+
+/** Marketplace detail / 市场详情 */
+export function getMarketplaceDetailApi(slug: string) {
+  return requestClient.get<MarketplacePluginDetail>(
+    `${BASE_URL}/marketplace/${slug}`,
+  );
+}
+
+/** Marketplace install preview / 市场安装预览 */
+export function marketplacePreviewInstallApi(slug: string) {
+  return requestClient.post<InstallPreview>(
+    `${BASE_URL}/marketplace/${slug}/install`,
+  );
+}
+
+/** Marketplace confirm install / 市场确认安装 */
+export interface MarketplaceConfirmInstallOptions {
+  config?: Record<string, unknown>;
+  previewToken: string;
+}
+
+export function marketplaceConfirmInstallApi(
+  slug: string,
+  options: MarketplaceConfirmInstallOptions,
+) {
+  return requestClient.post(`${BASE_URL}/marketplace/${slug}/confirm-install`, {
+    config: options.config || {},
+    preview_token: options.previewToken,
+  });
+}
+
+/** Check plugin updates / 检查更新 */
+export function checkPluginUpdatesApi() {
+  return requestClient.get<PluginUpdateInfo[]>(`${BASE_URL}/updates`);
+}

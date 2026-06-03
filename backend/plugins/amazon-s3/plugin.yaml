@@ -1,0 +1,38 @@
+name: amazon-s3
+version: "1.0.0"
+display_name:
+  zh-CN: "S3 兼容存储"
+  en: "S3 Compatible Storage"
+description:
+  zh-CN: "Amazon S3 兼容对象存储驱动，支持 AWS/MinIO/R2/B2 等 S3 协议存储"
+  en: "Amazon S3 compatible object storage driver, supports AWS/MinIO/R2/B2 etc."
+author: "NovusAI"
+icon: "icon.png"
+icon_color: "#ff9900"
+scope: global_shared
+tags: ["storage", "s3", "aws", "minio", "cloud"]
+
+capabilities:
+  - storage:read
+  - storage:write
+
+extensions:
+  storage_drivers:
+    - code: s3
+      display_name:
+        zh-CN: "S3 兼容存储"
+        en: "S3 Compatible Storage"
+      entry_point: "driver.S3StorageDriver"
+
+# Storage credentials are managed by the platform Storage Settings (SystemConfig),
+# NOT here. The driver class (driver.py) has its own config_schema for the storage form.
+# No plugin-level config_schema needed — omitting prevents empty config button in plugin UI.
+
+dependencies:
+  python:
+    - "boto3>=1.35"
+    - "anyio>=4.0.0"
+  plugins: []
+
+pricing:
+  type: free

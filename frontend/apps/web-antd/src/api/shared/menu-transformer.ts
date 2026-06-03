@@ -1,53 +1,42 @@
 /**
- * 菜单数据转换器
- * 将后端返回的菜单数据格式转换为 vben-admin 框架需要的 RouteRecordStringComponent 格式
+ * Menu data transformer / 菜单数据转换器
+ * Converts backend menu data to vben-admin RouteRecordStringComponent format
+ * 将后端返回的菜单数据转换为框架所需格式
  */
 import type { RouteRecordStringComponent } from '@vben/types';
 
 import type { ApiEndpoint } from './types';
 
 /**
- * 后端返回的菜单项原始格式（snake_case）
- * 根据 RBAC 权限管理开发规范定义
+ * Current backend MenuResponse contract / 当前后端 MenuResponse 契约
  */
 export interface BackendMenuItemRaw {
-  id?: number | string;
-  code?: string;
+  id: number | string;
+  code: string;
   name: string;
-  path: string;
-  component?: string;
-  redirect?: string;
-  parent_id?: null | number | string;
-  sort_order?: number;
-  icon?: string;
-  title?: string;
+  path?: null | string;
+  component?: null | string;
   hidden?: boolean;
-  /** 该菜单关联的权限码列表 */
+  icon?: null | string;
+  sort_order?: number;
+  /** Permission codes associated with this menu / 菜单关联的权限码列表 */
   permissions?: string[];
-  // meta 字段可能是嵌套对象或扁平字段
-  meta?: {
-    affix_tab?: boolean;
-    authority?: string[];
-    badge?: string;
-    badge_type?: string;
-    badge_variants?: string;
-    hide_in_breadcrumb?: boolean;
-    hide_in_menu?: boolean;
-    hide_in_tab?: boolean;
-    icon?: string;
-    iframe_src?: string;
-    keep_alive?: boolean;
-    link?: string;
-    order?: number;
-    title?: string;
+  meta?: null | {
+    ai?: {
+      capabilities?: string[];
+      category?: string;
+      description?: string;
+      keywords?: string[];
+      mode?: string;
+    };
   };
   children?: BackendMenuItemRaw[];
 }
 
 /**
- * 从菜单数据中递归提取所有权限码
- * @param menus 菜单列表
- * @returns 去重后的权限码数组
+ * Recursively extract all permission codes from menu data / 从菜单数据中递归提取所有权限码
+ * @param menus Menu list / 菜单列表
+ * @returns Deduplicated permission code array / 去重后的权限码数组
  */
 export function extractPermissionsFromMenus(
   menus: BackendMenuItemRaw[],
@@ -56,13 +45,16 @@ export function extractPermissionsFromMenus(
 
   function traverse(items: BackendMenuItemRaw[]) {
     for (const item of items) {
-      // 提取当前菜单的权限码
+      if (typeof item.code === 'string' && item.code.trim().length > 0) {
+        permissions.add(item.code.trim());
+      }
+      // Extract current menu's permission codes / 提取当前菜单的权限码
       if (item.permissions && Array.isArray(item.permissions)) {
         for (const code of item.permissions) {
           permissions.add(code);
         }
       }
-      // 递归处理子菜单
+      // Recursively process child menus / 递归处理子菜单
       if (item.children && item.children.length > 0) {
         traverse(item.children);
       }
@@ -74,43 +66,43 @@ export function extractPermissionsFromMenus(
 }
 
 /**
- * 转换组件路径
- * 将后端返回的组件路径转换为前端 views 目录下的实际路径
- * 支持两种结构：
- *   - 文件结构: tenant/List -> /admin/tenant/list.vue
- *   - 目录结构: tenant/List -> /admin/tenant/list/index.vue (优先)
- * @param component 后端组件路径，如 tenant/List
- * @param endpoint 端类型
- * @returns 前端组件路径
+ * Transform component path / 转换组件路径
+ * Converts backend component path to actual frontend views path.
+ * Supports two structures:
+ *   - File: tenant/List -> /admin/tenant/list.vue
+ *   - Directory (preferred): tenant/List -> /admin/tenant/list/index.vue
+ * @param component Backend component path / 后端组件路径
+ * @param endpoint Endpoint type / 端类型
+ * @returns Frontend component path / 前端组件路径
  */
 function transformComponentPath(
-  component: string | undefined,
+  component: null | string | undefined,
   endpoint: ApiEndpoint,
 ): string {
   if (!component) return '';
 
-  // 如果是 layout 组件，不做转换
+  // If layout component, no conversion needed / layout 组件不转换
   if (component === 'BasicLayout' || component === 'IFrameView') {
     return component;
   }
 
-  // 标准化路径：确保以 / 开头
+  // Normalize path: ensure starts with / / 标准化路径
   const path = component.startsWith('/') ? component : `/${component}`;
 
-  // 割离目录和文件名
+  // Split directory and file name / 分离目录和文件名
   const lastSlash = path.lastIndexOf('/');
   const dirPath = path.slice(0, lastSlash + 1);
   let fileName = path.slice(lastSlash + 1);
 
-  // 移除 .vue 后缀（如果有）
+  // Remove .vue suffix (if present) / 移除 .vue 后缀
   if (fileName.endsWith('.vue')) {
     fileName = fileName.slice(0, -4);
   }
 
-  // 文件名转小写
+  // Lowercase file name / 文件名转小写
   fileName = fileName.toLowerCase();
 
-  // 根据端类型添加前缀
+  // Add prefix based on endpoint type / 根据端类型添加前缀
   let prefix = '';
   if (endpoint === 'admin' && !path.startsWith('/admin/')) {
     prefix = '/admin';
@@ -118,181 +110,182 @@ function transformComponentPath(
     prefix = '/tenant';
   }
 
-  // 优先尝试目录结构: /admin/tenant/list/index.vue
+  // Prefer directory structure: /admin/tenant/list/index.vue / 优先目录结构
   const dirStructurePath = `${prefix}${dirPath}${fileName}/index.vue`;
   if (componentExists(dirStructurePath)) {
     return dirStructurePath;
   }
 
-  // 回退到文件结构: /admin/tenant/list.vue
+  // Fallback to file structure: /admin/tenant/list.vue / 回退文件结构
   const fileStructurePath = `${prefix}${dirPath}${fileName}.vue`;
   return fileStructurePath;
 }
 
 /**
- * 转换路由路径
- * 根据端类型添加前缀
- * @param path 后端返回的路径，如 /system/admins
- * @param endpoint 端类型
- * @returns 带前缀的路径，如 /admin/system/admins
+ * Transform route path / 转换路由路径
+ * Adds endpoint prefix to path / 根据端类型添加前缀
+ * @param path Backend path, e.g. /system/admins / 后端路径
+ * @param endpoint Endpoint type / 端类型
+ * @returns Prefixed path, e.g. /admin/system/admins / 带前缀的路径
  */
-function transformRoutePath(path: string, endpoint: ApiEndpoint): string {
+function transformRoutePath(
+  path: null | string | undefined,
+  endpoint: ApiEndpoint,
+): string {
   if (!path) return '';
 
-  // 确保路径以 / 开头
+  // Ensure path starts with / / 确保路径以 / 开头
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-  // 根据端类型添加前缀
+  // Add prefix based on endpoint type / 根据端类型添加前缀
   if (endpoint === 'admin' && !normalizedPath.startsWith('/admin')) {
     return `/admin${normalizedPath}`;
   }
   if (endpoint === 'tenant' && !normalizedPath.startsWith('/tenant')) {
     return `/tenant${normalizedPath}`;
   }
-  // user 端不添加前缀
+  // User endpoint: no prefix / user 端不添加前缀
   return normalizedPath;
 }
 
 /**
- * 转换单个菜单项
- * @param item 后端菜单项
- * @param endpoint 端类型
- * @returns vben-admin 格式的菜单项
+ * Transform single menu item / 转换单个菜单项
+ * @param item Backend menu item / 后端菜单项
+ * @param endpoint Endpoint type / 端类型
+ * @returns vben-admin format menu item / vben-admin 格式菜单项
  */
 function transformMenuItem(
   item: BackendMenuItemRaw,
   endpoint: ApiEndpoint,
 ): RouteRecordStringComponent {
-  // 构建 meta 对象
-  // 后端的 name 字段是菜单显示名称，应作为 meta.title
-  // 这是最重要的字段，必须设置，否则框架的 $t() 函数会报错
-  const meta: Record<string, any> & { title: string } = {
+  // Backend `name` is the translated display title consumed by Vben route meta.
+  // 后端 `name` 是 Vben route meta 使用的已翻译展示标题。
+  const meta: Record<
+    string,
+    boolean | number | string | string[] | undefined
+  > & { title: string } = {
     title: item.name,
   };
 
-  // 处理 meta 字段（可能来自嵌套对象或扁平字段）
-  if (item.meta) {
-    // 后端返回的 meta 对象（如果有显式的 title，覆盖默认值）
-    if (item.meta.title) meta.title = item.meta.title;
-    if (item.meta.icon) meta.icon = item.meta.icon;
-    if (item.meta.order !== undefined) meta.order = item.meta.order;
-    if (item.meta.hide_in_menu) meta.hideInMenu = item.meta.hide_in_menu;
-    if (item.meta.hide_in_tab) meta.hideInTab = item.meta.hide_in_tab;
-    if (item.meta.hide_in_breadcrumb)
-      meta.hideInBreadcrumb = item.meta.hide_in_breadcrumb;
-    if (item.meta.affix_tab) meta.affixTab = item.meta.affix_tab;
-    if (item.meta.keep_alive) meta.keepAlive = item.meta.keep_alive;
-    if (item.meta.badge) meta.badge = item.meta.badge;
-    if (item.meta.badge_type) meta.badgeType = item.meta.badge_type;
-    if (item.meta.badge_variants) meta.badgeVariants = item.meta.badge_variants;
-    if (item.meta.authority) meta.authority = item.meta.authority;
-    if (item.meta.iframe_src) meta.iframeSrc = item.meta.iframe_src;
-    if (item.meta.link) meta.link = item.meta.link;
+  if (item.icon) meta.icon = item.icon;
+  if (item.sort_order !== undefined) meta.order = item.sort_order;
+  if (item.hidden) meta.hideInMenu = item.hidden;
+  const accessCodes = Array.from(
+    new Set(
+      [item.code, ...(Array.isArray(item.permissions) ? item.permissions : [])]
+        .filter((code): code is string => typeof code === 'string')
+        .map((code) => code.trim())
+        .filter(Boolean),
+    ),
+  );
+  if (accessCodes.length > 0) meta.accessCodes = accessCodes;
+
+  if (item.meta?.ai) {
+    const aiMeta: Record<string, unknown> = {};
+    if (item.meta.ai.description) {
+      aiMeta.description = item.meta.ai.description;
+    }
+    if (item.meta.ai.category) {
+      aiMeta.category = item.meta.ai.category;
+    }
+    if (item.meta.ai.keywords) {
+      aiMeta.keywords = item.meta.ai.keywords;
+    }
+    if (item.meta.ai.capabilities) {
+      aiMeta.capabilities = item.meta.ai.capabilities;
+    }
+    if (item.meta.ai.mode) {
+      aiMeta.mode = item.meta.ai.mode;
+    }
+    if (Object.keys(aiMeta).length > 0) {
+      (meta as Record<string, unknown>).ai = aiMeta;
+    }
   }
 
-  // 处理扁平字段（兼容不同后端格式）
-  if (item.title && item.title !== meta.title) meta.title = item.title;
-  if (item.icon && !meta.icon) meta.icon = item.icon;
-  if (item.sort_order !== undefined && meta.order === undefined)
-    meta.order = item.sort_order;
-  if (item.hidden) meta.hideInMenu = item.hidden;
-
-  // 生成路由名称（使用 code 字段或根据 path 生成）
-  // 路由名称应该是唯一标识符，不能使用中文
-  const routeName = item.code || generateRouteName(item.path, endpoint);
-
-  // 转换路由路径（添加端前缀）
+  // Transform route path (add endpoint prefix) / 转换路由路径
   const routePath = transformRoutePath(item.path, endpoint);
 
-  // 构建路由项
+  // Build route item / 构建路由项
+  const transformedComponent = transformComponentPath(item.component, endpoint);
   const route: RouteRecordStringComponent = {
-    name: routeName,
+    name: item.code,
     path: routePath,
-    component: transformComponentPath(item.component, endpoint),
+    // Empty component path (e.g. plugin menus) uses undefined instead of '' to avoid Vue Router warning / 空组件路径用 undefined 避免 Vue Router 警告
+    // 空组件路径用 undefined 而非 '' 避免 Vue Router 警告
+    component: transformedComponent || undefined,
     meta,
   };
-
-  // 添加可选字段（redirect 也需要添加前缀）
-  if (item.redirect) {
-    route.redirect = transformRoutePath(item.redirect, endpoint);
-  }
-
-  // 递归处理子菜单
-  if (item.children && item.children.length > 0) {
-    route.children = item.children.map((child) =>
-      transformMenuItem(child, endpoint),
-    );
-  }
 
   return route;
 }
 
-/** 用于收集缺失组件的提示信息 */
+/** Missing component info for logging / 缺失组件提示信息 */
 interface MissingComponentInfo {
   menuName: string;
   componentPath: string;
   expectedFile: string;
 }
 
-/** 组件映射表类型 */
+/** Component map type / 组件映射表类型 */
 type ComponentMap = Record<string, unknown>;
 
-/** 缓存已存在的组件路径（从 pageMap 解析） */
+/** Cached existing component paths (parsed from pageMap) / 缓存已存在的组件路径 */
 let cachedExistingPaths: null | Set<string> = null;
 
 /**
- * 设置已存在的组件映射表
- * 这个函数应该在应用启动时调用，传入 import.meta.glob 的结果
- * @param pageMap 组件映射表
+ * Set existing component map / 设置已存在的组件映射表
+ * Should be called at app startup with import.meta.glob result
+ * 应在应用启动时调用
+ * @param pageMap Component map / 组件映射表
  */
 export function setExistingComponents(pageMap: ComponentMap): void {
   cachedExistingPaths = new Set<string>();
   for (const key of Object.keys(pageMap)) {
-    // 解析路径：../views/admin/dashboard/index.vue -> /admin/dashboard/index.vue
+    // Parse path: ../views/admin/dashboard/index.vue -> /admin/dashboard/index.vue / 解析路径
     const normalizedPath = key.replace(/^\.\.?\/views/, '').toLowerCase();
     cachedExistingPaths.add(normalizedPath);
   }
 }
 
 /**
- * 检查组件是否存在
- * @param componentPath 组件路径，如 /admin/dashboard/index.vue
+ * Check if component exists / 检查组件是否存在
+ * @param componentPath Component path, e.g. /admin/dashboard/index.vue / 组件路径
  */
 function componentExists(componentPath: string): boolean {
   if (!cachedExistingPaths) {
-    // 如果没有设置 pageMap，无法检查，默认认为不存在
+    // If pageMap not set, cannot check, default to not exists / 未设置 pageMap 默认不存在
     return false;
   }
   return cachedExistingPaths.has(componentPath.toLowerCase());
 }
 
 /**
- * 转换菜单列表
- * 将后端返回的菜单数据转换为 vben-admin 框架格式
- * @param menus 后端菜单列表
- * @param endpoint 端类型，用于确定组件路径前缀
- * @returns vben-admin 格式的菜单列表
+ * Transform menu list / 转换菜单列表
+ * Converts backend menu data to vben-admin framework format
+ * @param menus Backend menu list / 后端菜单列表
+ * @param endpoint Endpoint type, determines component path prefix / 端类型
+ * @returns vben-admin format menu list / vben-admin 格式菜单列表
  */
-/** 日志前缀 */
-const LOG_TAG = '[动态菜单]';
+/** Log prefix / 日志前缀 */
+const LOG_TAG = '[DynamicMenu]';
 
 export function transformMenuData(
   menus: BackendMenuItemRaw[],
   endpoint: ApiEndpoint = 'admin',
 ): RouteRecordStringComponent[] {
   if (!Array.isArray(menus)) {
-    console.warn(`${LOG_TAG} 无效的菜单数据:`, menus);
+    console.warn(`${LOG_TAG} Invalid menu data:`, menus);
     return [];
   }
 
-  // 收集缺失的组件信息
+  // Collect missing component info / 收集缺失的组件信息
   const missingComponents: MissingComponentInfo[] = [];
 
   const result = menus.map((item) =>
     transformMenuItemWithCheck(item, endpoint, missingComponents),
   );
 
-  // 输出友好的警告信息
+  // Output friendly warning / 输出友好的警告信息
   if (missingComponents.length > 0) {
     printMissingComponentsWarning(missingComponents, endpoint);
   }
@@ -301,7 +294,7 @@ export function transformMenuData(
 }
 
 /**
- * 转换单个菜单项并检查组件
+ * Transform single menu item and check component / 转换单个菜单项并检查组件
  */
 function transformMenuItemWithCheck(
   item: BackendMenuItemRaw,
@@ -310,12 +303,12 @@ function transformMenuItemWithCheck(
 ): RouteRecordStringComponent {
   const route = transformMenuItem(item, endpoint);
 
-  // 检查是否有组件路径（排除父级菜单和 layout 组件）
+  // Check component path (exclude parent menus and layout components) / 检查组件路径
   if (
     route.component &&
     route.component !== 'BasicLayout' &&
     route.component !== 'IFrameView' &&
-    route.component !== '' && // 只记录真正缺失的组件
+    route.component !== '' && // Only record truly missing components / 只记录真正缺失的组件
     !componentExists(route.component)
   ) {
     missingComponents.push({
@@ -325,7 +318,7 @@ function transformMenuItemWithCheck(
     });
   }
 
-  // 递归处理子菜单
+  // Recursively process child menus / 递归处理子菜单
   if (item.children && item.children.length > 0) {
     route.children = item.children.map((child) =>
       transformMenuItemWithCheck(child, endpoint, missingComponents),
@@ -336,67 +329,121 @@ function transformMenuItemWithCheck(
 }
 
 /**
- * 输出缺失组件的警告信息
+ * Print missing components warning (forward check) / 打印缺失组件告警（前置检查）
+ * Uses console.error in DEV for high visibility (red highlight in devtools).
  */
 function printMissingComponentsWarning(
   missingComponents: MissingComponentInfo[],
   endpoint: ApiEndpoint,
 ): void {
-  let endpointName: string;
-  if (endpoint === 'admin') {
-    endpointName = '平台管理端';
-  } else if (endpoint === 'tenant') {
-    endpointName = '租户端';
-  } else {
-    endpointName = '用户端';
-  }
+  const endpointName = getEndpointDisplayName(endpoint);
 
-  // 使用 console.warn 输出缺失组件信息
   const componentList = missingComponents
-    .map(
-      ({ menuName, expectedFile }) => `  • 「${menuName}」 → ${expectedFile}`,
-    )
+    .map(({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`)
     .join('\n');
 
-  console.warn(
-    `${LOG_TAG} 📦 ${endpointName}有 ${missingComponents.length} 个菜单页面组件尚未创建:\n` +
-      `请在以下路径创建对应的 Vue 组件文件:\n${componentList}\n` +
-      `提示: 这些菜单将显示为 404 页面，直到创建对应组件`,
-  );
+  const msg =
+    `${LOG_TAG} [CRITICAL] ${endpointName}: ${missingComponents.length} menu component(s) not found:\n` +
+    `Please create the corresponding Vue component files:\n${componentList}\n` +
+    `Note: these menus will show as 404 pages until the components are created.`;
+
+  if (import.meta.env.DEV) {
+    console.error(msg);
+  } else {
+    console.warn(msg);
+  }
 }
 
 /**
- * 根据路径生成路由名称
- * @param path 路由路径
- * @param endpoint 端类型
- * @returns 路由名称
+ * Recursively collect all component paths from transformed menu routes.
+ * 从转换后的菜单路由中递归收集所有组件路径。
  */
-function generateRouteName(path: string, endpoint: ApiEndpoint): string {
-  // 将路径转换为路由名称，如 /system/admins -> admin.system.admins
-  const cleanPath = path.replace(/^\//, '').replaceAll('/', '.');
-  return `${endpoint}.${cleanPath || 'index'}`;
+export function collectMenuComponentPaths(
+  routes: RouteRecordStringComponent[],
+): Set<string> {
+  const paths = new Set<string>();
+  function traverse(items: RouteRecordStringComponent[]) {
+    for (const route of items) {
+      if (
+        route.component &&
+        typeof route.component === 'string' &&
+        route.component !== 'BasicLayout' &&
+        route.component !== 'IFrameView'
+      ) {
+        paths.add(route.component.toLowerCase());
+      }
+      if (route.children && route.children.length > 0) {
+        traverse(route.children as RouteRecordStringComponent[]);
+      }
+    }
+  }
+  traverse(routes);
+  return paths;
 }
 
+/** Patterns for views that are legitimately hidden (no menu entry needed). / 无需菜单项的正规隐藏视图匹配规则 */
+const ORPHAN_EXCLUDED_PATTERNS: RegExp[] = [
+  /authentication\//,
+  /_core\//,
+  /modules\//,
+  /profile\//,
+  /dashboard\//,
+  /analytics\//,
+  /detail\.vue$/,
+  /impersonate/,
+  /(?:modal|drawer|wizard|progress)\.vue$/,
+];
+
 /**
- * 判断后端返回的菜单是否需要转换
- * 如果后端返回的数据已经是 camelCase 格式，则不需要转换
- * @param menus 菜单数据
- * @returns 是否需要转换
+ * Reverse check: detect view files that have no menu entry or static route.
+ * Only runs in DEV mode.
+ * 反向校验：检测存在但无菜单入口/静态路由的页面文件（仅 DEV 模式）。
  */
-export function needsTransform(menus: any[]): boolean {
-  if (!Array.isArray(menus) || menus.length === 0) {
-    return false;
+export function checkOrphanedViews(
+  menuComponentPaths: Set<string>,
+  staticRoutePaths: Set<string>,
+  endpoint: ApiEndpoint,
+): void {
+  if (!import.meta.env.DEV || !cachedExistingPaths) return;
+
+  const orphaned: string[] = [];
+  for (const viewPath of cachedExistingPaths) {
+    if (!viewPath.startsWith(`/${endpoint}/`)) continue;
+    if (ORPHAN_EXCLUDED_PATTERNS.some((p) => p.test(viewPath))) continue;
+    if (menuComponentPaths.has(viewPath)) continue;
+    if (staticRoutePaths.has(viewPath)) continue;
+    orphaned.push(viewPath);
   }
 
-  const firstItem = menus[0];
+  if (orphaned.length > 0) {
+    const endpointName = getEndpointDisplayName(endpoint);
+    console.warn(
+      `[MenuCheck] ${endpointName}: ${orphaned.length} view(s) have no menu entry or static route:\n${orphaned
+        .map((p) => `  - src/views${p}`)
+        .join(
+          '\n',
+        )}\nThese pages exist but cannot be accessed from the sidebar. ` +
+        `Register them in backend menu definitions or frontend static routes.`,
+    );
+  }
+}
 
-  // 检查是否有 snake_case 字段
-  return (
-    'parent_id' in firstItem ||
-    'sort_order' in firstItem ||
-    (firstItem.meta &&
-      ('hide_in_menu' in firstItem.meta ||
-        'hide_in_tab' in firstItem.meta ||
-        'affix_tab' in firstItem.meta))
-  );
+function getEndpointDisplayName(
+  endpoint: ApiEndpoint,
+): 'Admin' | 'Tenant' | 'User' {
+  if (endpoint === 'admin') {
+    return 'Admin';
+  }
+  if (endpoint === 'tenant') {
+    return 'Tenant';
+  }
+  return 'User';
+}
+
+/**
+ * Current backend menu arrays always flow through the MenuResponse transformer.
+ * 当前后端菜单数组统一走 MenuResponse 转换器。
+ */
+export function needsTransform(menus: unknown[]): boolean {
+  return Array.isArray(menus) && menus.length > 0;
 }

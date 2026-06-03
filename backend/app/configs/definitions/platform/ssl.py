@@ -1,0 +1,174 @@
+"""Platform SSL certificate management config items / 平台 SSL 证书管理配置项
+
+Includes ACME/Let's Encrypt connection config, auto-renewal policy, etc.
+包含 ACME/Let's Encrypt 连接配置、自动续期策略等
+"""
+
+from app.configs.definitions.groups import PLATFORM_SSL_GROUP
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
+from app.core.config import settings
+from app.enums.config import ConfigScope, ConfigValueType
+
+# ==========================================
+# ACME service config / ACME 服务配置
+# ==========================================
+
+# ACME account email / ACME 账户邮箱
+ACME_ACCOUNT_EMAIL = ConfigMeta(
+    key="acme_account_email",
+    name_key="config.platform.acme_account_email.name",
+    description_key="config.platform.acme_account_email.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    is_required=True,
+    sort_order=10,
+)
+
+# ACME environment mode / ACME 环境模式
+ACME_USE_STAGING = ConfigMeta(
+    key="acme_use_staging",
+    name_key="config.platform.acme_use_staging.name",
+    description_key="config.platform.acme_use_staging.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=20,
+)
+
+# ACME production directory URL / ACME 生产环境目录 URL
+ACME_DIRECTORY_URL = ConfigMeta(
+    key="acme_directory_url",
+    name_key="config.platform.acme_directory_url.name",
+    description_key="config.platform.acme_directory_url.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="https://acme-v02.api.letsencrypt.org/directory",
+    sort_order=30,
+)
+
+# ACME staging directory URL / ACME 测试环境目录 URL
+ACME_STAGING_URL = ConfigMeta(
+    key="acme_staging_url",
+    name_key="config.platform.acme_staging_url.name",
+    description_key="config.platform.acme_staging_url.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="https://acme-staging-v02.api.letsencrypt.org/directory",
+    sort_order=40,
+)
+
+# ==========================================
+# Certificate management policy / 证书管理策略
+# ==========================================
+
+# Private key encryption key (Fernet key) / 私钥加密密钥
+SSL_PRIVATE_KEY_ENCRYPTION_KEY = ConfigMeta(
+    key="ssl_private_key_encryption_key",
+    name_key="config.platform.ssl_private_key_encryption_key.name",
+    description_key="config.platform.ssl_private_key_encryption_key.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.PASSWORD,
+    default_value="",
+    is_required=True,
+    is_encrypted=True,
+    sort_order=50,
+)
+
+# Auto-renewal advance days / 自动续期提前天数
+SSL_AUTO_RENEW_DAYS = ConfigMeta(
+    key="ssl_auto_renew_days",
+    name_key="config.platform.ssl_auto_renew_days.name",
+    description_key="config.platform.ssl_auto_renew_days.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.NUMBER,
+    default_value=30,
+    sort_order=60,
+)
+
+# Allow tenants to upload custom certificates / 是否允许企业上传自定义证书
+SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
+    key="ssl_allow_custom_cert",
+    name_key="config.platform.ssl_allow_custom_cert.name",
+    description_key="config.platform.ssl_allow_custom_cert.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=70,
+)
+
+
+# ==========================================
+# DNS provider config (for ACME DNS-01 challenge) / DNS 提供商配置
+# ==========================================
+
+# DNS provider type / DNS 提供商类型
+_DNS_PROVIDER_OPTIONS = [
+    ConfigOption(
+        value="cloudflare", label_key="config.platform.dns_provider.cloudflare"
+    ),
+]
+
+if settings.DEBUG:
+    _DNS_PROVIDER_OPTIONS.insert(
+        0,
+        ConfigOption(value="manual", label_key="config.platform.dns_provider.manual"),
+    )
+
+DNS_PROVIDER = ConfigMeta(
+    key="dns_provider",
+    name_key="config.platform.dns_provider.name",
+    description_key="config.platform.dns_provider.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.SELECT,
+    default_value="manual" if settings.DEBUG else "cloudflare",
+    options=_DNS_PROVIDER_OPTIONS,
+    sort_order=80,
+)
+
+# ---- Cloudflare ---- / ---- Cloudflare 配置段 ----
+
+DNS_CLOUDFLARE_API_TOKEN = ConfigMeta(
+    key="dns_cloudflare_api_token",
+    name_key="config.platform.dns_cloudflare_api_token.name",
+    description_key="config.platform.dns_cloudflare_api_token.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.PASSWORD,
+    default_value="",
+    is_encrypted=True,
+    display_rules=[
+        DisplayRule(field="dns_provider", operator="equals", value="cloudflare")
+    ],
+    sort_order=81,
+)
+
+DNS_CLOUDFLARE_ZONE_ID = ConfigMeta(
+    key="dns_cloudflare_zone_id",
+    name_key="config.platform.dns_cloudflare_zone_id.name",
+    description_key="config.platform.dns_cloudflare_zone_id.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    display_rules=[
+        DisplayRule(field="dns_provider", operator="equals", value="cloudflare")
+    ],
+    sort_order=82,
+)
+
+
+# ==========================================
+# Register configs to group / 注册配置项到分组
+# ==========================================
+
+PLATFORM_SSL_GROUP.configs = [
+    ACME_ACCOUNT_EMAIL,
+    ACME_USE_STAGING,
+    ACME_DIRECTORY_URL,
+    ACME_STAGING_URL,
+    SSL_PRIVATE_KEY_ENCRYPTION_KEY,
+    SSL_AUTO_RENEW_DAYS,
+    SSL_ALLOW_CUSTOM_CERT,
+    DNS_PROVIDER,
+    DNS_CLOUDFLARE_API_TOKEN,
+    DNS_CLOUDFLARE_ZONE_ID,
+]

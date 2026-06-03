@@ -1,34 +1,47 @@
-import type { UseMemberPanelOptions, UseMemberPanelReturn } from './types';
+import type {
+  MemberPanelMember,
+  UseMemberPanelOptions,
+  UseMemberPanelReturn,
+} from './types';
 
 /**
+ * Member Panel Business Logic Composable
  * 成员面板业务逻辑 composable
  */
-import type { MemberListParams, OrgMember } from '#/api/admin/organization';
+import type { MemberListParams } from '#/api/admin/organization';
 import type { TenantMemberListParams } from '#/api/tenant/organization';
+import type { ApiRequestOptions } from '#/utils/request';
 
 import { ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
-// Admin API
+// Admin API / 管理端 API
 import {
   addMemberToNodeApi as adminAddMemberApi,
   getNodeMembersApi as adminGetMembersApi,
   removeMemberFromNodeApi as adminRemoveMemberApi,
   setNodeLeaderApi as adminSetLeaderApi,
 } from '#/api/admin/organization';
-// Tenant API
+// Tenant API / 企业端 API
 import {
   addTenantMemberToNodeApi as tenantAddMemberApi,
   getTenantNodeMembersApi as tenantGetMembersApi,
   removeTenantMemberFromNodeApi as tenantRemoveMemberApi,
   setTenantNodeLeaderApi as tenantSetLeaderApi,
 } from '#/api/tenant/organization';
+import { $t } from '#/locales';
 
-/** 默认每页数量 */
+/** Default page size / 默认每页数量 */
 const DEFAULT_PAGE_SIZE = 20;
+const LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS: ApiRequestOptions = {
+  showCodeMessage: false,
+  showErrorMessage: false,
+};
 
 /**
+ * Member panel management hook
+ * Supports both admin and tenant API prefixes
  * 成员面板管理 hook
  * 支持 admin 和 tenant 两种 API 前缀
  */
@@ -37,26 +50,26 @@ export function useMemberPanel(
 ): UseMemberPanelReturn {
   const { nodeId, apiPrefix = 'admin' } = options;
 
-  // 状态
-  const members = ref<OrgMember[]>([]);
+  // State / 状态
+  const members = ref<MemberPanelMember[]>([]);
   const loading = ref(false);
   const operating = ref(false);
   const error = ref<null | string>(null);
 
-  // 分页状态
+  // Pagination state / 分页状态
   const pagination = ref({
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
     total: 0,
   });
 
-  // 搜索关键词
+  // Search keyword / 搜索关键词
   const searchKeyword = ref('');
 
-  // 是否包含子节点成员（递归查询）
+  // Whether to include descendant node members (recursive query) / 是否包含子节点成员（递归查询）
   const includeDescendants = ref(true);
 
-  // 根据前缀选择 API
+  // Select API based on prefix / 根据前缀选择 API
   const getMembersApi =
     apiPrefix === 'tenant' ? tenantGetMembersApi : adminGetMembersApi;
   const addMemberApi =
@@ -67,8 +80,9 @@ export function useMemberPanel(
     apiPrefix === 'tenant' ? tenantSetLeaderApi : adminSetLeaderApi;
 
   /**
+   * Load member list
    * 加载成员列表
-   * @param resetPage - 是否重置到第一页
+   * @param resetPage - Whether to reset to first page / 是否重置到第一页
    */
   async function loadMembers(resetPage = false): Promise<void> {
     const id = nodeId();
@@ -95,13 +109,16 @@ export function useMemberPanel(
         params.search = searchKeyword.value.trim();
       }
 
-      const response = await getMembersApi(id, params);
+      const response = await getMembersApi(
+        id,
+        params,
+        LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS,
+      );
       members.value = response.items;
       pagination.value.total = response.total;
       pagination.value.page = response.page;
-    } catch (error_) {
-      console.error('Failed to load members:', error_);
-      error.value = '加载成员列表失败';
+    } catch {
+      error.value = $t('shared.memberPanel.loadFailed');
       members.value = [];
       pagination.value.total = 0;
     } finally {
@@ -110,24 +127,24 @@ export function useMemberPanel(
   }
 
   /**
+   * Add a single member
    * 添加单个成员
    */
   async function addMember(adminId: number): Promise<boolean> {
     const id = nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
-      await addMemberApi(id, adminId);
-      message.success('成员添加成功');
+      await addMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
+      message.success($t('shared.memberPanel.addSuccess'));
       await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to add member:', error_);
-      message.error('添加成员失败');
+    } catch {
+      message.error($t('shared.memberPanel.addFailed'));
       return false;
     } finally {
       operating.value = false;
@@ -135,12 +152,13 @@ export function useMemberPanel(
   }
 
   /**
+   * Batch add members
    * 批量添加成员
    */
   async function addMembers(adminIds: number[]): Promise<boolean> {
     const id = nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
@@ -150,17 +168,18 @@ export function useMemberPanel(
 
     operating.value = true;
     try {
-      // 串行添加，避免并发问题
+      // Add sequentially to avoid concurrency issues / 串行添加，避免并发问题
       for (const adminId of adminIds) {
-        await addMemberApi(id, adminId);
+        await addMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
       }
-      message.success(`成功添加 ${adminIds.length} 名成员`);
+      message.success(
+        $t('shared.memberPanel.batchAddSuccess', { count: adminIds.length }),
+      );
       await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to add members:', error_);
-      message.error('批量添加成员失败');
-      // 即使部分失败也刷新列表
+    } catch {
+      message.error($t('shared.memberPanel.batchAddFailed'));
+      // Refresh list even if partially failed / 即使部分失败也刷新列表
       await loadMembers();
       return false;
     } finally {
@@ -169,25 +188,29 @@ export function useMemberPanel(
   }
 
   /**
+   * Remove a member
    * 移除成员
    */
-  async function removeMember(adminId: number): Promise<boolean> {
-    const id = nodeId();
+  async function removeMember(
+    adminId: number,
+    targetOrgNodeId?: number,
+  ): Promise<boolean> {
+    // Prefer passed org node ID, otherwise use currently selected node / 优先使用传入的组织节点 ID，否则使用当前选中节点
+    const id = targetOrgNodeId ?? nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
-      await removeMemberApi(id, adminId);
-      message.success('成员已移除');
-      // 从本地列表移除
+      await removeMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
+      message.success($t('shared.memberPanel.removeSuccess'));
+      // Remove from local list / 从本地列表移除
       members.value = members.value.filter((m) => m.id !== adminId);
       return true;
-    } catch (error_) {
-      console.error('Failed to remove member:', error_);
-      message.error('移除成员失败');
+    } catch {
+      message.error($t('shared.memberPanel.removeFailed'));
       return false;
     } finally {
       operating.value = false;
@@ -195,29 +218,35 @@ export function useMemberPanel(
   }
 
   /**
+   * Set leader
    * 设置负责人
-   * @param adminId - 负责人 ID，传 null 取消负责人
+   * @param adminId - Leader ID, pass null to cancel leader / 负责人 ID，传 null 取消负责人
+   * @param targetOrgNodeId - Target node ID (optional, for cross-node leader setting) / 目标节点 ID（可选，用于跨节点设置负责人）
    */
-  async function setLeader(adminId: null | number): Promise<boolean> {
-    const id = nodeId();
+  async function setLeader(
+    adminId: null | number,
+    targetOrgNodeId?: number,
+  ): Promise<boolean> {
+    // Use target org node ID if specified, otherwise use currently selected node / 如果指定了目标组织节点 ID 则使用它，否则使用当前选中的节点
+    const id = targetOrgNodeId ?? nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
-      await setLeaderApi(id, adminId);
-      message.success(adminId ? '已设置为负责人' : '已取消负责人');
-      // 更新本地列表的 isLeader 状态
-      members.value = members.value.map((m) => ({
-        ...m,
-        isLeader: m.id === adminId,
-      }));
+      await setLeaderApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
+      message.success(
+        adminId
+          ? $t('shared.memberPanel.setLeaderSuccess')
+          : $t('shared.memberPanel.cancelLeaderSuccess'),
+      );
+      // Reload list to get latest isLeader status / 重新加载列表以获取最新的 isLeader 状态
+      await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to set leader:', error_);
-      message.error('设置负责人失败');
+    } catch {
+      message.error($t('shared.memberPanel.setLeaderFailed'));
       return false;
     } finally {
       operating.value = false;
@@ -225,6 +254,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Refresh list
    * 刷新列表
    */
   async function refresh(): Promise<void> {
@@ -232,6 +262,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Change page
    * 切换页码
    */
   async function changePage(page: number): Promise<void> {
@@ -240,6 +271,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Change page size
    * 切换每页数量
    */
   async function changePageSize(pageSize: number): Promise<void> {
@@ -249,6 +281,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Search members
    * 搜索成员
    */
   async function search(keyword: string): Promise<void> {
@@ -257,6 +290,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Toggle include descendant members
    * 切换是否包含子节点成员
    */
   async function toggleIncludeDescendants(value: boolean): Promise<void> {
@@ -264,12 +298,12 @@ export function useMemberPanel(
     await loadMembers(true);
   }
 
-  // 监听节点 ID 变化，自动加载成员
+  // Watch node ID changes, auto-load members / 监听节点 ID 变化，自动加载成员
   watch(
     () => nodeId(),
     (newId) => {
       if (newId) {
-        // 切换节点时重置搜索和分页
+        // Reset search and pagination when switching nodes / 切换节点时重置搜索和分页
         searchKeyword.value = '';
         pagination.value.page = 1;
         loadMembers();
@@ -293,7 +327,8 @@ export function useMemberPanel(
     addMember,
     addMembers,
     removeMember,
-    setLeader,
+    setLeader: (adminId: null | number, targetOrgNodeId?: number) =>
+      setLeader(adminId, targetOrgNodeId),
     refresh,
     changePage,
     changePageSize,

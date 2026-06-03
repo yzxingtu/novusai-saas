@@ -59,9 +59,9 @@ function nameView(name: string) {
       >
         <div
           :class="activeClass(theme.name)"
-          class="outline-box flex-center py-4"
+          class="outline-box flex-center px-9 py-4"
         >
-          <component :is="theme.icon" class="mx-9 size-5" />
+          <component :is="theme.icon" class="size-5" />
         </div>
         <div class="text-muted-foreground mt-2 text-center text-xs">
           {{ nameView(theme.name) }}

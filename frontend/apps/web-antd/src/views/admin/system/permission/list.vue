@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 平台权限查看页面
+ * 平台权限查看页面 / Platform permission view page
  * 只读展示权限树结构
  */
 import type { adminApi } from '#/api';
@@ -15,9 +15,11 @@ import { Card, Empty, Spin, Tag, Tree } from 'ant-design-vue';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 
+defineOptions({ name: 'SystemPermissionList' });
+
 type PermissionNode = adminApi.PermissionNode;
 
-// 权限树数据
+// Permission tree data / 权限树数据
 const permissions = ref<PermissionNode[]>([]);
 const loading = ref(false);
 const expandedKeys = ref<number[]>([]);
@@ -29,7 +31,7 @@ async function loadPermissions() {
   loading.value = true;
   try {
     permissions.value = await admin.getPermissionTreeApi();
-    // 默认展开前两层
+    // Default expand first two levels / 默认展开前两层
     expandedKeys.value = getExpandedKeys(permissions.value, 2);
   } catch {
     permissions.value = [];
@@ -56,7 +58,15 @@ function getExpandedKeys(nodes: PermissionNode[], level: number): number[] {
 /**
  * 转换权限树为 Tree 组件需要的格式
  */
-function transformTreeData(nodes: PermissionNode[]): any[] {
+interface TreeNode {
+  key: number;
+  title: string;
+  code: string;
+  type: string;
+  children?: TreeNode[];
+}
+
+function transformTreeData(nodes: PermissionNode[]): TreeNode[] {
   return nodes.map((node) => ({
     key: node.id,
     title: node.name,
@@ -72,16 +82,16 @@ function transformTreeData(nodes: PermissionNode[]): any[] {
 function getTypeIcon(type: string): string {
   switch (type) {
     case 'api': {
-      return 'mdi:api';
+      return 'lucide:route';
     }
     case 'button': {
-      return 'mdi:gesture-tap-button';
+      return 'lucide:square';
     }
     case 'menu': {
-      return 'mdi:menu';
+      return 'lucide:menu';
     }
     default: {
-      return 'mdi:folder';
+      return 'lucide:folder';
     }
   }
 }

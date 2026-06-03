@@ -1,0 +1,38 @@
+name: aliyun-oss
+version: "1.0.0"
+display_name:
+  zh-CN: "阿里云 OSS 存储"
+  en: "Alibaba Cloud OSS Storage"
+description:
+  zh-CN: "阿里云对象存储服务（OSS）驱动，支持原生图片处理"
+  en: "Alibaba Cloud Object Storage Service driver with native image processing"
+author: "NovusAI"
+icon: "icon.png"
+icon_color: "#ff6a00"
+scope: global_shared
+tags: ["storage", "oss", "aliyun", "cloud"]
+
+capabilities:
+  - storage:read
+  - storage:write
+
+extensions:
+  storage_drivers:
+    - code: aliyun-oss
+      display_name:
+        zh-CN: "阿里云 OSS"
+        en: "Alibaba Cloud OSS"
+      entry_point: "driver.OssStorageDriver"
+
+# Storage credentials are managed by the platform Storage Settings (SystemConfig),
+# NOT here. The driver class (driver.py) has its own config_schema for the storage form.
+# No plugin-level config_schema needed — omitting prevents empty config button in plugin UI.
+
+dependencies:
+  python:
+    - "alibabacloud-oss-v2>=1.0.0"
+    - "anyio>=4.0.0"
+  plugins: []
+
+pricing:
+  type: free

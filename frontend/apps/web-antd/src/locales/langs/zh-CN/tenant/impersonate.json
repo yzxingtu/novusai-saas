@@ -2,7 +2,7 @@
   "loading": "正在登录...",
   "pleaseWait": "请稍候，正在验证登录凭证",
   "success": "登录成功",
-  "redirecting": "即将跳转到租户后台...",
+  "redirecting": "即将跳转到企业后台...",
   "failed": "登录失败",
   "invalidLink": "无效的登录链接",
   "tokenExpired": "登录链接已过期，请重新获取",

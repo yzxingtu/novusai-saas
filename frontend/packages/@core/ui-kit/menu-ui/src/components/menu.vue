@@ -74,7 +74,7 @@ const isMenuPopup = computed<MenuProvider['isMenuPopup']>(() => {
 });
 
 const getSlot = computed(() => {
-  // 更新插槽内容
+  // 更新插槽内容 / Recompute default slot + overflow slice
   const defaultSlots: VNodeArrayChildren = slots.default?.() ?? [];
 
   const originalSlot = flattedChildren(defaultSlots) as VNodeArrayChildren;
@@ -117,7 +117,7 @@ watchEffect(() => {
   }
 });
 
-// 注入上下文
+// 注入上下文 / Provide menu & sub-menu context
 createMenuContext(
   reactive({
     activePath,
@@ -203,7 +203,7 @@ function handleResize() {
     });
   };
   callback();
-  // // execute callback directly when first time resize to avoid shaking
+  // 首次 resize 直接执行，避免抖动 / First paint: sync; later: debounce
   isFirstTimeRender ? callback() : debounce(callback)();
   isFirstTimeRender = false;
 }
@@ -217,17 +217,17 @@ const { scrollToActiveItem } = useMenuScroll(activePath, {
   delay: 320,
 });
 
-// 监听 activePath 变化，自动滚动到激活项
+// 监听 activePath 变化，自动滚动到激活项 / Scroll active item into view
 watch(activePath, () => {
   scrollToActiveItem();
 });
 
-// 默认展开菜单
+// 默认展开菜单 / Open menus on active path at mount
 function initMenu() {
   const parentPaths = getActivePaths();
 
-  // 展开该菜单项的路径上所有子菜单
-  // expand all subMenus of the menu item
+  // 展开该菜单项的路径上所有子菜单 / Expand ancestors of active item
+  // expand all subMenus of the menu item / same as above
   parentPaths.forEach((path) => {
     const subMenu = subMenus.value[path];
     subMenu && openMenu(path, subMenu.parentPaths);
@@ -295,7 +295,7 @@ function openMenu(path: string, parentPaths: string[]) {
   if (openedMenus.value.includes(path)) {
     return;
   }
-  // 手风琴模式菜单
+  // 手风琴模式菜单 / Accordion: close sibling branches
   if (props.accordion) {
     const activeParentPaths = getActivePaths();
     if (activeParentPaths.includes(path)) {
@@ -386,6 +386,7 @@ $namespace: vben;
 }
 
 @mixin menu-item {
+  /* stylelint-disable nesting-selector-no-missing-scoping-root */
   position: relative;
   display: flex;
   // gap: 12px;
@@ -433,6 +434,7 @@ $namespace: vben;
   * {
     vertical-align: bottom;
   }
+  /* stylelint-enable nesting-selector-no-missing-scoping-root */
 }
 
 @mixin menu-title {

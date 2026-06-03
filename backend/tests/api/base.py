@@ -1,14 +1,13 @@
-"""
-API 测试基础工具模块
+"""API 测试基础工具模块 / API.
 
-提供 HTTP 客户端封装、断言辅助函数、测试报告等功能
-"""
+提供 HTTP 客户端封装、断言辅助函数、测试报告等功能"""
+
 import json
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any
 from enum import Enum
+from typing import Any
 
 import httpx
 
@@ -16,15 +15,17 @@ from tests.api.config import config
 
 
 class TestStatus(Enum):
-    """测试状态"""
-    PASSED = "✅ PASSED"
-    FAILED = "❌ FAILED"
-    SKIPPED = "⏭️ SKIPPED"
+    """测试状态 / Test."""
+
+    PASSED = "[PASS]"
+    FAILED = "[FAIL]"
+    SKIPPED = "[SKIP]"
 
 
 @dataclass
 class TestResult:
-    """测试结果"""
+    """测试结果 / Test."""
+
     name: str
     status: TestStatus
     message: str = ""
@@ -35,68 +36,72 @@ class TestResult:
 
 @dataclass
 class TestReport:
-    """测试报告"""
+    """测试报告 / Test."""
+
     module: str
     results: list[TestResult] = field(default_factory=list)
     start_time: float = 0.0
     end_time: float = 0.0
-    
+
     @property
     def total(self) -> int:
         return len(self.results)
-    
+
     @property
     def passed(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.PASSED)
-    
+
     @property
     def failed(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.FAILED)
-    
+
     @property
     def skipped(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.SKIPPED)
-    
+
     @property
     def duration(self) -> float:
         return self.end_time - self.start_time
-    
+
     def add(self, result: TestResult) -> None:
         self.results.append(result)
-    
-    def print_summary(self) -> None:
-        """打印测试报告摘要"""
+
+    def print_summary(self, exit_on_failure: bool = True) -> int:
+        """打印测试报告摘要 / Test."""
         print("\n" + "=" * 70)
-        print(f"📋 测试模块: {self.module}")
+        print(f"MODULE: {self.module}")
         print("=" * 70)
-        
+
         for result in self.results:
             status_icon = result.status.value
             print(f"{status_icon} {result.name} ({result.duration:.2f}s)")
             if result.message:
-                print(f"   └─ {result.message}")
-        
+                print(f"   -> {result.message}")
+
         print("-" * 70)
-        print(f"📊 总计: {self.total} | ✅ 通过: {self.passed} | ❌ 失败: {self.failed} | ⏭️ 跳过: {self.skipped}")
-        print(f"⏱️  耗时: {self.duration:.2f}s")
+        print(
+            f"TOTAL: {self.total} | PASSED: {self.passed} | FAILED: {self.failed} | SKIPPED: {self.skipped}"
+        )
+        print(f"DURATION: {self.duration:.2f}s")
         print("=" * 70)
-        
-        # 返回退出码
-        if self.failed > 0:
+
+        exit_code = 1 if self.failed > 0 else 0
+        if exit_on_failure and exit_code:
             sys.exit(1)
+        return exit_code
 
 
 class APIClient:
-    """API 测试客户端"""
-    
+    """API 测试客户端 / API."""
+
     def __init__(self, base_url: str = None, timeout: int = None):
         self.base_url = base_url or config.BASE_URL
         self.timeout = timeout or config.TIMEOUT
         self.token: str | None = None
-        self.client = httpx.Client(timeout=self.timeout)
-    
+        self.client = httpx.Client(timeout=self.timeout, trust_env=False)
+
     def _get_headers(self, extra_headers: dict = None) -> dict:
-        """获取请求头"""
+        """获取请求头 / Get/return."""
         headers = {
             "Content-Type": "application/json",
             "X-Language": config.LANGUAGE,
@@ -106,7 +111,7 @@ class APIClient:
         if extra_headers:
             headers.update(extra_headers)
         return headers
-    
+
     def request(
         self,
         method: str,
@@ -116,75 +121,75 @@ class APIClient:
         headers: dict = None,
         form_data: dict = None,
     ) -> httpx.Response:
-        """发送 HTTP 请求"""
+        """发送 HTTP 请求 / HTTP"""
         url = f"{self.base_url}{path}"
         req_headers = self._get_headers(headers)
-        
+
         kwargs = {
             "method": method,
             "url": url,
             "headers": req_headers,
             "params": params,
         }
-        
+
         if form_data:
             kwargs["headers"]["Content-Type"] = "application/x-www-form-urlencoded"
             kwargs["data"] = form_data
         elif data:
             kwargs["json"] = data
-        
+
         return self.client.request(**kwargs)
-    
+
     def get(self, path: str, params: dict = None, **kwargs) -> httpx.Response:
         return self.request("GET", path, params=params, **kwargs)
-    
+
     def post(self, path: str, data: dict = None, **kwargs) -> httpx.Response:
         return self.request("POST", path, data=data, **kwargs)
-    
+
     def put(self, path: str, data: dict = None, **kwargs) -> httpx.Response:
         return self.request("PUT", path, data=data, **kwargs)
-    
+
     def delete(self, path: str, **kwargs) -> httpx.Response:
         return self.request("DELETE", path, **kwargs)
-    
+
     def set_token(self, token: str) -> None:
-        """设置认证 Token"""
+        """设置认证 Token / Token"""
         self.token = token
-    
+
     def clear_token(self) -> None:
-        """清除认证 Token"""
+        """清除认证 Token / Token"""
         self.token = None
-    
+
     def close(self) -> None:
-        """关闭客户端"""
+        """关闭客户端 / Description."""
         self.client.close()
 
 
 class BaseAPITest:
-    """API 测试基类"""
-    
+    """API 测试基类 / API."""
+
     module_name: str = "未命名模块"
-    
+
     def __init__(self):
         self.client = APIClient()
         self.report = TestReport(module=self.module_name)
         self._test_data: dict[str, Any] = {}  # 存储测试过程中的数据
-    
+
     def setup(self) -> None:
-        """测试前置准备（子类可重写）"""
+        """测试前置准备（子类可重写） / Test."""
         pass
-    
+
     def teardown(self) -> None:
-        """测试后置清理（子类可重写）"""
+        """测试后置清理（子类可重写） / Test."""
         pass
-    
+
     def run_test(
         self,
         name: str,
         test_func: callable,
         skip_reason: str = None,
     ) -> TestResult:
-        """运行单个测试"""
+        """运行单个测试 / Test."""
         if skip_reason:
             result = TestResult(
                 name=name,
@@ -193,7 +198,7 @@ class BaseAPITest:
             )
             self.report.add(result)
             return result
-        
+
         start = time.time()
         try:
             test_func()
@@ -219,33 +224,100 @@ class BaseAPITest:
                 message=f"异常: {type(e).__name__}: {e}",
                 duration=duration,
             )
-        
+
         self.report.add(result)
         return result
-    
+
     def run_all(self) -> TestReport:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         self.report.start_time = time.time()
-        
+
         try:
             self.setup()
             self._run_tests()
         finally:
             self.teardown()
             self.client.close()
-        
+
         self.report.end_time = time.time()
         return self.report
-    
+
     def _run_tests(self) -> None:
-        """运行测试（子类必须实现）"""
+        """运行测试（子类必须实现） / Test."""
         raise NotImplementedError("子类必须实现 _run_tests 方法")
+
+    def post_admin_login_request(self, username: str, password: str) -> httpx.Response:
+        """发送平台管理员登录请求 / Send platform admin login request."""
+        return self._post_login_request(
+            "/admin/auth/login",
+            {"username": username, "password": password},
+        )
+
+    def post_tenant_login_request(self, username: str, password: str) -> httpx.Response:
+        """发送企业管理员登录请求 / Send tenant admin login request."""
+        return self._post_login_request(
+            "/tenant/auth/login",
+            {"username": username, "password": password},
+        )
+
+    def _post_login_request(self, path: str, payload: dict[str, Any]) -> httpx.Response:
+        resp = self.client.post(path, data=payload)
+        if resp.status_code != 429:
+            return resp
+
+        try:
+            data = resp.json()
+        except Exception:
+            return resp
+
+        retry_after = data.get("retry_after")
+        if retry_after is None:
+            return resp
+
+        try:
+            wait_seconds = max(float(retry_after), 0.0)
+        except (TypeError, ValueError):
+            return resp
+
+        time.sleep(wait_seconds)
+        return self.client.post(path, data=payload)
+
+    def login_admin(self) -> dict[str, Any]:
+        """执行平台管理员登录 / Log in as platform admin."""
+        resp = self.post_admin_login_request(
+            config.ADMIN_USERNAME, config.ADMIN_PASSWORD
+        )
+        data = assert_success(resp, "平台管理员登录失败")
+        self._test_data["access_token"] = data["data"]["access_token"]
+        refresh_token = data["data"].get("refresh_token")
+        if refresh_token:
+            self._test_data["refresh_token"] = refresh_token
+        self.client.set_token(data["data"]["access_token"])
+        return data
+
+    def login_tenant_admin(self) -> dict[str, Any]:
+        """执行企业管理员登录 / Log in as tenant admin."""
+        if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
+            raise AssertionError("未配置企业管理员账号")
+
+        resp = self.post_tenant_login_request(
+            config.TENANT_ADMIN_USERNAME,
+            config.TENANT_ADMIN_PASSWORD,
+        )
+        data = assert_tenant_login_success(resp)
+        self._test_data["access_token"] = data["data"]["access_token"]
+        refresh_token = data["data"].get("refresh_token")
+        if refresh_token:
+            self._test_data["refresh_token"] = refresh_token
+        self.client.set_token(data["data"]["access_token"])
+        return data
 
 
 # ========== 断言辅助函数 ==========
 
+
 def assert_status(response: httpx.Response, expected: int, msg: str = None) -> None:
-    """断言 HTTP 状态码"""
+    """断言 HTTP 状态码 / HTTP"""
     actual = response.status_code
     if actual != expected:
         try:
@@ -253,11 +325,13 @@ def assert_status(response: httpx.Response, expected: int, msg: str = None) -> N
         except Exception:
             body = response.text
         error_msg = msg or f"期望状态码 {expected}，实际 {actual}"
-        raise AssertionError(f"{error_msg}\n响应: {json.dumps(body, ensure_ascii=False, indent=2)}")
+        raise AssertionError(
+            f"{error_msg}\n响应: {json.dumps(body, ensure_ascii=False, indent=2)}"
+        )
 
 
 def assert_success(response: httpx.Response, msg: str = None) -> dict:
-    """断言请求成功（状态码 200 且 code=0）"""
+    """断言请求成功（状态码 200 且 code=0） / （ 200 code=0）"""
     assert_status(response, 200, msg)
     data = response.json()
     if data.get("code") != 0:
@@ -269,8 +343,33 @@ def assert_success(response: httpx.Response, msg: str = None) -> dict:
     return data
 
 
-def assert_error(response: httpx.Response, expected_status: int = None, msg: str = None) -> dict:
-    """断言请求失败"""
+def assert_tenant_login_success(response: httpx.Response, msg: str = None) -> dict:
+    """断言企业登录成功，并在域名错误时给出明确提示 / Assert tenant login success with domain hint."""
+    try:
+        return assert_success(response, msg or "企业管理员登录失败")
+    except AssertionError as exc:
+        try:
+            data = response.json()
+        except Exception:
+            data = None
+
+        if (
+            isinstance(data, dict)
+            and data.get("code") == 4010
+            and "企业专属域名" in str(data.get("message", ""))
+        ):
+            raise AssertionError(
+                f"{msg or '企业管理员登录失败'}\n"
+                "当前 TEST_API_BASE_URL 必须使用企业专属域名，例如 http://ss.dakkii.cn:8000"
+            ) from exc
+
+        raise
+
+
+def assert_error(
+    response: httpx.Response, expected_status: int = None, msg: str = None
+) -> dict:
+    """断言请求失败 / Description."""
     if expected_status:
         assert_status(response, expected_status, msg)
     data = response.json()
@@ -280,49 +379,49 @@ def assert_error(response: httpx.Response, expected_status: int = None, msg: str
 
 
 def assert_has_keys(data: dict, keys: list[str], msg: str = None) -> None:
-    """断言字典包含指定的键"""
+    """断言字典包含指定的键 / Description."""
     missing = [k for k in keys if k not in data]
     if missing:
         raise AssertionError(f"{msg or '缺少必要字段'}: {missing}")
 
 
 def assert_list_not_empty(data: list, msg: str = None) -> None:
-    """断言列表不为空"""
+    """断言列表不为空 / Description."""
     if not data:
         raise AssertionError(msg or "列表为空")
 
 
 def assert_equals(actual: Any, expected: Any, msg: str = None) -> None:
-    """断言相等"""
+    """断言相等 / Description."""
     if actual != expected:
         raise AssertionError(f"{msg or '值不相等'}: 期望 {expected}，实际 {actual}")
 
 
 def assert_contains(container: Any, item: Any, msg: str = None) -> None:
-    """断言包含"""
+    """断言包含 / Description."""
     if item not in container:
         raise AssertionError(f"{msg or '不包含指定项'}: {item}")
 
 
 def assert_true(condition: bool, msg: str = None) -> None:
-    """断言为真"""
+    """断言为真 / Description."""
     if not condition:
         raise AssertionError(msg or "条件为假")
 
 
 def assert_false(condition: bool, msg: str = None) -> None:
-    """断言为假"""
+    """断言为假 / Description."""
     if condition:
         raise AssertionError(msg or "条件为真")
 
 
 def print_response(response: httpx.Response, title: str = "Response") -> None:
-    """打印响应内容（调试用）"""
-    print(f"\n{'='*50}")
+    """打印响应内容（调试用） / （ ）"""
+    print(f"\n{'=' * 50}")
     print(f"{title}")
     print(f"Status: {response.status_code}")
     try:
         print(f"Body: {json.dumps(response.json(), ensure_ascii=False, indent=2)}")
     except Exception:
         print(f"Body: {response.text}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")

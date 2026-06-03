@@ -4,9 +4,9 @@ import { getPackages } from '@vben/node-utils';
 
 import depcheck from 'depcheck';
 
-// 默认配置
+// 默认配置 / default depcheck options
 const DEFAULT_CONFIG = {
-  // 需要忽略的依赖匹配
+  // 需要忽略的依赖匹配 / dep name patterns to skip
   ignoreMatches: [
     'vite',
     'vitest',
@@ -17,9 +17,8 @@ const DEFAULT_CONFIG = {
     '@types/*',
     '@vben-core/design',
   ],
-  // 需要忽略的包
+  // 需要忽略的包 / workspace packages to skip
   ignorePackages: [
-    '@vben/backend-mock',
     '@vben/commitlint-config',
     '@vben/eslint-config',
     '@vben/node-utils',
@@ -30,7 +29,7 @@ const DEFAULT_CONFIG = {
     '@vben/vite-config',
     '@vben/vsh',
   ],
-  // 需要忽略的文件模式
+  // 需要忽略的文件模式 / path patterns to skip
   ignorePatterns: ['dist', 'node_modules', 'public'],
 };
 
@@ -61,7 +60,7 @@ function cleanDepcheckResult(unused: DepcheckResult): void {
   // 删除file:前缀的依赖提示，该依赖是本地依赖
   Reflect.deleteProperty(unused.missing, 'file:');
 
-  // 清理路径依赖
+  // 清理路径依赖 / drop path-like missing refs
   Object.keys(unused.missing).forEach((key) => {
     unused.missing[key] = (unused.missing[key] || []).filter(
       (item: string) => !item.startsWith('/'),
@@ -125,7 +124,7 @@ async function runDepcheck(config: DepcheckConfig = {}): Promise<void> {
 
     await Promise.all(
       packages.map(async (pkg: PackageInfo) => {
-        // 跳过需要忽略的包
+        // 跳过需要忽略的包 / skip ignored package names
         if (finalConfig.ignorePackages.includes(pkg.packageJson.name)) {
           return;
         }

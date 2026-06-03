@@ -2,6 +2,10 @@ import { createApp, watchEffect } from 'vue';
 
 import { registerAccessDirective } from '@vben/access';
 import { registerLoadingDirective } from '@vben/common-ui';
+import {
+  disableOnlineIconifyRequests,
+  ensureLucideIconSubsetRegistered,
+} from '@vben/icons';
 import { preferences } from '@vben/preferences';
 import { initStores } from '@vben/stores';
 import '@vben/styles';
@@ -18,57 +22,61 @@ import App from './app.vue';
 import { initTimezone } from './timezone-init';
 
 async function bootstrap(namespace: string) {
-  // 初始化组件适配器
+  disableOnlineIconifyRequests();
+
+  // 初始化组件适配器 / Init UI component adapter
   await initComponentAdapter();
 
-  // 初始化表单组件
+  // 初始化表单组件 / Init Vben form adapter
   await initSetupVbenForm();
 
-  // 设置弹窗的默认配置
+  ensureLucideIconSubsetRegistered();
+
+  // 设置弹窗的默认配置 / Default modal props (commented sample)
   // setDefaultModalProps({
   //   fullscreenButton: false,
   // });
-  // 设置抽屉的默认配置
+  // 设置抽屉的默认配置 / Default drawer props (commented sample)
   // setDefaultDrawerProps({
   //   zIndex: 1020,
   // });
 
   const app = createApp(App);
 
-  // 注册v-loading指令
+  // 注册v-loading指令 / Register v-loading directive
   registerLoadingDirective(app, {
-    loading: 'loading', // 在这里可以自定义指令名称，也可以明确提供false表示不注册这个指令
+    loading: 'loading', // 在这里可以自定义指令名称，也可以明确提供false表示不注册这个指令 / Custom names or false to skip
     spinning: 'spinning',
   });
 
-  // 国际化 i18n 配置
+  // 国际化 i18n 配置 / Setup i18n
   await setupI18n(app);
 
-  // 配置 pinia-tore
+  // 配置 pinia store / Init Pinia stores
   await initStores(app, { namespace });
 
-  // 初始化时区HANDLER
+  // 初始化时区HANDLER / Timezone helpers
   initTimezone();
 
-  // 安装权限指令
+  // 安装权限指令 / Register access directive
   registerAccessDirective(app);
 
-  // 初始化 tippy
+  // 初始化 tippy / Init Tippy tooltips
   const { initTippy } = await import('@vben/common-ui/es/tippy');
   initTippy(app);
 
-  // 配置路由及路由守卫
+  // 配置路由及路由守卫 / Router + navigation guards
   app.use(router);
 
-  // 配置@tanstack/vue-query
+  // 配置@tanstack/vue-query / TanStack Vue Query
   const { VueQueryPlugin } = await import('@tanstack/vue-query');
   app.use(VueQueryPlugin);
 
-  // 配置Motion插件
+  // 配置Motion插件 / Motion animation plugin
   const { MotionPlugin } = await import('@vben/plugins/motion');
   app.use(MotionPlugin);
 
-  // 动态更新标题
+  // 动态更新标题 / Sync HTML title from route
   watchEffect(() => {
     if (preferences.app.dynamicTitle) {
       const routeTitle = router.currentRoute.value.meta?.title;

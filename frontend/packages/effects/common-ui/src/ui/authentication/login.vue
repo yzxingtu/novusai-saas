@@ -110,6 +110,9 @@ defineExpose({
 
     <Form />
 
+    <!-- 表单扩展插槽，用于添加验证码等额外内容 -->
+    <slot name="form-extend"></slot>
+
     <div
       v-if="showRememberMe || showForgetPassword"
       class="mb-6 flex justify-between"

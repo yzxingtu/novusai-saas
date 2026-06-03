@@ -51,11 +51,11 @@ const components = globalShareState.getComponents();
 
 const contentRef = ref();
 const wrapperRef = ref<HTMLElement>();
-void wrapperRef.value; // Reserved for scroll behavior
+void wrapperRef.value; // 预留滚动行为 / Reserved for scroll behavior
 const dialogRef = ref();
 const headerRef = ref();
 const footerRef = ref();
-void footerRef.value; // Reserved for future use
+void footerRef.value; // 预留后续使用 / Reserved for future use
 
 const id = useId();
 
@@ -137,7 +137,7 @@ watch(
       if (!contentRef.value) return;
       const innerContentRef = contentRef.value.getContentRef();
       dialogRef.value = innerContentRef.$el;
-      // reopen modal reassign value
+      // 再次打开时重绑 DOM 与位移 / Reopen: reassign dialogRef + transform
       const { offsetX, offsetY } = transform;
       dialogRef.value.style.transform = shouldCentered.value
         ? `translate(${offsetX}px, calc(-50% + ${offsetY}px))`
@@ -171,9 +171,7 @@ onDeactivated(() => {
 
 function handleFullscreen() {
   props.modalApi?.setState((prev) => {
-    // if (prev.fullscreen) {
-    //   resetPosition();
-    // }
+    // if (prev.fullscreen) { resetPosition(); } / optional reset when exit fullscreen
     return { ...prev, fullscreen: !fullscreen.value };
   });
 }
@@ -195,7 +193,7 @@ function handleOpenAutoFocus(e: Event) {
   }
 }
 
-// pointer-down-outside
+// pointer-down-outside：点击遮罩外 / Dismiss via pointer outside overlay
 function pointerDownOutside(e: Event) {
   const target = e.target as HTMLElement;
   const isDismissableModal = target?.dataset.dismissableModal;

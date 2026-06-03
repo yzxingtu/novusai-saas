@@ -1,7 +1,8 @@
 """
-日志相关枚举模块
+日志相关枚举模块 / Logging Enum Module
 
 定义操作日志所需的枚举类型
+Defines enum types for audit/operation logging.
 """
 
 from app.enums.base import StrEnum
@@ -9,82 +10,82 @@ from app.enums.base import StrEnum
 
 class UserTypeEnum(StrEnum):
     """
-    用户类型枚举
-    
-    标识操作日志中的用户来源
+    User Type Enum / 用户类型枚举
+
+    Identifies user source in audit logs / 标识操作日志中的用户来源
     """
-    
-    # 平台管理员
+
+    # Platform admin / 平台管理员
     ADMIN = ("admin", "enum.user_type.admin")
-    # 租户管理员
+    # Tenant admin / 企业管理员
     TENANT_ADMIN = ("tenant_admin", "enum.user_type.tenant_admin")
-    # 租户用户
+    # Tenant user / 企业用户
     TENANT_USER = ("tenant_user", "enum.user_type.tenant_user")
-    # 匿名用户（未登录）
+    # Anonymous user (not logged in) / 匿名用户（未登录）
     ANONYMOUS = ("anonymous", "enum.user_type.anonymous")
 
 
 class LogModuleEnum(StrEnum):
     """
-    业务模块枚举
-    
-    标识操作日志中的业务模块分类
+    Business Module Enum / 业务模块枚举
+
+    Identifies business module category in audit logs / 标识操作日志中的业务模块分类
     """
-    
-    # 认证模块
+
+    # Auth module / 认证模块
     AUTH = ("auth", "enum.log_module.auth")
-    # 权限模块
+    # Permission module / 权限模块
     PERMISSION = ("permission", "enum.log_module.permission")
-    # 角色模块
+    # Role module / 角色模块
     ROLE = ("role", "enum.log_module.role")
-    # 平台管理员模块
+    # Platform admin module / 平台管理员模块
     ADMIN_USER = ("admin_user", "enum.log_module.admin_user")
-    # 租户模块
+    # Tenant module / 企业模块
     TENANT = ("tenant", "enum.log_module.tenant")
-    # 租户管理员模块
+    # Tenant admin module / 企业管理员模块
     TENANT_ADMIN = ("tenant_admin", "enum.log_module.tenant_admin")
-    # 租户用户模块
+    # Tenant user module / 企业用户模块
     TENANT_USER = ("tenant_user", "enum.log_module.tenant_user")
-    # 配置模块
+    # Config module / 配置模块
     CONFIG = ("config", "enum.log_module.config")
-    # 套餐模块
+    # Plan module / 套餐模块
     PLAN = ("plan", "enum.log_module.plan")
-    # 域名模块
+    # Domain module / 域名模块
     DOMAIN = ("domain", "enum.log_module.domain")
-    # 日志模块
+    # Log module / 日志模块
     LOG = ("log", "enum.log_module.log")
-    # 组织架构模块
+    # Organization module / 组织架构模块
     ORGANIZATION = ("organization", "enum.log_module.organization")
-    # 系统模块
+    # System module / 系统模块
     SYSTEM = ("system", "enum.log_module.system")
-    # 其他/未分类
+    # Other / uncategorized / 其他/未分类
     OTHER = ("other", "enum.log_module.other")
 
 
 class LogCategoryEnum(StrEnum):
     """
-    系统日志分类枚举
-    
-    用于文件日志的分类管理
+    System Log Category Enum / 系统日志分类枚举
+
+    Used for file log category management / 用于文件日志的分类管理
     """
-    
-    # 应用日志
+
+    # Application log / 应用日志
     APP = ("app", "enum.log_category.app")
-    # 错误日志
+    # Error log / 错误日志
     ERROR = ("error", "enum.log_category.error")
-    # 数据库日志
+    # Database log / 数据库日志
     DB = ("db", "enum.log_category.db")
-    # 计划任务日志
+    # Scheduled task log / 计划任务日志
     TASK = ("task", "enum.log_category.task")
-    # 队列日志
+    # Queue log / 队列日志
     QUEUE = ("queue", "enum.log_category.queue")
-    # 验证码日志
+    # Captcha log / 验证码日志
     CAPTCHA = ("captcha", "enum.log_category.captcha")
-    # 存储日志
+    # Storage log / 存储日志
     STORAGE = ("storage", "enum.log_category.storage")
-    # 认证日志
+    # Auth log / 认证日志
     AUTH = ("auth", "enum.log_category.auth")
-    # 一键登录审计日志
+    # Impersonate audit log / 一键登录审计日志
     IMPERSONATE = ("impersonate", "enum.log_category.impersonate")
 
 

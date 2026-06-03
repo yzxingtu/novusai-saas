@@ -13,7 +13,6 @@ import {
   LanguageToggle,
   PreferencesButton,
   ThemeToggle,
-  TimezoneButton,
 } from '../../widgets';
 
 interface Props {
@@ -31,7 +30,10 @@ withDefaults(defineProps<Props>(), {
   theme: 'light',
 });
 
-const emit = defineEmits<{ clearPreferencesAndLogout: [] }>();
+const emit = defineEmits<{
+  clearPreferencesAndLogout: [];
+  resetPreferences: [];
+}>();
 
 const REFERENCE_VALUE = 50;
 
@@ -65,12 +67,6 @@ const rightSlots = computed(() => {
     list.push({
       index: REFERENCE_VALUE + 30,
       name: 'language-toggle',
-    });
-  }
-  if (preferences.widget.timezone) {
-    list.push({
-      index: REFERENCE_VALUE + 40,
-      name: 'timezone',
     });
   }
   if (preferences.widget.fullscreen) {
@@ -117,6 +113,10 @@ const leftSlots = computed(() => {
 function clearPreferencesAndLogout() {
   emit('clearPreferencesAndLogout');
 }
+
+function resetPreferencesHandler() {
+  emit('resetPreferences');
+}
 </script>
 
 <template>
@@ -162,6 +162,7 @@ function clearPreferencesAndLogout() {
           <PreferencesButton
             class="mr-1"
             @clear-preferences-and-logout="clearPreferencesAndLogout"
+            @reset-preferences="resetPreferencesHandler"
           />
         </template>
         <template v-else-if="slot.name === 'theme-toggle'">
@@ -172,9 +173,6 @@ function clearPreferencesAndLogout() {
         </template>
         <template v-else-if="slot.name === 'fullscreen'">
           <VbenFullScreen class="mr-1" />
-        </template>
-        <template v-else-if="slot.name === 'timezone'">
-          <TimezoneButton class="mr-1 mt-[2px]" />
         </template>
       </slot>
     </template>

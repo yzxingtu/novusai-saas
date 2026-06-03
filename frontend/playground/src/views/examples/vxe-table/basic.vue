@@ -43,19 +43,8 @@ const gridEvents: VxeGridListeners<RowType> = {
   },
 };
 
-const [Grid, gridApi] = useVbenVxeGrid<RowType>({
-  // 放开注释查看表单组件的类型
-  // formOptions: {
-  //   schema: [
-  //     {
-  //       component: 'Switch',
-  //       fieldName: 'name',
-  //     },
-  //   ],
-  // },
-  gridEvents,
-  gridOptions,
-});
+// VXE 泛型层级过深，使用断言绕过
+const [Grid, gridApi] = useVbenVxeGrid({ gridEvents, gridOptions } as any);
 
 // 放开注释查看当前表格实例的类型
 // gridApi.grid

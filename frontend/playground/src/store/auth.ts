@@ -82,13 +82,13 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await logoutApi();
     } catch {
-      // 不做任何处理
+      // 不做任何处理 / Ignore logout API errors
     }
 
     resetAllStores();
     accessStore.setLoginExpired(false);
 
-    // 回登录页带上当前路由地址
+    // 回登录页带上当前路由地址 / Redirect to login with return path
     await router.replace({
       path: LOGIN_PATH,
       query: redirect

@@ -1,27 +1,33 @@
 /**
- * 租户组织架构管理 API
- * 对接后端 /tenant/roles/* 组织架构相关接口
+ * Tenant organization management API / 企业组织架构管理 API
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-// ============================================================
-// 类型定义（复用平台端定义，但使用 Tenant 前缀以区分）
-// ============================================================
+export type TenantOrgNodeType = 'department' | 'position';
 
-/** 节点类型枚举 */
-export type TenantOrgNodeType = 'department' | 'position' | 'role';
+export type TenantLeaderScopeType =
+  | 'all'
+  | 'custom'
+  | 'dept_children'
+  | 'dept_only'
+  | 'self';
 
-/** 负责人基本信息 */
 export interface TenantLeaderInfo {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
+  real_name?: string;
   avatar?: string;
 }
 
-/** 组织架构节点信息（后端原始格式 snake_case） */
+export interface TenantOrgScopeTargetRaw {
+  id: number;
+  name: string;
+  type?: string;
+}
+
 export interface TenantOrgNodeInfoRaw {
   id: number;
   code: string;
@@ -38,11 +44,19 @@ export interface TenantOrgNodeInfoRaw {
   leader_id?: null | number;
   leader?: null | TenantLeaderInfo;
   permissions_count?: number;
+  permission_ids?: number[];
+  permission_codes?: string[];
+  can_assign_permissions?: boolean;
+  can_manage_member_ai?: boolean;
+  data_scope?: null | TenantLeaderScopeType;
+  custom_dept_ids?: null | number[];
+  scope_target_count?: number;
+  scope_targets?: TenantOrgScopeTargetRaw[];
   created_at: string;
   updated_at?: string;
+  children?: TenantOrgNodeInfoRaw[];
 }
 
-/** 组织架构节点信息（前端格式 camelCase） */
 export interface TenantOrgNodeInfo {
   id: number;
   code: string;
@@ -59,67 +73,71 @@ export interface TenantOrgNodeInfo {
   leaderId?: null | number;
   leader?: null | TenantLeaderInfo;
   permissionsCount?: number;
+  permissionIds?: number[];
+  permissionCodes?: string[];
+  canAssignPermissions?: boolean;
+  canManageMemberAi?: boolean;
+  dataScope?: null | TenantLeaderScopeType;
+  customDeptIds?: null | number[];
+  scopeTargetCount?: number;
+  scopeTargets?: TenantOrgScopeTargetRaw[];
   createdAt: string;
   updatedAt?: string;
-  /** 前端树形控件使用：子节点（按需加载时动态填充） */
   children?: TenantOrgNodeInfo[];
-  /** 前端树形控件使用：是否正在加载子节点 */
   loading?: boolean;
 }
 
-/** 节点成员信息（后端原始格式） */
 export interface TenantOrgMemberRaw {
   id: number;
   username: string;
-  real_name?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
+  ai_enabled?: boolean;
+  effective_ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
+  can_manage_ai?: boolean;
   is_active: boolean;
   is_leader: boolean;
   joined_at: string;
-  /** 所属角色 ID */
-  role_id?: number;
-  /** 所属角色名称 */
-  role_name?: string;
-  /** 创建时间 */
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  permission_role_id?: null | number;
+  permission_role_name?: null | string;
+  role_id?: null | number;
+  role_name?: null | string;
   created_at?: string;
-  /** 更新时间 */
   updated_at?: string;
 }
 
-/** 节点成员信息（前端格式） */
 export interface TenantOrgMember {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
+  aiEnabled: boolean;
+  effectiveAiEnabled: boolean;
+  aiUnavailableReason?: null | string;
+  canManageAi?: boolean;
   isActive: boolean;
   isLeader: boolean;
   joinedAt: string;
-  /** 所属角色 ID */
-  roleId?: number;
-  /** 所属角色名称 */
-  roleName?: string;
-  /** 创建时间 */
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
+  roleId?: null | number;
+  roleName?: null | string;
   createdAt?: string;
-  /** 更新时间 */
   updatedAt?: string;
 }
 
-/** 成员列表查询参数 */
 export interface TenantMemberListParams {
-  /** 搜索关键词（用户名/昵称/邮箱） */
   search?: string;
-  /** 页码 */
   page?: number;
-  /** 每页数量 */
   pageSize?: number;
-  /** 是否包含子节点成员（递归查询），默认 true */
   includeDescendants?: boolean;
 }
 
-/** 成员列表分页响应（后端原始格式） */
 export interface TenantMemberListResponseRaw {
   items: TenantOrgMemberRaw[];
   total: number;
@@ -127,7 +145,6 @@ export interface TenantMemberListResponseRaw {
   page_size: number;
 }
 
-/** 成员列表分页响应（前端格式） */
 export interface TenantMemberListResponse {
   items: TenantOrgMember[];
   total: number;
@@ -135,21 +152,73 @@ export interface TenantMemberListResponse {
   pageSize: number;
 }
 
-/** 添加成员请求 */
 export interface TenantAddMemberRequest {
   admin_id: number;
 }
 
-/** 设置负责人请求 */
+export interface TenantCreateMemberRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: null | string;
+  nickname?: null | string;
+  is_active?: boolean;
+  ai_enabled?: boolean;
+  is_super?: boolean;
+  org_node_id?: null | number;
+  role_id?: null | number;
+}
+
+export interface TenantUpdateMemberRequest {
+  email?: null | string;
+  phone?: null | string;
+  nickname?: null | string;
+  avatar?: null | string;
+  is_active?: boolean | null;
+  ai_enabled?: boolean | null;
+  is_super?: boolean | null;
+  org_node_id?: null | number;
+  role_id?: null | number;
+}
+
+export interface TenantResetMemberPasswordRequest {
+  new_password: string;
+}
+
+export interface TenantMemberStatusRequest {
+  is_active: boolean;
+}
+
 export interface TenantSetLeaderRequest {
   leader_id: null | number;
 }
 
-// ============================================================
-// 转换函数
-// ============================================================
+export interface CreateTenantOrganizationNodeRequest {
+  name: string;
+  description?: null | string;
+  type?: TenantOrgNodeType;
+  parent_id?: null | number;
+  allow_members?: boolean;
+  is_active?: boolean;
+  sort_order?: number;
+  permission_ids?: null | number[];
+  data_scope?: null | TenantLeaderScopeType;
+  custom_dept_ids?: null | number[];
+}
 
-/** 将后端节点数据转换为前端格式 */
+export interface UpdateTenantOrganizationNodeRequest {
+  name?: null | string;
+  description?: null | string;
+  type?: null | TenantOrgNodeType;
+  allow_members?: boolean | null;
+  is_active?: boolean | null;
+  sort_order?: null | number;
+  leader_id?: null | number;
+  permission_ids?: null | number[];
+  data_scope?: null | TenantLeaderScopeType;
+  custom_dept_ids?: null | number[];
+}
+
 function transformOrgNode(raw: TenantOrgNodeInfoRaw): TenantOrgNodeInfo {
   return {
     id: raw.id,
@@ -167,74 +236,124 @@ function transformOrgNode(raw: TenantOrgNodeInfoRaw): TenantOrgNodeInfo {
     leaderId: raw.leader_id,
     leader: raw.leader,
     permissionsCount: raw.permissions_count,
+    permissionIds: raw.permission_ids,
+    permissionCodes: raw.permission_codes,
+    canAssignPermissions: raw.can_assign_permissions,
+    canManageMemberAi: raw.can_manage_member_ai,
+    dataScope: raw.data_scope,
+    customDeptIds: raw.custom_dept_ids,
+    scopeTargetCount:
+      raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
+    scopeTargets: raw.scope_targets,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    children: raw.children?.map((child) =>
+      transformOrgNode(child as TenantOrgNodeInfoRaw),
+    ),
   };
 }
 
-/** 将后端成员数据转换为前端格式 */
 function transformOrgMember(raw: TenantOrgMemberRaw): TenantOrgMember {
   return {
     id: raw.id,
     username: raw.username,
-    realName: raw.real_name,
+    nickname: raw.nickname,
     email: raw.email,
     avatar: raw.avatar,
+    aiEnabled: raw.ai_enabled ?? true,
+    effectiveAiEnabled: raw.effective_ai_enabled ?? raw.ai_enabled ?? true,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? null,
+    canManageAi: raw.can_manage_ai ?? false,
     isActive: raw.is_active,
     isLeader: raw.is_leader,
     joinedAt: raw.joined_at,
-    roleId: raw.role_id,
-    roleName: raw.role_name,
+    orgNodeId: raw.org_node_id ?? null,
+    orgNodeName: raw.org_node_name ?? null,
+    roleId: raw.permission_role_id ?? raw.role_id ?? null,
+    roleName: raw.permission_role_name ?? raw.role_name ?? null,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
 }
 
-// ============================================================
-// API 接口
-// ============================================================
+const API_PREFIX = '/tenant/organization';
 
-const API_PREFIX = '/tenant/roles';
-
-/**
- * 获取组织架构根节点
- * GET /tenant/roles/organization
- * 返回 level=1 的根节点列表，包含 has_children 标记
- */
 export async function getTenantOrganizationRootNodesApi(
   options?: ApiRequestOptions,
 ): Promise<TenantOrgNodeInfo[]> {
   const response = await requestClient.get<TenantOrgNodeInfoRaw[]>(
-    `${API_PREFIX}/organization`,
+    API_PREFIX,
     options,
   );
   return response.map((item) => transformOrgNode(item));
 }
 
-/**
- * 获取子节点（按需加载）
- * GET /tenant/roles/{role_id}/children
- */
-export async function getTenantNodeChildrenApi(
-  roleId: number,
+export async function getTenantOrganizationTreeApi(
   options?: ApiRequestOptions,
 ): Promise<TenantOrgNodeInfo[]> {
   const response = await requestClient.get<TenantOrgNodeInfoRaw[]>(
-    `${API_PREFIX}/${roleId}/children`,
+    `${API_PREFIX}/tree`,
     options,
   );
   return response.map((item) => transformOrgNode(item));
 }
 
-/**
- * 获取节点成员列表
- * GET /tenant/roles/{role_id}/members
- * @param roleId - 节点 ID
- * @param params - 查询参数（搜索、分页）
- * @param options - 请求选项
- */
+export async function getTenantOrganizationNodeDetailApi(
+  nodeId: number,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgNodeInfo> {
+  const response = await requestClient.get<TenantOrgNodeInfoRaw>(
+    `${API_PREFIX}/${nodeId}`,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function getTenantNodeChildrenApi(
+  orgNodeId: number,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgNodeInfo[]> {
+  const response = await requestClient.get<TenantOrgNodeInfoRaw[]>(
+    `${API_PREFIX}/${orgNodeId}/children`,
+    options,
+  );
+  return response.map((item) => transformOrgNode(item));
+}
+
+export async function createTenantOrganizationNodeApi(
+  data: CreateTenantOrganizationNodeRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgNodeInfo> {
+  const response = await requestClient.post<TenantOrgNodeInfoRaw>(
+    API_PREFIX,
+    data,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function updateTenantOrganizationNodeApi(
+  nodeId: number,
+  data: UpdateTenantOrganizationNodeRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgNodeInfo> {
+  const response = await requestClient.put<TenantOrgNodeInfoRaw>(
+    `${API_PREFIX}/${nodeId}`,
+    data,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function deleteTenantOrganizationNodeApi(
+  nodeId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${API_PREFIX}/${nodeId}`, options);
+}
+
 export async function getTenantNodeMembersApi(
-  roleId: number,
+  orgNodeId: number,
   params?: TenantMemberListParams,
   options?: ApiRequestOptions,
 ): Promise<TenantMemberListResponse> {
@@ -248,13 +367,12 @@ export async function getTenantNodeMembersApi(
   if (params?.pageSize) {
     queryParams['page[size]'] = params.pageSize;
   }
-  // 递归查询子节点成员，默认 true
   if (params?.includeDescendants !== undefined) {
     queryParams.include_descendants = params.includeDescendants;
   }
 
   const response = await requestClient.get<TenantMemberListResponseRaw>(
-    `${API_PREFIX}/${roleId}/members`,
+    `${API_PREFIX}/${orgNodeId}/members`,
     {
       ...options,
       params: queryParams,
@@ -268,51 +386,90 @@ export async function getTenantNodeMembersApi(
   };
 }
 
-/**
- * 添加成员到节点
- * POST /tenant/roles/{role_id}/members
- */
 export async function addTenantMemberToNodeApi(
-  roleId: number,
+  orgNodeId: number,
   adminId: number,
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.post(
-    `${API_PREFIX}/${roleId}/members`,
+    `${API_PREFIX}/${orgNodeId}/members`,
     { admin_id: adminId } as TenantAddMemberRequest,
     options,
   );
 }
 
-/**
- * 从节点移除成员
- * DELETE /tenant/roles/{role_id}/members/{admin_id}
- */
-export async function removeTenantMemberFromNodeApi(
-  roleId: number,
+export async function createTenantMemberApi(
+  orgNodeId: number,
+  data: TenantCreateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.post<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/create`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function updateTenantMemberApi(
+  orgNodeId: number,
   adminId: number,
+  data: TenantUpdateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.put<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function resetTenantMemberPasswordApi(
+  orgNodeId: number,
+  adminId: number,
+  data: TenantResetMemberPasswordRequest,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.delete(
-    `${API_PREFIX}/${roleId}/members/${adminId}`,
+  await requestClient.put(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}/reset-password`,
+    data,
     options,
   );
 }
 
-/**
- * 设置节点负责人
- * PUT /tenant/roles/{role_id}/leader
- * @param roleId - 节点 ID
- * @param leaderId - 负责人 ID，传 null 表示取消负责人
- * @param options - 请求选项
- */
+export async function toggleTenantMemberStatusApi(
+  orgNodeId: number,
+  adminId: number,
+  data: TenantMemberStatusRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.put<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}/status`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function removeTenantMemberFromNodeApi(
+  orgNodeId: number,
+  adminId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}`,
+    options,
+  );
+}
+
 export async function setTenantNodeLeaderApi(
-  roleId: number,
+  orgNodeId: number,
   leaderId: null | number,
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.put(
-    `${API_PREFIX}/${roleId}/leader`,
+    `${API_PREFIX}/${orgNodeId}/leader`,
     { leader_id: leaderId } as TenantSetLeaderRequest,
     options,
   );

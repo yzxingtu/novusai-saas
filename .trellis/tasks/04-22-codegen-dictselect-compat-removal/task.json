@@ -1,0 +1,34 @@
+{
+  "id": "codegen-dictselect-compat-removal",
+  "name": "codegen-dictselect-compat-removal",
+  "title": "Remove remaining DictSelect compatibility seams from codegen frontend",
+  "description": "全仓审计发现 CRUD codegen 前端 helper 仍显式识别并降级 `DictSelect`，这属于旧类型兼容 seam，需要按新 SaaS 规则彻底移除。",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-04-22",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/views/admin/system/codegen/modules/field-utils.ts",
+    "frontend/apps/web-antd/src/views/admin/system/codegen/modules/field-property-panel/use-field-property-panel.ts"
+  ],
+  "notes": "2026-04-22 completed: removed the remaining frontend helper compatibility seams that normalized or filtered `DictSelect`, and added regression tests proving preview helpers and property-panel option builders no longer fabricate hidden runtime support for the retired type.",
+  "meta": {}
+}

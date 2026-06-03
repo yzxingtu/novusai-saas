@@ -2,7 +2,8 @@ import type { SetupVxeTable } from './types';
 
 import { defineComponent, watch } from 'vue';
 
-import { usePreferences } from '@vben/preferences';
+import { i18n } from '@vben/locales';
+import { preferences, usePreferences } from '@vben/preferences';
 
 import { useVbenForm } from '@vben-core/form-ui';
 
@@ -10,6 +11,7 @@ import {
   VxeButton,
   VxeCheckbox,
 
+  // 可选表单相关（按需取消注释）/ Optional form pieces from vxe-pc-ui
   // VxeFormGather,
   // VxeForm,
   // VxeFormItem,
@@ -20,6 +22,7 @@ import {
   VxeModal,
   VxeNumberInput,
   VxePager,
+  // 以下组件未打包导入（按需启用）/ More vxe-pc-ui widgets (commented)
   // VxeList,
   // VxeModal,
   // VxeOptgroup,
@@ -32,12 +35,13 @@ import {
   VxeTooltip,
   VxeUI,
   VxeUpload,
+  // 末尾组件（注释）/ Tail widgets not imported
   // VxeSwitch,
   // VxeTextarea,
 } from 'vxe-pc-ui';
-import enUS from 'vxe-pc-ui/lib/language/en-US';
-// 导入默认的语言
-import zhCN from 'vxe-pc-ui/lib/language/zh-CN';
+import enUS from 'vxe-pc-ui/es/language/en-US';
+// 导入默认的语言 / Default vxe-pc-ui locale bundles
+import zhCN from 'vxe-pc-ui/es/language/zh-CN';
 import {
   VxeColgroup,
   VxeColumn,
@@ -48,13 +52,39 @@ import {
 
 import { extendsDefaultFormatter } from './extends';
 
-// 是否加载过
+// 是否加载过 / One-time VxeUI registration guard
 let isInit = false;
+let useTableFormImpl: null | typeof useVbenForm = null;
 
-// eslint-disable-next-line import/no-mutable-exports
-export let useTableForm: typeof useVbenForm;
+export function useTableForm(...args: Parameters<typeof useVbenForm>) {
+  if (!useTableFormImpl) {
+    throw new Error('setupVbenVxeTable must be called before useTableForm');
+  }
 
-// 部分组件，如果没注册，vxe-table 会报错，这里实际没用组件，只是为了不报错，同时可以减少打包体积
+  return useTableFormImpl(...args);
+}
+
+const VXE_LOCALE_MAP = {
+  'zh-CN': zhCN,
+  'en-US': enUS,
+} as const;
+
+type SupportedVxeLocale = keyof typeof VXE_LOCALE_MAP;
+
+function resolveVxeLocale(localeValue?: string): SupportedVxeLocale {
+  if (localeValue && localeValue in VXE_LOCALE_MAP) {
+    return localeValue as SupportedVxeLocale;
+  }
+
+  const fallbackLocale = preferences.app.locale;
+  if (fallbackLocale in VXE_LOCALE_MAP) {
+    return fallbackLocale as SupportedVxeLocale;
+  }
+
+  return 'zh-CN';
+}
+
+// 部分组件，如果没注册，vxe-table 会报错，这里实际没用组件，只是为了不报错，同时可以减少打包体积 / Stub unused Vxe types to satisfy runtime
 const createVirtualComponent = (name = '') => {
   return defineComponent({
     name,
@@ -73,29 +103,30 @@ export function initVxeTable() {
   VxeUI.component(VxeToolbar);
 
   VxeUI.component(VxeButton);
-  // VxeUI.component(VxeButtonGroup);
+  // 可选注册（减小包体时可保持注释）/ Optional VxeUI registrations
+  // VxeUI.component(VxeButtonGroup); / 可选
   VxeUI.component(VxeCheckbox);
-  // VxeUI.component(VxeCheckboxGroup);
+  // VxeUI.component(VxeCheckboxGroup); / 可选
   VxeUI.component(createVirtualComponent('VxeForm'));
-  // VxeUI.component(VxeFormGather);
-  // VxeUI.component(VxeFormItem);
+  // VxeUI.component(VxeFormGather); / 可选
+  // VxeUI.component(VxeFormItem); / 可选
   VxeUI.component(VxeIcon);
   VxeUI.component(VxeInput);
-  // VxeUI.component(VxeList);
+  // VxeUI.component(VxeList); / 可选
   VxeUI.component(VxeLoading);
   VxeUI.component(VxeMenu);
   VxeUI.component(VxeModal);
   VxeUI.component(VxeNumberInput);
-  // VxeUI.component(VxeOptgroup);
-  // VxeUI.component(VxeOption);
+  // VxeUI.component(VxeOptgroup); / 可选
+  // VxeUI.component(VxeOption); / 可选
   VxeUI.component(VxePager);
-  // VxeUI.component(VxePulldown);
-  // VxeUI.component(VxeRadio);
-  // VxeUI.component(VxeRadioButton);
+  // VxeUI.component(VxePulldown); / 可选
+  // VxeUI.component(VxeRadio); / 可选
+  // VxeUI.component(VxeRadioButton); / 可选
   VxeUI.component(VxeRadioGroup);
   VxeUI.component(VxeSelect);
-  // VxeUI.component(VxeSwitch);
-  // VxeUI.component(VxeTextarea);
+  // VxeUI.component(VxeSwitch); / 可选
+  // VxeUI.component(VxeTextarea); / 可选
   VxeUI.component(VxeTooltip);
   VxeUI.component(VxeUpload);
 
@@ -106,20 +137,15 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   const { configVxeTable, useVbenForm } = setupOptions;
 
   initVxeTable();
-  useTableForm = useVbenForm;
+  useTableFormImpl = useVbenForm;
 
-  const { isDark, locale } = usePreferences();
-
-  const localMap = {
-    'zh-CN': zhCN,
-    'en-US': enUS,
-  };
+  const { isDark } = usePreferences();
 
   watch(
-    [() => isDark.value, () => locale.value],
+    [() => isDark.value, () => resolveVxeLocale(i18n.global.locale.value)],
     ([isDarkValue, localeValue]) => {
       VxeUI.setTheme(isDarkValue ? 'dark' : 'light');
-      VxeUI.setI18n(localeValue, localMap[localeValue]);
+      VxeUI.setI18n(localeValue, VXE_LOCALE_MAP[localeValue]);
       VxeUI.setLanguage(localeValue);
     },
     {

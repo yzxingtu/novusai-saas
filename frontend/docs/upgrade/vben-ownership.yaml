@@ -1,0 +1,52 @@
+tracking_base_tag: v5.5.9
+target_upstream_tag: v5.6.0
+
+upstream_owned:
+  - package.json
+  - pnpm-workspace.yaml
+  - pnpm-lock.yaml
+  - lefthook.yml
+  - turbo.json
+  - vitest.config.ts
+  - eslint.config.mjs
+  - stylelint.config.mjs
+  - cspell.json
+  - .browserslistrc
+  - .commitlintrc.js
+  - .dockerignore
+  - .editorconfig
+  - .gitattributes
+  - .gitconfig
+  - .gitignore
+  - .gitpod.yml
+  - .node-version
+  - .npmrc
+  - .prettierignore
+  - .prettierrc.mjs
+  - .stylelintignore
+  - internal/**
+  - packages/**
+  - playground/**
+
+novus_bridge_owned:
+  - apps/web-antd/vite.config.mts
+  - apps/web-antd/build/**
+  - apps/web-antd/src/utils/plugin-*.ts
+  - apps/web-antd/src/composables/use-plugin-frontend-init.ts
+
+product_owned:
+  - apps/web-antd/src/components/business/**
+  - apps/web-antd/src/views/**
+  - apps/web-antd/src/api/**
+  - apps/web-antd/src/store/**
+  - apps/web-antd/src/locales/**
+
+always_review:
+  - packages/@core/preferences/src/config.ts
+  - packages/@core/base/shared/src/constants/vben.ts
+  - packages/effects/layouts/src/basic/copyright/copyright.vue
+  - packages/effects/common-ui/src/ui/about/about.vue
+  - scripts/generate-lucide-subset.mjs
+  - apps/web-antd/package.json
+  - apps/web-antd/vite.config.mts
+  - playground/__tests__/e2e/auth-login.spec.ts

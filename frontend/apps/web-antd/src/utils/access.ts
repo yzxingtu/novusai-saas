@@ -1,5 +1,8 @@
 /**
+ * Access control utilities
  * 权限控制工具
+ *
+ * Extends @vben/access permission check logic with super admin wildcard support
  * 扩展 @vben/access 的权限检查逻辑，支持超级管理员通配符
  */
 import { computed } from 'vue';
@@ -8,35 +11,43 @@ import { useAccess as useVbenAccess } from '@vben/access';
 import { useAccessStore } from '@vben/stores';
 
 /**
- * 检查是否有权限（共享工具函数）
- * 支持超级管理员 '*' 通配符
- * @param codes 需要检查的权限码列表，传 undefined 表示不需要权限
- * @param userCodes 用户拥有的权限码列表
- * @returns true 表示有权限
+ * General permission check
+ * 通用权限检查
+ *
+ * Extends @vben/access hasAccessByCodes with super admin wildcard support.
+ * When userCodes contains '*', access is granted directly (super admin).
+ * 扩展 @vben/access 的 hasAccessByCodes，增加超级管理员通配符支持。
+ * 当 userCodes 包含 '*' 时直接放行（超级管理员）。
+ *
+ * @param codes - Permission codes to check / 需要检查的权限码
+ * @param userCodes - Current user's permission codes / 当前用户拥有的权限码
+ * @returns Whether the user has permission / 是否有权限
  */
 export function checkPermission(
   codes: string | string[] | undefined,
   userCodes: string[],
 ): boolean {
-  // 无权限码要求（undefined 或空数组），默认有权限
+  // 无权限码要求（undefined 或空数组），默认有权限 / no codes → allow
   if (!codes || (Array.isArray(codes) && codes.length === 0)) return true;
-  // 超级管理员拥有所有权限
+  // 超级管理员拥有所有权限 / Super admin wildcard grants all
   if (userCodes.includes('*')) return true;
-  // 正常权限检查
+  // 正常权限检查 / Standard code list check
   const codeList = Array.isArray(codes) ? codes : [codes];
   return codeList.some((code) => userCodes.includes(code));
 }
 
 /**
- * 增强版权限检查 Hook
- * 支持超级管理员 '*' 通配符
+ * Permission check hook
+ * 权限检查 Hook
+ *
+ * @returns Permission check utilities / 权限检查工具集
  */
 export function useAccess() {
   const vbenAccess = useVbenAccess();
   const accessStore = useAccessStore();
 
   /**
-   * 检查是否为超级管理员（拥有 '*' 权限）
+   * Whether the user is a super admin (permission codes include '*') / 是否为超级管理员（权限码包含 '*'）
    */
   const isSuperAdmin = computed(() => {
     return accessStore.accessCodes.includes('*');
@@ -44,11 +55,13 @@ export function useAccess() {
 
   /**
    * 基于权限码判断是否有权限
-   * 支持超级管理员 '*' 通配符
-   * @param codes 需要检查的权限码列表
+   * Check by permission codes (with super admin wildcard)
+   * 按权限码检查（已加入超管通配符）
+   * @param codes Permission codes to check / 要检查的权限码
+   * @returns Whether the user has the specified permissions / 是否拥有指定权限
    */
   function hasAccessByCodes(codes: string[]): boolean {
-    // 超级管理员拥有所有权限
+    // 超级管理员拥有所有权限 / super-admin bypass
     if (isSuperAdmin.value) {
       return true;
     }

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="{{ lang | default('zh-CN') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{% endblock %}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+    .wrapper {
+      width: 100%;
+      padding: 32px 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+    .header {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      padding: 28px 32px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .content {
+      padding: 32px;
+    }
+    .content p {
+      margin: 0 0 16px;
+      color: #374151;
+      font-size: 15px;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    .info-table td {
+      padding: 10px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .info-table td.label {
+      color: #6b7280;
+      width: 120px;
+      white-space: nowrap;
+    }
+    .info-table td.value {
+      color: #1a1a2e;
+      font-weight: 500;
+      word-break: break-all;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      margin: 8px 0;
+    }
+    .btn-center {
+      text-align: center;
+      margin: 24px 0;
+    }
+    .alert-box {
+      background-color: #fef3cd;
+      border-left: 4px solid #f59e0b;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+      font-size: 14px;
+      color: #92400e;
+    }
+    .error-box {
+      background-color: #fee2e2;
+      border-left: 4px solid #ef4444;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+    .error-box pre {
+      margin: 0;
+      font-size: 13px;
+      color: #991b1b;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+    }
+    .success-box {
+      background-color: #d1fae5;
+      border-left: 4px solid #10b981;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+      font-size: 14px;
+      color: #065f46;
+    }
+    .footer {
+      padding: 20px 32px;
+      text-align: center;
+      border-top: 1px solid #f0f0f0;
+    }
+    .footer p {
+      margin: 4px 0;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1>{% block header_title %}{{ t.common.greeting }}{% endblock %}</h1>
+      </div>
+      <div class="content">
+        {% block content %}{% endblock %}
+      </div>
+      <div class="footer">
+        <p>{{ t.common.regards }},</p>
+        <p>{{ t.common.team.format(platform_name=platform_name | default('NovusAI SaaS')) }}</p>
+        <p style="margin-top: 12px;">{{ t.common.auto_email_notice }}</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

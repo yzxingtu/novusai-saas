@@ -1,6 +1,9 @@
 /**
+ * Declarative CRUD list page composable
  * 声明式 CRUD 列表页 Composable
  *
+ * Unifies table, form popup, CRUD operations, pagination, sorting, etc.
+ * Users only need to care about: column definitions, API, form component.
  * 将表格、表单弹窗、CRUD 操作、分页、排序等统一封装，
  * 用户只需关心：列定义、API、表单组件。
  *
@@ -8,11 +11,11 @@
  * ```ts
  * import { adminApi as admin } from '#/api';
  *
- * const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminInfo>({
+ * const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<UserRow>({
  *   api: {
- *     list: admin.getAdminListApi,
- *     resource: '/admin/admins',
- *     toggles: { is_active: admin.toggleAdminStatusApi },
+ *     list: userApi.listUsersApi,
+ *     resource: '/admin/users',
+ *     toggles: { is_active: userApi.toggleUserStatusApi },
  *   },
  *   columns: useColumns,
  *   searchSchema: useGridFormSchema(),
@@ -23,28 +26,86 @@
  * ```
  */
 
+import type { Component } from 'vue';
+
 import type {
   BaseRow,
   FormMode,
   OnActionClickParams,
+  QuickSearchFieldOption,
+  RecycleBinConfig,
   ToggleStatusApi,
   UseCrudPageOptions,
 } from './types';
 
-import { defineComponent, h, ref } from 'vue';
+import type { VbenFormSchema } from '#/adapter/form';
+import type {
+  DeletePreviewResult,
+  DependencyGroup,
+} from '#/components/business/dependency-block-modal/service';
+
+import { computed, defineComponent, h, ref } from 'vue';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import {
+  showDependencyBlockModal,
+  showDependencyPreviewModal,
+} from '#/components/business/dependency-block-modal/service';
 import { $t } from '#/locales';
+import {
+  getErrorData,
+  getErrorStatus,
+  showRequestError,
+} from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 
-import { CrudGrid, useExportModal } from './components';
+import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 
+/** Dependency blocked error code / 依赖阻止错误码 */
+const DEPENDENCY_BLOCKED_CODE = 4221;
+
+function buildQuickSearchOptions(searchSchema: VbenFormSchema[]) {
+  return searchSchema
+    .filter(
+      (
+        schema,
+      ): schema is QuickSearchFieldOption & {
+        component: string;
+        componentProps?: Record<string, unknown>;
+      } =>
+        typeof schema?.fieldName === 'string' &&
+        typeof schema?.label === 'string' &&
+        schema.component === 'Input',
+    )
+    .map((schema) => {
+      const componentProps =
+        schema.componentProps &&
+        typeof schema.componentProps === 'object' &&
+        !Array.isArray(schema.componentProps)
+          ? schema.componentProps
+          : undefined;
+
+      return {
+        fieldName: schema.fieldName,
+        label: schema.label,
+        placeholder:
+          typeof componentProps?.placeholder === 'string'
+            ? componentProps.placeholder
+            : undefined,
+      };
+    });
+}
+
+function isEmptyQuickSearchValue(value: unknown) {
+  return value === undefined || value === null || `${value}`.trim() === '';
+}
+
 /**
- * 声明式 CRUD 列表页 Composable
+ * Declarative CRUD list page composable / 声明式 CRUD 列表页 Composable
  */
 export function useCrudPage<T extends BaseRow = BaseRow>(
   options: UseCrudPageOptions<T>,
@@ -59,7 +120,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     i18nPrefix,
     nameField = 'name' as keyof T & string,
     defaultSort = '-created_at',
-    rowHeight = 64,
+    rowHeight = 56,
     stripe = true,
     pager = true,
     toolbar = {
@@ -69,11 +130,29 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       search: true,
       zoom: true,
     },
+    search = {},
     customActions = {},
+    createPermission,
+    recycleBin,
+    gridOptions: extraGridOptions = {},
   } = options;
 
-  // ==================== 表单弹窗 ====================
-  let FormPopup: null | ReturnType<typeof useVbenDrawer>[0] = null;
+  // ==================== Recycle bin config / 回收站配置 ====================
+  const recycleBinEnabled = !!recycleBin;
+  const recycleBinConfig: RecycleBinConfig =
+    typeof recycleBin === 'object' ? recycleBin : {};
+  const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
+
+  // Auto-derive recycle bin permission from createPermission / 从 createPermission 自动推导回收站权限码
+  const recycleBinPermission =
+    recycleBinConfig.permission ??
+    (createPermission ? createPermission.replace(/:\w+$/, ':recycle_bin') : '');
+
+  // ==================== Form popup / 表单弹窗 ====================
+  let FormPopup:
+    | null
+    | ReturnType<typeof useVbenDrawer>[0]
+    | ReturnType<typeof useVbenModal>[0] = null;
   let formPopupApi:
     | null
     | ReturnType<typeof useVbenDrawer>[1]
@@ -85,8 +164,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         connectedComponent: formComponent,
         destroyOnClose: true,
       });
-      FormPopup = ModalComp as any;
-      formPopupApi = modalApi as any;
+      FormPopup = ModalComp;
+      formPopupApi = modalApi;
     } else {
       const [Drawer, drawerApi] = useVbenDrawer({
         connectedComponent: formComponent,
@@ -97,26 +176,28 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     }
   }
 
-  // ==================== 导出弹窗 ====================
-  // 前置声明 gridApi（用于闭包引用）
+  // ==================== Export modal / 导出弹窗 ====================
+  // Pre-declare gridApi (for closure reference) / 前置声明 gridApi（用于闭包引用）
   let gridApi: ReturnType<typeof useVbenVxeGrid>[1];
+  const quickSearchField = ref('');
+  const quickSearchKeyword = ref('');
 
-  // 导出弹窗
+  // Export modal / 导出弹窗
   const { ExportModal, openExportModal } = useExportModal(() => gridApi?.grid);
 
-  // ==================== CRUD 操作 ====================
+  // ==================== CRUD Operations / CRUD 操作 ====================
 
-  /** 刷新列表 */
+  /** Refresh list / 刷新列表 */
   function onRefresh() {
     gridApi?.query();
   }
 
-  /** 重载列表（回到第一页） */
+  /** Reload list (back to first page) / 重载列表（回到第一页） */
   function onReload() {
     gridApi?.reload();
   }
 
-  /** 新建 */
+  /** Create / 新建 */
   function onCreate() {
     const defaults =
       typeof formDefaults === 'function' ? formDefaults() : formDefaults;
@@ -129,22 +210,26 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       .open();
   }
 
-  /** 编辑 */
+  /** Edit / 编辑 */
   function onEdit(row: T) {
     formPopupApi
-      ?.setData({ ...row, mode: 'edit' as FormMode, _resource: api.resource })
+      ?.setData({
+        ...row,
+        mode: 'edit' as FormMode,
+        _resource: api.resource,
+      })
       .open();
   }
 
-  // 防抖状态：记录正在处理的操作
+  // Debounce state: track in-progress operations / 防抖状态：记录正在处理的操作
   const processingIds = ref<Set<number | string>>(new Set());
 
-  /** 检查是否正在处理中（防抖） */
+  /** Check if processing (debounce) / 检查是否正在处理中（防抖） */
   function isProcessing(id: number | string): boolean {
     return processingIds.value.has(id);
   }
 
-  /** 设置处理状态 */
+  /** Set processing state / 设置处理状态 */
   function setProcessing(id: number | string, processing: boolean) {
     if (processing) {
       processingIds.value.add(id);
@@ -154,47 +239,100 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
+   * Delete (auto-constructs DELETE {resource}/{id} request)
    * 删除（自动构造 DELETE {resource}/{id} 请求）
-   * 注意：CellOperation 渲染器已经提供了 Popconfirm 确认，此处直接执行删除
+   *
+   * Flow: preview deps → show unified dependency modal → execute DELETE after confirmation
+   * 流程：预览依赖 → 显示统一依赖弹窗 → 确认后执行 DELETE
    */
   async function onDelete(row: T) {
-    // 防抖：如果正在处理中，直接返回
     if (isProcessing(row.id)) return;
 
     setProcessing(row.id, true);
     try {
-      // 自动构造 DELETE 请求：DELETE {resource}/{id}
-      await requestClient.delete(`${api.resource}/${row.id}`, {
-        loading: true,
-        showCodeMessage: true,
-        showSuccessMessage: true,
-        successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
-      });
+      let preview: null | Record<string, unknown> = null;
+      try {
+        const res = await requestClient.get(
+          `${api.resource}/${row.id}/delete-preview`,
+          { showCodeMessage: false },
+        );
+        preview = (res?.data ?? res) as Record<string, unknown>;
+      } catch (error: unknown) {
+        const status = getErrorStatus(error);
+        if (status !== 404) {
+          showRequestError(error, 'common.deleteFailed');
+          return;
+        }
+      }
+
+      if (preview) {
+        const hasAnyDeps =
+          (preview.blocked as boolean) ||
+          ((preview.cascade_soft as unknown[])?.length ?? 0) > 0 ||
+          ((preview.cascade_delete as unknown[])?.length ?? 0) > 0 ||
+          ((preview.nullify as unknown[])?.length ?? 0) > 0;
+
+        if (hasAnyDeps) {
+          const displayName = String(row[nameField] || row.id);
+          const confirmed = await showDependencyPreviewModal(
+            preview as unknown as DeletePreviewResult,
+            displayName,
+          );
+          if (!confirmed) return;
+        }
+      }
+
+      if (api.delete) {
+        await api.delete(row.id as number);
+        message.success($t(`${i18nPrefix}.messages.deleteSuccess`));
+      } else {
+        await requestClient.delete(`${api.resource}/${row.id}`, {
+          loading: true,
+          showCodeMessage: false,
+          showSuccessMessage: true,
+          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+        });
+      }
       onRefresh();
+      if (recycleBinEnabled) {
+        recycleBinRef.value?.refreshCount();
+      }
+    } catch (error: unknown) {
+      const respData = getErrorData(error);
+      if (
+        respData?.code === DEPENDENCY_BLOCKED_CODE &&
+        respData?.dependencies
+      ) {
+        const displayName = String(row[nameField] || row.id);
+        await showDependencyBlockModal(
+          respData.dependencies as DependencyGroup[],
+          displayName,
+        );
+      } else {
+        showRequestError(error, 'common.deleteFailed');
+      }
     } finally {
       setProcessing(row.id, false);
     }
   }
 
   /**
+   * Toggle status (supports multiple fields)
    * 切换状态（支持多个字段）
-   * @param fieldName 字段名，如 'is_active', 'is_visible'
-   * @param newStatus 新状态值
-   * @param row 行数据
+   * @param fieldName Field name, e.g. 'is_active', 'is_visible' / 字段名
+   * @param newStatus New status value / 新状态值
+   * @param row Row data / 行数据
    */
   async function onToggleField(
     fieldName: string,
     newStatus: boolean,
     row: T,
   ): Promise<boolean> {
-    // 防抖：如果正在处理中，直接返回
+    // Debounce: return if already processing / 防抖：如果正在处理中，直接返回
     if (isProcessing(row.id)) return false;
 
     const toggleApi = api.toggles?.[fieldName] as ToggleStatusApi | undefined;
     if (!toggleApi) {
-      console.warn(
-        `[useCrudPage] toggle API not found for field: ${fieldName}`,
-      );
       return false;
     }
 
@@ -220,6 +358,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       try {
         await toggleApi(row.id, { [fieldName]: newStatus });
         message.success(`${action}${$t('ui.actionMessage.operationSuccess')}`);
+        gridApi.reload();
         return true;
       } finally {
         setProcessing(row.id, false);
@@ -230,16 +369,23 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
-   * 切换 is_active 状态
+   * Toggle is_active status / 切换 is_active 状态
    */
   async function onToggleStatus(newStatus: boolean, row: T): Promise<boolean> {
     return onToggleField('is_active', newStatus, row);
   }
 
-  // ==================== 操作处理器 ====================
+  // ==================== Action Handlers / 操作处理器 ====================
 
-  /** 操作按钮点击处理 */
+  /** Action button click handler / 操作按钮点击处理 */
   function handleActionClick(e: OnActionClickParams<T>) {
+    // Custom actions take priority over built-in / 自定义操作优先于内置操作
+    const customAction = customActions[e.code];
+    if (customAction) {
+      customAction(e.row);
+      return;
+    }
+
     switch (e.code) {
       case 'delete': {
         onDelete(e.row);
@@ -250,63 +396,200 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         break;
       }
       default: {
-        // 自定义操作
-        const action = customActions[e.code];
-        if (action) {
-          action(e.row);
-        }
         break;
       }
     }
   }
 
-  /** 状态切换处理（供列定义使用） */
+  /** Status toggle handler (for column definitions) / 状态切换处理（供列定义使用） */
   function handleToggleStatus(newStatus: boolean, row: T) {
     return onToggleStatus(newStatus, row);
   }
 
   /**
+   * Create toggle handler for specified field (for column definitions)
    * 创建指定字段的 toggle 处理函数（供列定义使用）
-   * @param fieldName 字段名，如 'is_active', 'is_visible'
+   * @param fieldName Field name, e.g. 'is_active', 'is_visible' / 字段名
    */
   function createToggleHandler(fieldName: string) {
     return (newStatus: boolean, row: T) =>
       onToggleField(fieldName, newStatus, row);
   }
 
-  // ==================== 表格配置 ====================
+  // ==================== Table Config / 表格配置 ====================
 
-  // 构建工具栏配置
+  // Build toolbar config / 构建工具栏配置
   const showExportButton = toolbar.export !== false;
   const toolbarConfig = {
     ...toolbar,
-    export: false, // 禁用原生导出，使用自定义导出按钮
+    export: false, // Disable native export, use custom export button / 禁用原生导出，使用自定义导出按钮
+    refresh: false, // Disable native refresh, CrudGrid renders custom left-side / 禁用原生刷新，CrudGrid 左侧自定义渲染
   };
 
+  // Create button label: defaults to i18nPrefix + '.create' / 创建按钮文案：默认取 i18nPrefix + '.create'
+  const createLabel = formComponent ? $t(`${i18nPrefix}.create`) : '';
+
+  const explicitQuickSearchConfig =
+    search.quickSearch && search.quickSearch !== true
+      ? search.quickSearch
+      : undefined;
+
+  const quickSearchFields = computed<QuickSearchFieldOption[]>(() => {
+    if (!searchSchema || search.quickSearch === false) {
+      return [];
+    }
+
+    const autoFields = buildQuickSearchOptions(searchSchema);
+    const fieldMap = new Map(
+      autoFields.map((field) => [field.fieldName, field]),
+    );
+
+    if (explicitQuickSearchConfig?.fields?.length) {
+      const resolvedFields: QuickSearchFieldOption[] = [];
+      for (const field of explicitQuickSearchConfig.fields) {
+        const fieldConfig =
+          typeof field === 'string' ? { fieldName: field } : field;
+        const matched = fieldMap.get(fieldConfig.fieldName);
+        if (!matched) {
+          continue;
+        }
+
+        resolvedFields.push({
+          ...matched,
+          ...(fieldConfig.label ? { label: fieldConfig.label } : undefined),
+          placeholder: fieldConfig.placeholder ?? matched.placeholder,
+        });
+      }
+      return resolvedFields;
+    }
+
+    if (search.quickSearch !== true && !explicitQuickSearchConfig) {
+      return [];
+    }
+
+    return autoFields;
+  });
+
+  const defaultQuickSearchField = computed(() => {
+    const configuredDefault = explicitQuickSearchConfig?.defaultField;
+    return (
+      quickSearchFields.value.find(
+        (field) => field.fieldName === configuredDefault,
+      )?.fieldName ??
+      quickSearchFields.value[0]?.fieldName ??
+      ''
+    );
+  });
+
+  if (!quickSearchField.value) {
+    quickSearchField.value = defaultQuickSearchField.value;
+  }
+
+  function syncQuickSearchState(
+    values: Record<string, any>,
+    changedFields: string[] = [],
+  ) {
+    if (quickSearchFields.value.length === 0) {
+      quickSearchKeyword.value = '';
+      quickSearchField.value = '';
+      return;
+    }
+
+    const fieldNames = quickSearchFields.value.map((field) => field.fieldName);
+    const changedQuickSearchField = changedFields.find((field) =>
+      fieldNames.includes(field),
+    );
+    const populatedField =
+      (changedQuickSearchField &&
+      !isEmptyQuickSearchValue(values?.[changedQuickSearchField])
+        ? changedQuickSearchField
+        : undefined) ??
+      fieldNames.find((field) => !isEmptyQuickSearchValue(values?.[field]));
+
+    quickSearchField.value =
+      populatedField ??
+      (fieldNames.includes(quickSearchField.value)
+        ? quickSearchField.value
+        : defaultQuickSearchField.value);
+    quickSearchKeyword.value = populatedField
+      ? String(values?.[populatedField] ?? '')
+      : '';
+  }
+
+  async function applyQuickSearchValue(
+    keyword: string,
+    fieldName = quickSearchField.value || defaultQuickSearchField.value,
+  ) {
+    if (
+      !fieldName ||
+      quickSearchFields.value.length === 0 ||
+      !gridApi?.formApi
+    ) {
+      return;
+    }
+
+    const nextKeyword = typeof keyword === 'string' ? keyword : '';
+    const trimmedKeyword = nextKeyword.trim();
+    quickSearchField.value = fieldName;
+    quickSearchKeyword.value = nextKeyword;
+
+    const updates = Object.fromEntries(
+      quickSearchFields.value.map((field) => [field.fieldName, undefined]),
+    ) as Record<string, any>;
+
+    updates[fieldName] = trimmedKeyword || undefined;
+    await gridApi.formApi.setValues(updates);
+  }
+
+  async function onQuickSearchChange(value: string) {
+    await applyQuickSearchValue(value);
+  }
+
+  async function onQuickSearchFieldChange(fieldName: string) {
+    if (!fieldName || fieldName === quickSearchField.value) {
+      return;
+    }
+    await applyQuickSearchValue(quickSearchKeyword.value, fieldName);
+  }
+
+  const searchFormOptions = searchSchema
+    ? {
+        ...useGridSearchFormOptions(searchSchema),
+        handleValuesChange: (
+          values: Record<string, any>,
+          changedFields: string[],
+        ) => {
+          syncQuickSearchState(values, changedFields);
+        },
+      }
+    : undefined;
+
   /**
+   * Process form params, convert date ranges and other special fields.
    * 处理表单参数，转换日期范围等特殊字段
+   * Date ranges use between operator: filter[field][between]=start,end
    * 日期范围使用 between 操作符: filter[field][between]=start,end
    */
   function processFormValues(formValues: Record<string, any>) {
     const result: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(formValues)) {
-      // 处理日期范围字段: _dateRange_xxx -> filter[xxx][between]=start,end
+      // Process date range fields: _dateRange_xxx -> filter[xxx][between]=start,end / 处理日期范围字段
       if (key.startsWith('_dateRange_') && Array.isArray(value)) {
         const field = key.replace('_dateRange_', '');
         const [startDate, endDate] = value;
         if (startDate && endDate) {
-          // 使用 between 操作符，格式: filter[field][between]=start,end
+          // Use between operator, format: filter[field][between]=start,end / 使用 between 操作符
           result[`filter[${field}][between]`] = `${startDate},${endDate}`;
         } else if (startDate) {
-          // 只有开始日期，使用 gte
+          // Only start date, use gte / 只有开始日期，使用 gte
           result[`filter[${field}][gte]`] = startDate;
         } else if (endDate) {
-          // 只有结束日期，使用 lte
+          // Only end date, use lte / 只有结束日期，使用 lte
           result[`filter[${field}][lte]`] = endDate;
         }
       } else if (value !== undefined && value !== null && value !== '') {
-        // 过滤空值
+        // Filter empty values / 过滤空值
         result[key] = value;
       }
     }
@@ -335,51 +618,102 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     cellConfig: { height: rowHeight },
     rowConfig: { keyField: 'id' },
     toolbarConfig,
+    ...extraGridOptions,
   };
 
-  // 创建表格
+  // Create table / 创建表格
   const [OriginalGrid, _gridApi] = useVbenVxeGrid({
-    formOptions: searchSchema
-      ? useGridSearchFormOptions(searchSchema)
-      : undefined,
+    formOptions: searchFormOptions,
     gridOptions,
+    searchPanelAnimation: searchSchema
+      ? (search.animatePanel ?? false)
+      : undefined,
+    showSearchForm: searchSchema ? (search.defaultOpen ?? true) : undefined,
   });
 
-  // 赋值给闭包引用
+  // Assign to closure reference / 赋值给闭包引用
   gridApi = _gridApi;
 
-  // 包装 Grid 组件，自动添加导出按钮和导出弹窗
+  /** Open recycle bin / 打开回收站 */
+  function openRecycleBin() {
+    recycleBinRef.value?.open();
+  }
+
+  const CrudGridComponent = CrudGrid as Component;
+
+  // Wrap Grid component, auto-add export button, recycle bin button and popups / 包装 Grid 组件，自动添加导出按钮、回收站按钮和弹窗
   const Grid = defineComponent({
     name: 'CrudPageGrid',
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () =>
-        h('div', { class: 'crud-page-grid h-full' }, [
+      return () => {
+        const children = [
           h(
-            CrudGrid,
+            CrudGridComponent,
             {
               grid: OriginalGrid,
               showExport: showExportButton,
+              showRecycleBin: recycleBinEnabled,
+              ...(quickSearchFields.value.length > 0
+                ? {
+                    quickSearch: {
+                      activeField: quickSearchField.value,
+                      keyword: quickSearchKeyword.value,
+                      onFieldChange: onQuickSearchFieldChange,
+                      onKeywordChange: onQuickSearchChange,
+                      options: quickSearchFields.value.map((field) => ({
+                        ...field,
+                        placeholder: field.placeholder ?? $t('common.search'),
+                      })),
+                    },
+                  }
+                : {}),
+              recycleBinCount: recycleBinRef.value?.deletedCount ?? 0,
+              recycleBinPermission,
               onExport: openExportModal,
-              ...attrs, // 传递所有属性和事件监听器
+              onRecycleBin: openRecycleBin,
+              onRefresh,
+              ...(formComponent && createPermission
+                ? {
+                    onCreate,
+                    createPermission,
+                    createLabel,
+                  }
+                : {}),
+              ...attrs,
             },
             slots,
           ),
-          // 渲染导出弹窗组件
           h(ExportModal),
-        ]);
+        ];
+
+        // Render recycle bin drawer / 渲染回收站抽屉
+        if (recycleBinEnabled) {
+          children.push(
+            h(RecycleBinDrawer, {
+              ref: recycleBinRef,
+              resource: api.resource,
+              nameField: recycleBinConfig.nameField ?? (nameField as string),
+              columns: recycleBinConfig.columns,
+              onRestored: onRefresh,
+            }),
+          );
+        }
+
+        return h('div', { class: 'crud-page-grid h-full' }, children);
+      };
     },
   });
 
   return {
-    // 组件
+    // Components / 组件
     Grid,
     gridApi,
     FormDrawer: FormPopup,
     formApi: formPopupApi,
     ExportModal,
 
-    // CRUD 操作
+    // CRUD Operations / CRUD 操作
     onCreate,
     onEdit,
     onDelete,
@@ -388,12 +722,16 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     onRefresh,
     onReload,
 
-    // 导出
+    // Export / 导出
     openExportModal,
 
-    // 处理器
+    // Handlers / 处理器
     handleActionClick,
     handleToggleStatus,
     createToggleHandler,
+
+    // Recycle bin / 回收站
+    openRecycleBin,
+    recycleBinRef,
   };
 }

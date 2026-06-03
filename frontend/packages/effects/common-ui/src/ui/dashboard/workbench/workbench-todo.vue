@@ -9,6 +9,8 @@ import {
   VbenCheckbox,
 } from '@vben-core/shadcn-ui';
 
+import DOMPurify from 'dompurify';
+
 interface Props {
   items?: WorkbenchTodoItem[];
   title: string;
@@ -47,7 +49,7 @@ withDefaults(defineProps<Props>(), {
               <!-- eslint-disable vue/no-v-html -->
               <p
                 class="text-foreground/80 *:text-primary mt-1 truncate text-xs leading-5"
-                v-html="item.content"
+                v-html="DOMPurify.sanitize(item.content ?? '')"
               ></p>
             </div>
           </div>

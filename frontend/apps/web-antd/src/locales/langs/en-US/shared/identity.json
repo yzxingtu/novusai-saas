@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/i18n",
+  "action": {
+    "openDialogAria": "Open identity detail",
+    "viewDetail": "View detail"
+  },
+  "approval": {
+    "approved": "Approved",
+    "pending": "Pending",
+    "rejected": "Rejected"
+  },
+  "detail": {
+    "accountSection": "Account attributes",
+    "activitySection": "Recent activity",
+    "basicSection": "Identity information",
+    "emptyDescription": "No identity details are available yet",
+    "overviewSection": "Identity overview",
+    "title": "Identity detail"
+  },
+  "field": {
+    "aiChat": "AI Chat",
+    "aiDisabled": "AI Off",
+    "approvalStatus": "Approval status",
+    "createdAt": "Created at",
+    "email": "Email",
+    "empty": "Not available",
+    "lastLoginAt": "Last login",
+    "lastLoginIp": "Last login IP",
+    "leader": "Leader",
+    "organization": "Architecture",
+    "owner": "Owner",
+    "phone": "Phone",
+    "role": "Role",
+    "status": "Account status",
+    "superAdmin": "Super admin",
+    "tenant": "Tenant",
+    "updatedAt": "Updated at",
+    "userType": "Identity type",
+    "username": "Username"
+  },
+  "owner": "Owner",
+  "unassignedArchitecture": "Unassigned Architecture",
+  "unassignedRole": "Unassigned Role",
+  "userTypes": {
+    "admin": "Platform admin",
+    "tenantAdmin": "Tenant admin",
+    "tenantUser": "Tenant user",
+    "unknown": "Unknown identity"
+  }
+}

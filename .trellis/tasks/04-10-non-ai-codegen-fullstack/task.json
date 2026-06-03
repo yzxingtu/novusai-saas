@@ -1,0 +1,35 @@
+{
+  "id": "non-ai-codegen-fullstack",
+  "name": "non-ai-codegen-fullstack",
+  "title": "Codegen fullstack",
+  "description": "",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-10",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-10-non-ai-governance-refactor",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

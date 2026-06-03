@@ -1,0 +1,13 @@
+{
+  "action_level": {
+    "read": "只读",
+    "safe_write": "安全写入",
+    "dangerous": "危险操作"
+  },
+  "action_status": {
+    "success": "成功",
+    "failed": "失败",
+    "rejected": "已拒绝",
+    "pending_confirm": "待确认"
+  }
+}

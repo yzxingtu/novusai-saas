@@ -31,9 +31,7 @@
     "@jspm/generator": "catalog:",
     "archiver": "catalog:",
     "cheerio": "catalog:",
-    "get-port": "catalog:",
     "html-minifier-terser": "catalog:",
-    "nitropack": "catalog:",
     "resolve.exports": "catalog:",
     "vite-plugin-pwa": "catalog:",
     "vite-plugin-vue-devtools": "catalog:"

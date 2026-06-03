@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% set nt = t.get('notification', {}) if t is mapping else {} %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block header_title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% if body %}
+<p>{{ body }}</p>
+{% endif %}
+
+{% if priority == "urgent" %}
+<div class="alert-box">
+  ⚠️ {{ nt.get('urgent_notice', '此通知标记为紧急，请尽快处理。') }}
+</div>
+{% elif priority == "high" %}
+<div class="alert-box">
+  {{ nt.get('high_notice', '此通知优先级较高，请及时关注。') }}
+</div>
+{% endif %}
+
+{% if link %}
+<div class="btn-center">
+  <a href="{{ link }}" class="btn">{{ nt.get('view_detail', '查看详情') }}</a>
+</div>
+{% endif %}
+{% endblock %}

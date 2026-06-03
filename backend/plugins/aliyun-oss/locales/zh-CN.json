@@ -1,0 +1,11 @@
+{
+  "plugin.aliyun-oss.title": "阿里云 OSS 存储",
+  "plugin.aliyun-oss.description": "阿里云对象存储服务（OSS）驱动，支持原生图片处理",
+  "plugin.aliyun-oss.config.access_key_id": "Access Key ID",
+  "plugin.aliyun-oss.config.access_key_secret": "Access Key Secret",
+  "plugin.aliyun-oss.config.base_url": "自定义域名",
+  "plugin.aliyun-oss.config.endpoint": "Endpoint",
+  "plugin.aliyun-oss.config.bucket": "Bucket",
+  "plugin.aliyun-oss.config.prefix": "Key 前缀",
+  "plugin.aliyun-oss.config.region": "区域"
+}

@@ -1,0 +1,170 @@
+"""Term and pattern buckets used by IntentDomainRules."""
+
+from __future__ import annotations
+
+import re
+
+_CAPABILITY_QUERY_TERMS = (
+    "是否能",
+    "能否",
+    "会不会",
+    "能不能",
+    "可以做什么",
+    "有哪些能力",
+    "能力边界",
+    "what can you do",
+    "whether you can",
+    "what are you capable of",
+)
+_CAPABILITY_REFERENCE_TERMS = (
+    "调用技能",
+    "技能",
+    "工具",
+    "skill",
+    "skills",
+    "tool",
+    "tools",
+)
+_NO_TOOL_REQUEST_TERMS = (
+    "不要调用任何工具",
+    "不要调用工具",
+    "不要使用任何工具",
+    "不要使用工具",
+    "不需要调用工具",
+    "无需调用工具",
+    "do not call any tools",
+    "don't call any tools",
+    "without calling any tools",
+    "without using tools",
+)
+_TIME_TERMS = (
+    "现在几点",
+    "现在是几点",
+    "现在时间",
+    "当前时间",
+    "北京时间",
+    "现在的北京时间",
+    "北京时间几点",
+    "北京时间是几点",
+    "今天几号",
+    "当前日期",
+    "今天星期几",
+    "今天周几",
+    "今天是几号",
+    "星期几",
+    "周几",
+    "几号",
+    "time now",
+    "current time",
+    "beijing time",
+    "beijing time now",
+    "what day is it",
+    "what date is it",
+)
+_KNOWLEDGE_TERMS = ("知识库", "文档", "资料", "kb")
+_KNOWLEDGE_DEFINITION_PATTERNS = (
+    re.compile(
+        r"^(?:请|请问|帮我|麻烦|麻烦你|想知道|我想知道|告诉我|给我|能不能|可以)?(?P<subject>.+?)(?:是什么|是啥|是谁|是做什么的|做什么的|是干什么的)[？?]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:请|请问|帮我|麻烦|麻烦你|想知道|我想知道|告诉我|给我|能不能|可以)?(?:介绍一下|介绍下|讲讲|说说|科普一下|说明一下)(?P<subject>.+?)[？?]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:what is|who is|tell me about)\s+(?P<subject>.+?)[？?]?$",
+        re.IGNORECASE,
+    ),
+)
+_KNOWLEDGE_GENERIC_SUBJECTS = (
+    "这",
+    "这个",
+    "那个",
+    "它",
+    "他",
+    "她",
+    "ta",
+    "this",
+    "that",
+    "it",
+    "这玩意",
+    "这个东西",
+    "那个东西",
+)
+_KNOWLEDGE_COURTESY_PREFIXES = (
+    "请问",
+    "请",
+    "帮我",
+    "麻烦你",
+    "麻烦",
+    "我想知道",
+    "想知道",
+    "告诉我",
+    "给我",
+)
+_KNOWLEDGE_FILLER_SUFFIXES = (
+    "一下",
+    "下",
+    "呢",
+    "呀",
+    "啊",
+    "吧",
+)
+_MEMORY_SAVE_TERMS = (
+    "存入记忆",
+    "存入长期记忆",
+    "存到记忆",
+    "存到长期记忆",
+    "保存到记忆",
+    "保存到长期记忆",
+    "记住这个",
+    "记住这句",
+    "记住这条",
+    "帮我记住",
+    "请记住",
+    "把这个记下来",
+    "把这句记下来",
+    "记下来",
+    "记到记忆",
+    "记到长期记忆",
+    "remember this",
+    "save to memory",
+)
+_MEMORY_RECALL_TERMS = (
+    "你还记得",
+    "还记得我",
+    "刚才让你记住",
+    "之前让你记住",
+    "我刚才说的",
+    "回忆一下",
+    "代号",
+    "codename",
+    "remember",
+    "recall",
+)
+_MEMORY_QUERY_HINT_TERMS = (
+    "是什么",
+    "是啥",
+    "还记得",
+    "记得吗",
+    "记住了没",
+    "回忆",
+    "remember",
+    "recall",
+    "what",
+    "which",
+)
+__all__ = [
+    "_CAPABILITY_QUERY_TERMS",
+    "_CAPABILITY_REFERENCE_TERMS",
+    "_KNOWLEDGE_COURTESY_PREFIXES",
+    "_KNOWLEDGE_DEFINITION_PATTERNS",
+    "_KNOWLEDGE_FILLER_SUFFIXES",
+    "_KNOWLEDGE_GENERIC_SUBJECTS",
+    "_KNOWLEDGE_TERMS",
+    "_MEMORY_QUERY_HINT_TERMS",
+    "_MEMORY_RECALL_TERMS",
+    "_MEMORY_SAVE_TERMS",
+    "_NO_TOOL_REQUEST_TERMS",
+    "_TIME_TERMS",
+]

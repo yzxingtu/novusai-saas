@@ -1,4 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
-  "$description": "Shared translations index"
+  "$description": "Shared translation index - Imported via module files",
+  "imports": [
+    "./auth.json",
+    "./common.json",
+    "./config.json",
+    "./filePicker.json",
+    "./filePreview.json",
+    "./identity.json",
+    "./knowledgeDocPicker.json",
+    "./page.json",
+    "./profile.json",
+    "./toolAction.json"
+  ]
 }

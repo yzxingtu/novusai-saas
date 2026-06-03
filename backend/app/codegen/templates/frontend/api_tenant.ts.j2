@@ -1,0 +1,207 @@
+/**
+ * {{ display_name }} Tenant API / {{ display_name_en }} Tenant API
+ * Backend: /tenant/{{ tenant_api_path | default(resource_plural) }}
+ */
+import type { ApiRequestOptions } from '#/utils/request';
+
+import { requestClient } from '#/utils/request';
+
+// ============================================================
+// Type definitions / 类型定义 (shared with admin when dual scope)
+// ============================================================
+{% include 'frontend/_api_types.j2' %}
+
+// ============================================================
+// API functions / API 接口
+// ============================================================
+{% set tenant_ep = tenant_ep | default({}) %}
+{% set api_path = tenant_ep.get('route_prefix') | default('/' + resource_plural) | path_no_leading_slash %}
+const API_PREFIX = '/tenant/{{ api_path or resource_plural }}';
+
+/** Get list / 获取列表 */
+export async function get{{ resource | pascal }}ListApi(
+  params?: {{ resource | pascal }}ListParams,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}ListResponse> {
+  const response = await requestClient.get<{
+    items: {{ resource | pascal }}InfoRaw[];
+    page: number;
+    page_size: number;
+    total: number;
+  }>(API_PREFIX, { params, ...options });
+
+  return {
+    items: response.items.map((item) => transform{{ resource | pascal }}(item)),
+    page: response.page,
+    page_size: response.page_size,
+    total: response.total,
+  };
+}
+
+/** Get detail / 获取详情 */
+export async function get{{ resource | pascal }}DetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.get<{{ resource | pascal }}InfoRaw>(
+    `${API_PREFIX}/${id}`,
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+/** Create / 创建 */
+export async function create{{ resource | pascal }}Api(
+  data: {{ resource | pascal }}CreateRequest,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.post<{{ resource | pascal }}InfoRaw>(
+    API_PREFIX,
+    data,
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+/** Update / 更新 */
+export async function update{{ resource | pascal }}Api(
+  id: number,
+  data: {{ resource | pascal }}UpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.put<{{ resource | pascal }}InfoRaw>(
+    `${API_PREFIX}/${id}`,
+    data,
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+/** Delete / 删除 */
+export async function delete{{ resource | pascal }}Api(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${API_PREFIX}/${id}`, options);
+}
+
+{% if model.selectable is defined and model.selectable %}
+/** Get select options / 获取下拉选项 */
+export async function get{{ resource | pascal }}SelectApi(params?: {
+  is_active?: string;
+  page?: number;
+  page_size?: number;
+  search?: string;
+}): Promise<{{ resource | pascal }}SelectResponse> {
+  return requestClient.get<{{ resource | pascal }}SelectResponse>(`${API_PREFIX}/select`, {
+    params,
+  });
+}
+
+{% endif %}
+{% if toggle_field %}
+/** Toggle status / 切换状态 */
+export async function toggle{{ resource | pascal }}StatusApi(
+  id: number,
+  data: {{ resource | pascal }}ToggleRequest,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.put<{{ resource | pascal }}InfoRaw>(
+    `${API_PREFIX}/${id}/toggle`,
+    data,
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+{% endif %}
+{% if model.drag_sort | default(false) %}
+/** Reorder / 重新排序 */
+export async function reorder{{ resource | pascal }}sApi(
+  ids: number[],
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(`${API_PREFIX}/reorder`, { ids }, options);
+}
+
+{% endif %}
+{% if batch and batch.get('import') %}
+/** Import from Excel / 从 Excel 导入 */
+export async function import{{ resource | pascal }}Api(
+  file: File,
+  options?: ApiRequestOptions,
+): Promise<{ imported: number; errors?: string[] }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return requestClient.post<{ imported: number; errors?: string[] }>(
+    `${API_PREFIX}/import`,
+    formData,
+    {
+      ...options,
+      headers: {
+        ...(options?.headers as Record<string, string>),
+        'Content-Type': undefined,
+      },
+    },
+  );
+}
+
+{% endif %}
+{% if model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+/** Get tree / 获取树形数据 */
+export async function get{{ resource | pascal }}TreeApi(
+  params?: { parent_id?: number },
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info[]> {
+  const raw = await requestClient.get<{{ resource | pascal }}InfoRaw[]>(`${API_PREFIX}/tree`, {
+    params: params || {},
+    ...options,
+  });
+  return Array.isArray(raw) ? raw.map((item) => transform{{ resource | pascal }}(item)) : [];
+}
+
+{% endif %}
+{% if workflow and workflow.get('transitions') %}
+/** Workflow transition / 工作流状态流转 */
+export async function transition{{ resource | pascal }}Api(
+  id: number,
+  data: { action: string; comment?: string },
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.put<{{ resource | pascal }}InfoRaw>(
+    `${API_PREFIX}/${id}/transition`,
+    data,
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+{% endif %}
+{% if clone and clone.get('enabled') %}
+/** Clone record / 克隆记录 */
+export async function clone{{ resource | pascal }}Api(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<{{ resource | pascal }}Info> {
+  const raw = await requestClient.post<{{ resource | pascal }}InfoRaw>(
+    `${API_PREFIX}/${id}/clone`,
+    {},
+    options,
+  );
+  return transform{{ resource | pascal }}(raw);
+}
+
+{% endif %}
+{% if batch and batch.get('delete') %}
+/** Batch delete / 批量删除 */
+export async function batchDelete{{ resource | pascal }}sApi(
+  ids: number[],
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${API_PREFIX}/batch`, {
+    params: { ids },
+    ...options,
+  });
+}
+
+{% endif %}

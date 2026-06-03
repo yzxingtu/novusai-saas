@@ -15,15 +15,15 @@ import SharedDataDemo from './shared-data-demo.vue';
 
 defineOptions({ name: 'DrawerExample' });
 const [BaseDrawer, baseDrawerApi] = useVbenDrawer({
-  // 连接抽离的组件
+  // 连接抽离的组件 / Wired remote drawer body component
   connectedComponent: BaseDemo,
-  // placement: 'left',
+  // placement: 'left', / 可选：从左侧打开 / optional: open from left
 });
 
 const [InContentDrawer, inContentDrawerApi] = useVbenDrawer({
-  // 连接抽离的组件
+  // 连接抽离的组件 / Wired remote drawer body component
   connectedComponent: inContentDemo,
-  // placement: 'left',
+  // placement: 'left', / 可选：从左侧打开 / optional: open from left
 });
 
 const [AutoHeightDrawer, autoHeightDrawerApi] = useVbenDrawer({
@@ -53,14 +53,14 @@ function openBlurDrawer() {
 function openInContentDrawer(placement: DrawerPlacement = 'right') {
   const state: Partial<DrawerState> = { class: '', placement };
   if (placement === 'top') {
-    // 页面顶部区域的层级只有200，所以设置一个低于200的值，抽屉从顶部滑出来的时候才比较合适
+    // 页面顶部区域的层级只有200，所以设置一个低于200的值，抽屉从顶部滑出来的时候才比较合适 / Header z-index ~200; use <200 for top drawer
     state.zIndex = 199;
   }
   inContentDrawerApi.setState(state).open();
 }
 
 function openMaxContentDrawer() {
-  // 这里只是用来演示方便。实际上自己使用的时候可以直接将这些配置卸载Drawer的属性里
+  // 这里只是用来演示方便。实际上自己使用的时候可以直接将这些配置写在 Drawer 的属性里 / Demo shortcut; prefer Drawer props in real apps
   inContentDrawerApi.setState({ class: 'w-full', placement: 'right' }).open();
 }
 
@@ -88,7 +88,7 @@ function openSharedDrawer() {
 function openFormDrawer() {
   formDrawerApi
     .setData({
-      // 表单值
+      // 表单值 / Initial form values
       values: { field1: 'abc', field2: '123' },
     })
     .open();

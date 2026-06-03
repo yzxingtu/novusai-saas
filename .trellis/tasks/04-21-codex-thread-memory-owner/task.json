@@ -1,0 +1,47 @@
+{
+  "id": "codex-thread-memory-owner",
+  "name": "codex-thread-memory-owner",
+  "title": "Codex thread memory owner convergence",
+  "description": "Strengthen NovusAI memory governance from a normalized thread snapshot into a more explicit thread-owned runtime lifecycle with startup, capture, recall, and pollution controls.",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": "2026-04-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/app/ai/engine/types.py",
+    "backend/app/ai/memory_policy.py",
+    "backend/app/ai/context/orchestrator.py",
+    "backend/app/services/ai/agent_chat_command_service.py",
+    "backend/app/services/ai/agent_chat_memory_support.py",
+    "backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py",
+    "backend/app/services/ai/agent_chat_stream_persistence_error_support.py",
+    "backend/app/services/ai/conversation_message_persistence_service.py",
+    "backend/app/services/ai/conversation_message_persistence_support.py",
+    "backend/app/services/ai/conversation_runtime_projection_service.py",
+    "backend/app/services/ai/conversation_stream_persistence_service.py"
+  ],
+  "notes": "This workstream should land before final runtime-core convergence so thread memory ownership is not re-embedded into entrypoint glue. 2026-04-21 audit follow-up: `ExecutionResult.memory_runtime_policy` is now the public owner field for command/stream persistence instead of `_memory_runtime_policy`, and marker-only stream error persistence also mirrors `thread_memory_state` onto conversation metadata so thread-owned memory state survives the narrowest fallback path.",
+  "meta": {}
+}

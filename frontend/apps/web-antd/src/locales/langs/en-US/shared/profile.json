@@ -1,0 +1,57 @@
+{
+  "title": "Profile",
+  "realName": "Full Name",
+  "username": "Username",
+  "nickname": "Nickname",
+  "email": "Email",
+  "phone": "Phone",
+  "introduction": "Bio",
+  "changePassword": "Change Password",
+  "oldPassword": "Current Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
+  "tabs": {
+    "basic": "Basic Settings",
+    "security": "Security Settings",
+    "password": "Change Password",
+    "notice": "Notification Settings"
+  },
+  "security": {
+    "accountPassword": "Account Password",
+    "passwordStrength": "Current password strength: Strong",
+    "securityPhone": "Security Phone",
+    "phoneBound": "Phone bound: 138****8293",
+    "securityQuestion": "Security Question",
+    "questionNotSet": "Security question not set, it can effectively protect account security",
+    "securityEmail": "Backup Email",
+    "emailBound": "Email bound: ant***sign.com",
+    "mfaDevice": "MFA Device",
+    "mfaNotBound": "MFA device not bound, after binding, two-factor authentication is available"
+  },
+  "notification": {
+    "userMessage": "User Messages",
+    "userMessageDesc": "Messages from other users will be notified as internal messages",
+    "systemMessage": "System Messages",
+    "systemMessageDesc": "System messages will be notified as internal messages",
+    "todoTask": "Todo Tasks",
+    "todoTaskDesc": "Todo tasks will be notified as internal messages"
+  },
+  "messages": {
+    "updateSuccess": "Profile updated successfully",
+    "changePasswordSuccess": "Password changed successfully"
+  },
+  "placeholder": {
+    "inputRealName": "Please enter full name",
+    "inputUsername": "Please enter username",
+    "inputNickname": "Please enter nickname",
+    "inputEmail": "Please enter email",
+    "inputPhone": "Please enter phone",
+    "inputIntroduction": "Please enter bio",
+    "inputOldPassword": "Please enter current password",
+    "inputNewPassword": "Please enter new password",
+    "confirmNewPassword": "Please confirm new password"
+  },
+  "validation": {
+    "passwordMismatch": "Passwords do not match"
+  }
+}

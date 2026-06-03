@@ -1,14 +1,48 @@
 /**
- * 操作日志管理（租户端） - 表格列和搜索配置
+ * 操作日志管理（企业端） - 表格列和搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { tenantApi } from '#/api';
 
-import { searchDateRange, searchInput } from '#/adapter/form';
+import {
+  identityRemoteSelect,
+  searchDateRange,
+  searchInput,
+} from '#/adapter/form';
+import { getOperatorsSelectApi } from '#/api/tenant/operation-log';
 import { $t } from '#/locales';
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
+
+const STATUS_CODE_OPTIONS = [
+  200, 400, 401, 403, 404, 405, 409, 422, 429, 500, 502, 503,
+].map((code) => ({
+  label: `${code}`,
+  value: code,
+}));
+
+/**
+ * 获取用户类型颜色
+ */
+export function getUserTypeColor(userType: string | undefined): string {
+  if (userType === 'tenant_admin') return 'blue';
+  if (userType === 'tenant_user') return 'green';
+  return 'default';
+}
+
+/**
+ * 获取用户类型 i18n key
+ */
+export function getUserTypeLabel(userType: string | undefined): string {
+  if (userType === 'tenant_admin') {
+    return $t('tenant.system.operationLog.userTypeOptions.tenantAdmin');
+  }
+  if (userType === 'tenant_user') {
+    return $t('tenant.system.operationLog.userTypeOptions.tenantUser');
+  }
+  return userType || '';
+}
 
 /**
  * 获取响应状态颜色
@@ -49,7 +83,7 @@ export function getMethodColor(method: string | undefined): string {
 }
 
 /**
- * 表格列定义（租户端无删除操作）
+ * 表格列定义（企业端无删除操作）
  */
 export function useColumns<T = OperationLogInfo>(
   onActionClick: OnActionClickFn<T>,
@@ -58,7 +92,7 @@ export function useColumns<T = OperationLogInfo>(
     {
       field: 'username',
       title: $t('tenant.system.operationLog.username'),
-      width: 120,
+      width: 220,
       slots: {
         default: 'username_cell',
       },
@@ -160,10 +194,49 @@ export function useColumns<T = OperationLogInfo>(
 /**
  * 搜索表单 Schema
  */
-export function useGridFormSchema(): VbenFormSchema[] {
+export interface GridFormSchemaOptions {
+  onUserTypeChange?: (value: string | undefined) => void;
+}
+
+export function useGridFormSchema(
+  options?: GridFormSchemaOptions,
+): VbenFormSchema[] {
   return [
-    searchInput('username', $t('tenant.system.operationLog.username'), {
+    identityRemoteSelect({
+      fieldName: 'filter[username]',
+      label: $t('tenant.system.operationLog.username'),
+      api: getOperatorsSelectApi,
+      displayField: 'displayName',
+      displayFallbackFields: ['nickname', 'label', 'username'],
       placeholder: $t('tenant.system.operationLog.placeholder.searchUsername'),
+      componentProps: {
+        showSecondaryText: false,
+      },
+    }),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        onChange: options?.onUserTypeChange,
+        options: [
+          {
+            label: $t('tenant.system.operationLog.userTypeOptions.tenantAdmin'),
+            value: 'tenant_admin',
+          },
+          {
+            label: $t('tenant.system.operationLog.userTypeOptions.tenantUser'),
+            value: 'tenant_user',
+          },
+        ],
+        placeholder: $t('tenant.system.operationLog.placeholder.allUserTypes'),
+      },
+      fieldName: 'filter[user_type]',
+      label: $t('tenant.system.operationLog.userType'),
+    },
+    searchInput('trace_id', $t('tenant.system.operationLog.traceId'), {
+      op: 'eq',
+      placeholder: $t('tenant.system.operationLog.placeholder.searchTraceId'),
     }),
     searchInput('module', $t('tenant.system.operationLog.module'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchModule'),
@@ -171,6 +244,19 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('action', $t('tenant.system.operationLog.action'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchAction'),
     }),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        options: STATUS_CODE_OPTIONS,
+        placeholder: $t(
+          'tenant.system.operationLog.placeholder.searchStatusCode',
+        ),
+      },
+      fieldName: 'filter[status_code]',
+      label: $t('tenant.system.operationLog.statusCode'),
+    },
     searchInput('ip', $t('tenant.system.operationLog.ip'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchIp'),
     }),

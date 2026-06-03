@@ -1,73 +1,98 @@
 /**
+ * User-facing route module
  * 用户端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
+const UserLayout = () => import('#/layouts/user.vue');
 
-const AuthPageLayout = () => import('#/layouts/auth.vue');
-const BasicLayout = () => import('#/layouts/basic.vue');
-
-/** 用户端认证路由 */
-const authRoutes: RouteRecordRaw = {
-  component: AuthPageLayout,
-  meta: {
-    hideInTab: true,
-    title: 'User Authentication',
-  },
-  name: 'UserAuthentication',
-  path: '/auth',
-  redirect: '/login',
-  children: [
-    {
-      name: 'UserLogin',
-      path: '/login',
-      component: () => import('#/views/_core/authentication/login.vue'),
-      meta: {
-        title: $t('page.auth.login'),
-      },
-    },
-    {
-      name: 'UserRegister',
-      path: '/register',
-      component: () => import('#/views/_core/authentication/register.vue'),
-      meta: {
-        title: $t('page.auth.register'),
-      },
-    },
-  ],
-};
-
-/** 用户端主布局路由 */
+/** User main layout routes / 用户端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
-  component: BasicLayout,
+  component: UserLayout,
   meta: {
     hideInBreadcrumb: true,
     title: 'User Root',
   },
   name: 'UserRoot',
   path: '/',
-  redirect: '/dashboard',
   children: [
     {
-      name: 'UserDashboard',
-      path: 'dashboard',
-      component: () => import('#/views/user/dashboard/index.vue'),
+      name: 'UserHome',
+      path: '',
+      component: () => import('#/views/user/home/index.vue'),
       meta: {
         affixTab: true,
-        icon: 'lucide:layout-dashboard',
-        title: $t('page.dashboard.title'),
+        icon: 'lucide:home',
+        ignoreAccess: true,
+        title: 'user.home.title',
       },
+    },
+    {
+      name: 'UserAgents',
+      path: 'agents',
+      component: () => import('#/views/user/agents/index.vue'),
+      meta: {
+        accessCodes: ['menu:user.agents'],
+        icon: 'lucide:sparkles',
+        title: 'user.agents.title',
+      },
+    },
+    {
+      name: 'UserAIChat',
+      path: 'ai-chat',
+      component: () => import('#/views/user/ai-chat/index.vue'),
+      meta: {
+        accessCodes: ['menu:user.ai_chat'],
+        icon: 'lucide:bot',
+        title: 'user.aiChat.title',
+      },
+    },
+    {
+      name: 'UserHelp',
+      path: 'help',
+      component: () => import('#/views/user/help/index.vue'),
+      meta: {
+        icon: 'lucide:life-buoy',
+        title: 'user.helpCenter.title',
+      },
+    },
+    {
+      name: 'UserSettings',
+      path: 'settings',
+      component: () => import('#/views/user/settings/index.vue'),
+      redirect: '/settings/profile',
+      meta: {
+        icon: 'lucide:settings',
+        title: 'user.settings.title',
+      },
+      children: [
+        {
+          name: 'UserProfile',
+          path: 'profile',
+          component: () => import('#/views/user/profile/index.vue'),
+          meta: {
+            icon: 'lucide:user',
+            title: 'user.profile.title',
+          },
+        },
+        {
+          name: 'UserChangePassword',
+          path: 'password',
+          component: () => import('#/views/user/profile/change-password.vue'),
+          meta: {
+            hideInMenu: true,
+            title: 'user.profile.changePassword',
+          },
+        },
+        // UserPreferences route removed — personal preferences handled via Vben gear sidebar
+        // 用户端偏好页面已移除，个人偏好通过 Vben 齿轮侧边栏管理
+      ],
     },
   ],
 };
 
-/** 用户端路由 */
-export const userRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
+/** User routes / 用户端路由 */
+export const userRoutes: RouteRecordRaw[] = [mainRoutes];
 
-/** 用户端路由名称列表（不需要权限拦截） */
-export const userCoreRouteNames = [
-  'UserAuthentication',
-  'UserLogin',
-  'UserRegister',
-];
+/** User core route names (bypass permission checks) / 用户端路由名称列表（不需要权限拦截） */
+export const userCoreRouteNames: string[] = [];

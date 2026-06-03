@@ -36,10 +36,18 @@ import { LayoutTabbar } from './tabbar';
 
 defineOptions({ name: 'BasicLayout' });
 
+const props = withDefaults(
+  defineProps<{
+    panelRightOffset?: number;
+  }>(),
+  { panelRightOffset: 0 },
+);
+
 const emit = defineEmits<{
   clearPreferencesAndLogout: [];
   clickLogo: [];
   localeChange: [string];
+  resetPreferences: [];
 }>();
 
 const {
@@ -156,6 +164,10 @@ function clearPreferencesAndLogout() {
   emit('clearPreferencesAndLogout');
 }
 
+function resetPreferencesHandler() {
+  emit('resetPreferences');
+}
+
 function clickLogo() {
   emit('clickLogo');
 }
@@ -256,6 +268,7 @@ const headerSlots = computed(() => {
     :tabbar-enable="preferences.tabbar.enable"
     :tabbar-height="preferences.tabbar.height"
     :z-index="preferences.app.zIndex"
+    :panel-right-offset="props.panelRightOffset"
     @side-mouse-leave="handleSideMouseLeave"
     @toggle-sidebar="toggleSidebar"
     @update:sidebar-collapse="
@@ -296,6 +309,7 @@ const headerSlots = computed(() => {
       <LayoutHeader
         :theme="theme"
         @clear-preferences-and-logout="clearPreferencesAndLogout"
+        @reset-preferences="resetPreferencesHandler"
       >
         <template
           v-if="!showHeaderNav && preferences.breadcrumb.enable"
@@ -328,6 +342,21 @@ const headerSlots = computed(() => {
         <template #timezone>
           <slot name="timezone"></slot>
         </template>
+        <template v-if="$slots.refresh" #refresh>
+          <slot name="refresh"></slot>
+        </template>
+        <template v-if="$slots['theme-toggle']" #theme-toggle>
+          <slot name="theme-toggle"></slot>
+        </template>
+        <template v-if="$slots['language-toggle']" #language-toggle>
+          <slot name="language-toggle"></slot>
+        </template>
+        <template v-if="$slots.fullscreen" #fullscreen>
+          <slot name="fullscreen"></slot>
+        </template>
+        <template v-if="$slots.preferences" #preferences>
+          <slot name="preferences"></slot>
+        </template>
         <template v-for="item in headerSlots" #[item]>
           <slot :name="item"></slot>
         </template>
@@ -358,6 +387,10 @@ const headerSlots = computed(() => {
         @enter="handleMenuMouseEnter"
         @select="handleMixedMenuSelect"
       />
+    </template>
+    <!-- 侧边栏底部区域 -->
+    <template v-if="$slots['sidebar-bottom']" #sidebar-bottom>
+      <slot name="sidebar-bottom"></slot>
     </template>
     <!-- 侧边额外区域 -->
     <template #side-extra>
@@ -424,6 +457,7 @@ const headerSlots = computed(() => {
         <Preferences
           class="z-100 fixed bottom-20 right-0"
           @clear-preferences-and-logout="clearPreferencesAndLogout"
+          @reset-preferences="resetPreferencesHandler"
         />
       </template>
       <VbenBackTop />

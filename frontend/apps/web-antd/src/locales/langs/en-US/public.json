@@ -1,0 +1,67 @@
+{
+  "platformHome": {
+    "title": "Platform public home",
+    "headerEyebrow": "Public platform entry",
+    "badge": "Platform capability overview",
+    "heroTitle": "{brand} multi-surface AI SaaS platform",
+    "heroDescription": "The platform homepage explains the system, the three-surface architecture, and the entry model. It is not a back-office entry page. Platform and tenant management spaces should only be reached after authorization, without exposing concrete admin addresses on the public page.",
+    "fallbackDescription": "A unified SaaS foundation for platform governance, tenant operations, and tenant-facing AI services.",
+    "tenantAccessTitle": "Tenant-side access belongs to tenant domains",
+    "tenantAccessDescription": "The tenant brand portal, tenant admin console, and tenant user homepage should not be mixed into the platform public homepage. Tenant-facing experiences should be reached through bound tenant domains.",
+    "highlightTitle": "Demo focus",
+    "architectureTitle": "Three-surface system architecture",
+    "architectureDescription": "The public homepage introduces the system, dashboard pages handle administration, and tenant domains host the branded front stage plus the post-login user home.",
+    "nextStepsTitle": "How to enter each capability",
+    "nextStepsDescription": "Separating the public homepage, dashboard homepages, and tenant-facing entries makes the product story much easier to demonstrate.",
+    "cta": {
+      "architecture": "View architecture",
+      "demoFlow": "View demo flow"
+    },
+    "capabilities": {
+      "tenancy": {
+        "title": "Multi-tenancy and branding",
+        "description": "Split platform domains from tenant domains so every tenant can own a branded portal, admin console, and user-facing front stage."
+      },
+      "ai": {
+        "title": "AI service chain",
+        "description": "Reuse the existing agents, knowledge bases, conversations, attachments, and page capabilities to present AI as a real product feature."
+      },
+      "security": {
+        "title": "Permissions and isolation",
+        "description": "Platform admins, tenant admins, and tenant users keep clean boundaries across permissions, menus, and session contexts."
+      },
+      "extension": {
+        "title": "Extensible foundation",
+        "description": "Plugins, configurations, jobs, logs, and AI modules remain extensible for both demo use and real deployment."
+      }
+    },
+    "architecture": {
+      "platform": {
+        "title": "Platform public home + platform console",
+        "description": "The platform public homepage is only for product introduction. Management workspaces stay strictly separated from the public surface."
+      },
+      "tenant": {
+        "title": "Tenant brand portal + tenant admin console",
+        "description": "A tenant domain serves branded public access and post-login business experiences, while management space should not be exposed directly on the public page."
+      },
+      "user": {
+        "title": "Tenant user homepage + AI pages",
+        "description": "After sign-in, tenant users still land on /, but that same path now becomes the post-login workspace that leads into /agents, /ai-chat, and /help."
+      }
+    },
+    "highlights": {
+      "branding": "The platform homepage no longer misroutes visitors straight into the admin area.",
+      "rbac": "The tenant root path can switch between a public brand portal and a post-login workspace.",
+      "rag": "All AI execution pages are moved behind authentication.",
+      "workflow": "Dashboard pages keep their original role and only receive visual and hierarchy improvements."
+    },
+    "nextSteps": {
+      "platformTitle": "Separate platform introduction from platform management",
+      "platformDescription": "Visitors should understand the product from the public homepage first, then authorized operators enter management through controlled flows.",
+      "tenantTitle": "Separate tenant branding from tenant administration",
+      "tenantDescription": "Tenant visitors see the brand portal first, while signed-in users and operators continue into their own protected spaces.",
+      "userTitle": "Link the tenant user homepage to AI features",
+      "userDescription": "After sign-in, tenant users arrive at / and continue into the agent plaza, AI chat, and help center from that homepage."
+    }
+  }
+}

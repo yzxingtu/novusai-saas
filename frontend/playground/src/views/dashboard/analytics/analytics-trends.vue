@@ -53,6 +53,7 @@ onMounted(() => {
       },
       trigger: 'axis',
     },
+    // 备用 xAxis 配置（注释样例）/ Alternate xAxis config (commented sample)
     // xAxis: {
     //   axisTick: {
     //     show: false,

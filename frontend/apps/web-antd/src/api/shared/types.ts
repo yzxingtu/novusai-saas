@@ -1,94 +1,190 @@
 /**
- * 共享类型定义
- * 用于多端 API 的通用类型
+ * Shared type definitions / 共享类型定义
+ * Common types for multi-endpoint API / 用于多端 API 的通用类型
  */
-
-/** 登录请求参数 */
+/** Login request params / 登录请求参数 */
 export interface LoginParams {
   username: string;
   password: string;
+  /** Tenant code (optional, for scoping login) / 企业编码 */
+  tenantCode?: string;
+  /** Captcha challenge ID (optional) / 验证码挑战 ID */
+  captchaChallengeId?: string;
+  /** Captcha answer (optional) / 验证码答案 */
+  captchaSolution?: string;
+  /** Captcha provider code (optional) / 验证码提供方标识 */
+  captchaProviderCode?: string;
+  /** Captcha type (e.g. image) / 验证码类型 */
+  captchaType?: string;
 }
 
-/** 登录响应（前端使用） */
+/** Send login code params / 发送登录验证码参数 */
+export interface SendLoginCodeParams {
+  channel: 'email' | 'sms';
+  email?: string;
+  phone?: string;
+  /** Tenant code (optional, for scoping login) / 企业编码 */
+  tenantCode?: string;
+  /** Captcha challenge ID (optional) / 验证码挑战 ID */
+  captchaChallengeId?: string;
+  /** Captcha answer (optional) / 验证码答案 */
+  captchaSolution?: string;
+  /** Captcha provider code (optional) / 验证码提供方标识 */
+  captchaProviderCode?: string;
+}
+
+/** Login by code params / 验证码登录参数 */
+export interface LoginByCodeParams {
+  channel: 'email' | 'sms';
+  code: string;
+  email?: string;
+  phone?: string;
+  /** Tenant code (optional, for scoping login) / 企业编码 */
+  tenantCode?: string;
+}
+
+/** Login result (frontend format) / 登录响应 */
 export interface LoginResult {
   accessToken: string;
   refreshToken?: string;
 }
 
-/** 登录响应（后端原始格式） */
+/** Login result (backend raw format) / 登录响应（后端原始格式） */
 export interface LoginResultRaw {
   access_token: string;
   refresh_token?: string;
   token_type?: string;
 }
 
-/** 刷新 Token 请求参数 */
+/** Refresh token request params / 刷新 Token 请求参数 */
 export interface RefreshTokenParams {
   refreshToken: string;
 }
 
-/** 刷新 Token 响应（前端使用） */
+/** Refresh token result (frontend format) / 刷新 Token 响应 */
 export interface RefreshTokenResult {
   accessToken: string;
   refreshToken?: string;
 }
 
-/** 刷新 Token 响应（后端原始格式） */
+/** Refresh token result (backend raw format) / 刷新 Token 响应（后端原始格式） */
 export interface RefreshTokenResultRaw {
   access_token: string;
   refresh_token?: string;
   token_type?: string;
 }
 
-/** 修改密码请求参数 */
+/** Change password request params / 修改密码请求参数 */
 export interface ChangePasswordParams {
   oldPassword: string;
   newPassword: string;
   confirmPassword: string;
 }
 
-/** 用户基本信息 */
-export interface BaseUserInfo {
+/** Base user info / 用户基本信息 */
+export interface AIAvailabilityInfo {
+  /** Account-level AI switch / 账号级 AI 开关 */
+  accountAIEnabled?: boolean;
+  /** Effective AI chat availability / AI 对话最终可用性 */
+  aiChatEnabled?: boolean;
+  /** Stable unavailable reason from backend / 后端返回的不可用原因 */
+  aiUnavailableReason?: string;
+  /** Tenant plan AI feature switch / 企业套餐 AI 功能开关 */
+  tenantPlanAIEnabled?: boolean;
+}
+
+export interface AIAvailabilityRawFields {
+  ai_chat_enabled?: boolean | null;
+  ai_enabled?: boolean | null;
+  ai_unavailable_reason?: null | string;
+  effective_ai_enabled?: boolean | null;
+  tenant_ai_enabled?: boolean | null;
+  tenant_plan_ai_enabled?: boolean | null;
+}
+
+/** Base user info / 用户基本信息 */
+export interface BaseUserInfo extends AIAvailabilityInfo {
   id: number | string;
   username: string;
   realName: string;
   avatar?: string;
   email?: string;
   roles?: string[];
-  /** 权限码列表，用于按钮级别权限控制 */
+  /** Permission code list, for button-level access control / 权限码列表 */
   permissions?: string[];
   homePath?: string;
 }
 
-/** 平台管理员信息 */
+/** Platform admin info / 平台管理员信息 */
 export interface AdminUserInfo extends BaseUserInfo {
   email?: string;
   isSuperAdmin?: boolean;
 }
 
-/** 租户管理员信息 */
+/** Tenant admin info / 企业管理员信息 */
 export interface TenantAdminInfo extends BaseUserInfo {
   tenantId: number | string;
   tenantName?: string;
   email?: string;
+  hasPlan: boolean;
+  planName?: string;
 }
 
-/** 租户用户信息 */
+/** Tenant user info / 企业用户信息 */
 export interface TenantUserInfo extends BaseUserInfo {
   tenantId: number | string;
   email?: string;
 }
 
-/** API 端类型 */
-export type ApiEndpoint = 'admin' | 'tenant' | 'user';
-
-/** 根据路由获取 API 端类型 */
-export function getApiEndpoint(path: string): ApiEndpoint {
-  if (path.startsWith('/admin')) {
-    return 'admin';
-  }
-  if (path.startsWith('/tenant')) {
-    return 'tenant';
-  }
-  return 'user';
+/** Generic remote select option / 通用远程下拉选项 */
+export interface SelectOption<TExtra extends object = Record<string, unknown>> {
+  disabled?: boolean;
+  extra?: null | TExtra;
+  label: string;
+  value: number | string;
 }
+
+/** Generic paginated select response / 通用分页下拉响应 */
+export interface SelectResponse<
+  TExtra extends object = Record<string, unknown>,
+> {
+  has_more?: boolean;
+  items: Array<SelectOption<TExtra>>;
+  page?: number;
+  page_size?: number;
+  total?: number;
+}
+
+/** 偏好 JSON 对象 / Preferences JSON object */
+export type PreferencesData = Record<string, boolean | number | string>;
+
+/** Turn context source payload / 轮次上下文来源 */
+export interface TurnContextSourcePayload {
+  active?: boolean;
+  kind?: string;
+  metadata?: Record<string, unknown>;
+  name?: string;
+}
+
+/** Turn-level diagnostics payload / 轮次级诊断负载 */
+export interface TurnFallbackRecordPayload {
+  from_protocol?: string;
+  metadata?: Record<string, unknown>;
+  reason?: string;
+  recovered?: boolean;
+  to_protocol?: string;
+}
+
+/** Turn-level diagnostics payload / 轮次级诊断负载 */
+export interface TurnRecordPayload {
+  context_sources?: TurnContextSourcePayload[];
+  fallback_history?: TurnFallbackRecordPayload[];
+  metadata?: Record<string, unknown>;
+  protocol_path?: string;
+  selected_skill_names?: string[];
+  selected_tool_names?: string[];
+  termination_reason?: string;
+  turn_outcome?: string;
+}
+
+export { type ApiEndpoint } from '#/types/endpoint';

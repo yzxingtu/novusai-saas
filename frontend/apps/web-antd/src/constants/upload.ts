@@ -1,0 +1,161 @@
+/**
+ * Upload rule constants / 上传规则常量
+ *
+ * Aligned with backend platform storage configuration defaults:
+ * - platform_storage_allowed_extensions
+ * - platform_storage_denied_extensions
+ * - platform_storage_max_file_size_mb
+ *
+ * These serve as frontend pre-validation defaults.
+ * The runtime rules can be overridden via GET /attachments/upload-rules API.
+ */
+
+// ============ Extension Sets / 扩展名集合 ============
+
+/** Image file extensions / 图片文件扩展名 */
+export const IMAGE_EXTENSIONS = new Set([
+  'bmp',
+  'gif',
+  'ico',
+  'jpeg',
+  'jpg',
+  'png',
+  'svg',
+  'webp',
+]);
+
+/** Document file extensions / 文档文件扩展名 */
+export const DOCUMENT_EXTENSIONS = new Set([
+  'csv',
+  'doc',
+  'docx',
+  'json',
+  'pdf',
+  'ppt',
+  'pptx',
+  'txt',
+  'xls',
+  'xlsx',
+  'xml',
+]);
+
+/** Video file extensions / 视频文件扩展名 */
+export const VIDEO_EXTENSIONS = new Set(['avi', 'mkv', 'mov', 'mp4', 'webm']);
+
+/** Audio file extensions / 音频文件扩展名 */
+export const AUDIO_EXTENSIONS = new Set(['aac', 'flac', 'm4a', 'mp3', 'wav']);
+
+/** Archive file extensions / 压缩包文件扩展名 */
+export const ARCHIVE_EXTENSIONS = new Set(['7z', 'gz', 'rar', 'tar', 'zip']);
+
+// ============ Platform Default Rules / 平台默认上传规则 ============
+
+/**
+ * Default allowed extensions (synced with backend platform_storage_allowed_extensions)
+ */
+export const PLATFORM_ALLOWED_EXTENSIONS = new Set([
+  ...ARCHIVE_EXTENSIONS,
+  ...AUDIO_EXTENSIONS,
+  ...DOCUMENT_EXTENSIONS,
+  ...IMAGE_EXTENSIONS,
+  ...VIDEO_EXTENSIONS,
+]);
+
+/**
+ * Default denied extensions (synced with backend platform_storage_denied_extensions)
+ */
+export const PLATFORM_DENIED_EXTENSIONS = new Set([
+  'asp',
+  'aspx',
+  'bat',
+  'cgi',
+  'cmd',
+  'dll',
+  'exe',
+  'htaccess',
+  'jsp',
+  'php',
+  'pl',
+  'py',
+  'rb',
+  'sh',
+  'so',
+]);
+
+/** Default max file size in MB (synced with backend platform_storage_max_file_size_mb) / 默认最大文件大小(MB) */
+export const PLATFORM_MAX_FILE_SIZE_MB = 100;
+
+// ============ AI Chat Specific / AI 对话上传 ============
+
+/**
+ * AI Chat accepted extensions for the file picker `accept` attribute / AI 对话文件选择器 accept 扩展名
+ * A subset of PLATFORM_ALLOWED_EXTENSIONS commonly used in chat.
+ */
+export const CHAT_ACCEPTED_EXTENSIONS = [
+  ...[...IMAGE_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...DOCUMENT_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...VIDEO_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...AUDIO_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...ARCHIVE_EXTENSIONS].map((ext) => `.${ext}`),
+];
+
+/** AI Chat max file size in MB (more conservative than platform default) / AI 对话最大文件大小(MB) */
+export const CHAT_MAX_FILE_SIZE_MB = 10;
+
+/**
+ * Build an HTML `accept` attribute value from the accepted extensions.
+ */
+export function buildAcceptAttribute(extensions: string[]): string {
+  return extensions.join(',');
+}
+
+/** Pre-built accept attribute string for AI Chat file input / AI 对话文件选择 accept 字符串 */
+export const CHAT_ACCEPT_ATTRIBUTE = buildAcceptAttribute(
+  CHAT_ACCEPTED_EXTENSIONS,
+);
+
+// ============ Validation Helpers / 校验辅助 ============
+
+/**
+ * Check if a filename has an allowed extension / 检查文件名扩展名是否允许
+ *
+ * @param filename - File name or path
+ * @param allowed - Set of allowed extensions (lowercase, no dot)
+ * @param denied - Set of denied extensions (lowercase, no dot)
+ * @returns true if extension is allowed
+ */
+export function isExtensionAllowed(
+  filename: string,
+  allowed: Set<string> = PLATFORM_ALLOWED_EXTENSIONS,
+  denied: Set<string> = PLATFORM_DENIED_EXTENSIONS,
+): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (!ext) return false;
+  if (denied.has(ext)) return false;
+  if (allowed.size === 0) return true;
+  return allowed.has(ext);
+}
+
+/**
+ * Check if a file is an image based on its extension or MIME type.
+ */
+export function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+/**
+ * Get the extension category for a given file extension.
+ */
+export function getExtensionCategory(
+  ext: string,
+): 'archive' | 'audio' | 'document' | 'image' | 'other' | 'video' {
+  const lower = ext.toLowerCase().replace(/^\./, '');
+  if (IMAGE_EXTENSIONS.has(lower)) return 'image';
+  if (DOCUMENT_EXTENSIONS.has(lower)) return 'document';
+  if (VIDEO_EXTENSIONS.has(lower)) return 'video';
+  if (AUDIO_EXTENSIONS.has(lower)) return 'audio';
+  if (ARCHIVE_EXTENSIONS.has(lower)) return 'archive';
+  return 'other';
+}

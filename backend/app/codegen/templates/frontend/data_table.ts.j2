@@ -1,0 +1,365 @@
+/**
+ * {{ display_name }} - Table 列、搜索、表单配置
+ * {{ display_name_en }} - Columns, search and form config
+ */
+import type { VbenFormSchema } from '#/adapter/form';
+import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+
+{% set _fk_ns = namespace(rels=[]) %}
+{% for f in fields if ('ForeignKey' in (f.type | default('')) or f.type == 'TreeSelect') and not f.get('divider') %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+{% if _rel not in _fk_ns.rels %}
+{% set _fk_ns.rels = _fk_ns.rels + [_rel] %}
+import { get{{ _rel | pascal }}ListApi } from '#/api/{{ api_scope | default("admin") }}/{{ _rel }}';
+{% endif %}
+{% endfor %}
+{% if fields | selectattr('type', 'equalto', 'UserSelect') | list | length > 0 %}
+import { getUserSelectApi } from '#/composables/use-codegen-apis';
+{% endif %}
+{% if fields | selectattr('type', 'equalto', 'DeptSelect') | list | length > 0 %}
+import { getDeptTreeApi } from '#/composables/use-codegen-apis';
+{% endif %}
+
+import {
+  apiSelect,
+  inputField,
+  numberField,
+  searchDateRange,
+  searchInput,
+  select,
+  statusSelect,
+  switchField,
+  textareaField,
+} from '#/adapter/form';
+{% if model.drag_sort | default(false) %}
+import { dragColumn } from '#/adapter/vxe-table';
+{% endif %}
+{% if batch and batch.get('delete') %}
+import { checkboxColumn } from '#/adapter/vxe-table';
+{% endif %}
+import { seqColumn } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
+
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
+{% set _ep = (admin_ep if (api_scope | default('admin')) == 'admin' else tenant_ep) or {} %}
+{% set _fe = _ep.get('frontend') or {} %}
+{% set perm = _ep.get('permission') or {} %}
+{% set perm_resource = perm.get('resource') or resource %}
+{% set _base_ops = ['edit', 'delete'] + ((actions or []) | selectattr('action') | map(attribute='action') | list) %}
+{% set _has_detail = detail and detail.get('enabled') %}
+
+{# useColumns: fields with column.visible != false #}
+export function useColumns<T = {{ resource | pascal }}Info>(
+  onActionClick: OnActionClickFn<T>,
+  {% if toggle_field %}onStatusChange?: (row: T) => Promise<void>,{% endif %}
+): VxeTableGridOptions['columns'] {
+  return [
+{% if batch and batch.get('delete') %}
+    { type: 'checkbox', field: '_checked', width: 50 },
+{% endif %}
+{% if model.drag_sort | default(false) %}
+    dragColumn,
+{% endif %}
+    seqColumn,
+    {
+      field: 'id',
+      title: $t('{{ i18n_pre }}.id'),
+      width: 80,
+      sortable: true,
+    },
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set col_vis = f.get('column') %}
+{% if col_vis is mapping %}
+{% set vis = col_vis.get('visible', f.get('list_visible', true)) %}
+{% else %}
+{% set _vis_default = (f.get('filterable') or f.get('sortable')) %}
+{% set vis = col_vis if col_vis is not none else f.get('list_visible', _vis_default) %}
+{% endif %}
+{% if vis != false and f.name not in ['parent_id'] %}
+{% set cell_render = type_registry.get_cell_render(f) if type_registry else None %}
+{% if cell_render == 'CellImage' %}
+    {
+      field: '{{ f.name | camel }}',
+      title: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      width: 80,
+      slots: { default: '{{ f.name }}_cell' },
+    },
+{% elif f.type and 'Boolean' in (f.type | default('')) %}
+    {
+      field: '{{ f.name | camel }}',
+      title: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      width: 120,
+      slots: { default: '{{ f.name }}_cell' },
+    },
+{% else %}
+    {
+      field: '{{ f.name | camel }}',
+      title: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.type and 'Integer' in (f.type | default('')) %}width: 100{% else %}minWidth: 140{% endif %},
+      {% if f.name == 'created_at' %}sortable: true,{% endif %}
+    },
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) | camel %}
+    {
+      field: '{{ rel_name }}Name',
+      title: $t('{{ i18n_pre }}.{{ rel_name }}'),
+      minWidth: 140,
+    },
+{% endfor %}
+    {
+      align: 'center',
+      cellRender: {
+        attrs: {
+          resource: '{{ perm_resource }}',
+          nameField: '{{ name_field | camel }}',
+          nameTitle: $t('{{ i18n_pre }}.name'),
+          onClick: onActionClick,
+        },
+        name: 'CellOperation',
+        options: [
+{% for op in (_fe.get('operation_options') or (['detail'] + _base_ops if _has_detail else _base_ops)) %}
+{% if not (op is string and op == 'detail' and not _has_detail) %}
+{% if op is string %}
+          '{{ op }}',
+{% else %}
+          {{ op | tojson }},
+{% endif %}
+{% endif %}
+{% endfor %}
+        ],
+      },
+      field: 'operation',
+      fixed: 'right',
+      title: $t('shared.common.operation'),
+      width: 160,
+    },
+  ];
+}
+
+{# useGridFormSchema: fields with search.enabled or filterable #}
+export function useGridFormSchema(): VbenFormSchema[] {
+  return [
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id', 'parent_id'] %}
+{% set search_ok = f.get('search', {}) %}
+{% if search_ok is mapping %}
+{% set sen = search_ok.get('enabled', f.get('filterable', false)) %}
+{% else %}
+{% set sen = f.get('filterable', false) %}
+{% endif %}
+{% if sen %}
+{% set search_comp = type_registry.get_search_component(f) if type_registry else 'input' %}
+{% set ftype_base = f.type | default('') %}
+{% if search_comp == 'status_select' or 'Boolean' in ftype_base %}
+    statusSelect({ field: '{{ f.name }}', label: $t('{{ i18n_pre }}.{{ f.name | camel }}') }),
+{% elif search_comp == 'date_range' %}
+    searchDateRange({
+      field: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      showTime: {{ 'true' if f.get('queryType') == 'between' else 'false' }},
+    }),
+{% elif ftype_base == 'UserSelect' %}
+    {
+      component: 'ApiSelect',
+      fieldName: 'filter[{{ f.name }}][eq]',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: {
+        api: getUserSelectApi,
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    },
+{% elif ftype_base == 'DeptSelect' %}
+    {
+      component: 'ApiSelect',
+      fieldName: 'filter[{{ f.name }}][eq]',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: {
+        api: getDeptTreeApi,
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    },
+{% elif search_comp == 'ApiSelect' and 'ForeignKey' in ftype_base %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+{% set _filter_op = 'in' if (f.get('multiple') or '_ids' in (f.name | default(''))) else 'eq' %}
+    {
+      component: 'ApiSelect',
+      fieldName: 'filter[{{ f.name }}][{{ _filter_op }}]',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: {
+        api: () => get{{ _rel | pascal }}ListApi(),
+        labelField: '{{ f.get("relation_display_field") or f.get("relation_display") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    },
+{% else %}
+{% set _text_op = ((f.get('form', {}) if f.get('form') is mapping else {}).get('queryType') or f.get('query_type') or 'ilike') %}
+    searchInput('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { op: '{{ _text_op }}' }),
+{% endif %}
+{% endif %}
+{% endfor %}
+  ];
+}
+
+{# useFormSchema: all form fields, with insertable/editable #}
+export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
+  return [
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set form_cfg = f.get('form', {}) %}
+{% if form_cfg is not mapping %}{% set form_cfg = {} %}{% endif %}
+{% set _comp_result = type_registry.get_form_component(f) if type_registry else 'input' %}
+{% set comp = form_cfg.get('component') or _comp_result %}
+{% set ftype = f.type | default('String') %}
+{% set _insertable = f.get('insertable', true) %}
+{% set _editable = f.get('editable', true) %}
+{% if _insertable or _editable %}
+{% if f.name == 'parent_id' and (model.tree | default({})).get('enabled') %}
+    inputField('{{ f.name }}', $t('{{ i18n_pre }}.parentId'), { placeholder: $t('{{ i18n_pre }}.placeholder.parentId') }),
+{% elif 'ForeignKey' in ftype %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+    {
+      component: 'ApiSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: () => get{{ _rel | pascal }}ListApi(),
+        labelField: '{{ f.get("relation_display_field") or f.get("relation_display") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+        {% if f.get('multiple') %}multiple: true,{% endif %}
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif ftype == 'UserSelect' %}
+    {
+      component: 'ApiSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: getUserSelectApi,
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif ftype == 'DeptSelect' %}
+    {
+      component: 'ApiTreeSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: getDeptTreeApi,
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif ftype == 'TreeSelect' %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+    {
+      component: 'ApiTreeSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: () => get{{ _rel | pascal }}ListApi(),
+        labelField: '{{ f.get("relation_display_field") or f.get("relation_display") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif ftype == 'Cascader' %}
+    {
+      component: 'Cascader',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        options: {{ f.get('cascader_options', []) | tojson }},
+        placeholder: $t('{{ i18n_pre }}.placeholder.select'),
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif comp in ('ImageUpload', 'FilePicker') %}
+    {
+      component: '{{ comp }}' as const,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        {% if f.get('multiple') or ftype in ('Images', 'Files') %}
+        multiple: true,
+        maxCount: {{ f.get('max_count', 9) }},
+        {% else %}
+        maxCount: 1,
+        {% endif %}
+      },
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif comp in ('RichText', 'CronPicker', 'IconPicker', 'CodeEditor') %}
+    {
+      component: '{{ comp }}' as const,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif 'DateTime' in ftype %}
+    {
+      component: 'DatePicker',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: { showTime: true, format: 'YYYY-MM-DD HH:mm:ss' },
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif 'Date' in ftype and 'DateTime' not in ftype %}
+    {
+      component: 'DatePicker',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: { format: 'YYYY-MM-DD' },
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
+    },
+{% elif 'Boolean' in ftype or comp == 'switch' %}
+    switchField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { defaultValue: {{ (f.get('default', false) and 'true') or 'false' }} }),
+{% elif 'Text' in ftype or comp == 'textarea' %}
+    textareaField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { rows: 3{% if f.get('required', true) %}, required: true{% endif %} }),
+{% elif 'Integer' in ftype or 'Float' in ftype or 'Decimal' in ftype or comp == 'number' %}
+    numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { {% if f.get('min_value') is not none %}min: {{ f.get('min_value') }}{% else %}min: undefined{% endif %}{% if f.get('max_value') is not none %}, max: {{ f.get('max_value') }}{% endif %}{% if f.get('default') is not none %}, defaultValue: {{ f.get('default') }}{% endif %} }),
+{% elif f.get('enum_values') %}
+    select('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), {
+      options: [{% for v in f.enum_values %}{ label: $t('{{ i18n_pre }}.enum.{{ v.value if v is mapping else v }}'), value: '{{ v.value if v is mapping else v }}' }{% if not loop.last %}, {% endif %}{% endfor %}],
+      required: {{ f.get('required', true) | lower }},
+    }),
+{% else %}
+{% set _ml = f.get('max_length') or (ftype | string_max_length) %}
+    inputField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { required: {{ f.get('required', true) | lower }}{% if _ml %}, maxLength: {{ _ml }}{% endif %} }),
+{% endif %}
+{% endif %}
+{% endfor %}
+  ];
+}
+
+export function getFormDefaults(): Record<string, unknown> {
+  return {
+{% for f in fields if not f.get('divider') and (f.get('default') is not none or f.get('form_default') is not none) %}
+{% set dv = f.get('form_default') if f.get('form_default') is not none else f.get('default') %}
+{% set dv_str = dv | string %}
+{% set dv_clean = dv_str.strip("'\"") if dv_str.startswith("'") or dv_str.startswith('"') else dv_str %}
+    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv_clean }}'{% endif %},
+{% endfor %}
+  };
+}

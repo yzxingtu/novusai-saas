@@ -4,37 +4,45 @@
     "unsaved_title": "存在未保存的修改",
     "unsaved_content": "当前配置尚未保存，确定要离开吗？",
     "password_placeholder": "如需修改请输入新密码",
-    "select_group": "请从左侧选择配置分组"
+    "select_group": "请从左侧选择配置分组",
+    "json_placeholder": "请输入 JSON 格式的配置"
   },
   "group": {
     "platform_general": "通用设置",
-    "platform_general.desc": "站点基本信息、维护模式等配置",
+    "platform_domain": "域名设置",
     "platform_security": "安全设置",
-    "platform_security.desc": "密码策略、登录安全等配置",
     "platform_email": "邮件设置",
-    "platform_email.desc": "SMTP 邮件发送配置",
+    "platform_ssl": "SSL 证书管理",
+    "platform_ai_toolkit": "AI Toolkit",
     "tenant_appearance": "外观设置",
-    "tenant_appearance.desc": "Logo、主题色等品牌设置",
-    "tenant_general": "基础设置",
-    "tenant_general.desc": "登录方式、会话超时等配置",
-    "tenant_features": "功能设置",
-    "tenant_features.desc": "注册、通知、API 访问等功能开关"
+    "tenant_general": "安全设置",
+    "tenant_registration": "注册与协议",
+    "tenant_features": "会员功能"
+  },
+  "group_desc": {
+    "platform_general": "站点基本信息、维护模式等配置",
+    "platform_domain": "企业默认域名后缀、自定义域名验证前缀等配置",
+    "platform_security": "密码策略、登录安全等配置",
+    "platform_email": "SMTP 邮件发送配置",
+    "platform_ssl": "ACME 证书签发、DNS 提供商、续期策略配置",
+    "platform_ai_toolkit": "Toolkit 安全策略与资源限制",
+    "tenant_appearance": "Logo、登录页品牌设置",
+    "tenant_general": "登录安全、密码策略、会话设置",
+    "tenant_registration": "用户注册流程、默认角色、隐私政策和服务条款配置",
+    "tenant_features": "通知、资料编辑、文件上传等会员功能开关"
   },
   "platform": {
     "site_name": "站点名称",
-    "site_name.desc": "显示在浏览器标题栏和页面顶部的名称",
     "site_description": "站点描述",
     "site_logo": "站点 Logo",
     "site_favicon": "站点图标",
+    "logo_dark": "站点深色 Logo",
     "site_copyright": "版权信息",
     "site_icp": "ICP 备案号",
     "maintenance_mode": "维护模式",
     "maintenance_message": "维护提示",
     "password_min_length": "密码最小长度",
     "password_complexity": "密码复杂度",
-    "password_complexity.low": "低（仅限制长度）",
-    "password_complexity.medium": "中（字母+数字）",
-    "password_complexity.high": "高（字母+数字+特殊字符）",
     "password_expiry_days": "密码过期天数",
     "login_max_attempts": "登录失败锁定次数",
     "login_lockout_minutes": "账户锁定时长（分钟）",
@@ -44,15 +52,52 @@
     "email_smtp_host": "SMTP 服务器",
     "email_smtp_port": "SMTP 端口",
     "email_smtp_encryption": "加密方式",
-    "email_smtp_encryption.none": "无",
-    "email_smtp_encryption.ssl": "SSL",
-    "email_smtp_encryption.tls": "TLS",
     "email_smtp_username": "SMTP 用户名",
     "email_smtp_password": "SMTP 密码",
     "email_from_address": "发件人邮箱",
     "email_from_name": "发件人名称",
-    "email_enabled": "启用邮件发送"
+    "email_enabled": "启用邮件发送",
+    "acme_account_email": "ACME 注册邮箱",
+    "acme_use_staging": "使用测试环境（90 天测试证书）",
+    "acme_directory_url": "ACME 生产环境 URL",
+    "acme_staging_url": "ACME 测试环境 URL",
+    "ssl_private_key_encryption_key": "私钥加密密钥",
+    "ssl_auto_renew_days": "自动续期提前天数",
+    "ssl_allow_custom_cert": "允许自定义证书",
+    "dns_provider": "DNS 提供商",
+    "dns_cloudflare_api_token": "Cloudflare API Token",
+    "dns_cloudflare_zone_id": "Cloudflare Zone ID"
   },
+  "platform_desc": {
+    "site_name": "显示在浏览器标题栏和页面顶部的名称",
+    "acme_account_email": "用于 Let's Encrypt 账户注册和证书到期通知",
+    "acme_use_staging": "开启 = 向测试服务器申请（不被浏览器信任，速率宽松，适合调试）；关闭 = 向生产服务器申请（正式证书，每域名每周限 5 张）。均需 DNS 验证，90 天有效，自动续期",
+    "acme_directory_url": "Let's Encrypt 生产环境 ACME 目录地址",
+    "acme_staging_url": "Let's Encrypt 测试环境 ACME 目录地址",
+    "ssl_private_key_encryption_key": "用于加密存储 SSL 私钥的 Fernet 密钥",
+    "ssl_auto_renew_days": "证书到期前多少天自动触发续期",
+    "ssl_allow_custom_cert": "是否允许企业上传自定义 SSL 证书",
+    "dns_provider": "生产环境仅支持 Cloudflare 自动化 DNS-01；手动模式仅用于开发调试",
+    "dns_cloudflare_api_token": "Cloudflare API Token（需要 Zone.DNS 编辑权限）",
+    "dns_cloudflare_zone_id": "Cloudflare 域名区域 ID"
+  },
+  "platform_options": {
+    "password_complexity": {
+      "low": "低（仅限制长度）",
+      "medium": "中（字母+数字）",
+      "high": "高（字母+数字+特殊字符）"
+    },
+    "email_smtp_encryption": {
+      "none": "无",
+      "ssl": "SSL",
+      "tls": "TLS"
+    },
+    "dns_provider": {
+      "manual": "手动模式（仅开发调试，不支持自动签发）",
+      "cloudflare": "Cloudflare"
+    }
+  },
+  "generate_key": "生成密钥",
   "validation": {
     "required": "{field}不能为空",
     "min_length": "长度不能少于 {min} 个字符",
@@ -62,19 +107,16 @@
     "pattern": "格式不正确"
   },
   "tenant": {
-    "tenant_logo": "租户 Logo",
-    "tenant_logo.desc": "租户管理后台显示的 Logo",
-    "tenant_favicon": "租户图标",
+    "tenant_logo": "企业 Logo",
+    "tenant_favicon": "企业图标",
+    "tenant_logo_dark": "企业深色 Logo",
     "tenant_login_bg": "登录页背景",
-    "tenant_primary_color": "主题主色",
-    "tenant_accent_color": "主题强调色",
     "tenant_login_title": "登录页标题",
     "tenant_login_subtitle": "登录页副标题",
     "tenant_footer_copyright": "页脚版权",
+    "tenant_icp": "ICP备案号",
     "tenant_captcha_enabled": "启用验证码",
     "tenant_login_methods": "登录方式",
-    "tenant_login_methods.password": "密码登录",
-    "tenant_login_methods.sms": "短信登录",
     "tenant_login_max_attempts": "登录失败锁定次数",
     "tenant_login_lockout_minutes": "账户锁定时长（分钟）",
     "tenant_password_min_length": "密码最小长度",
@@ -87,5 +129,16 @@
     "tenant_sms_notification": "短信通知",
     "tenant_api_access": "API 访问",
     "tenant_file_upload": "文件上传"
+  },
+  "tenant_desc": {
+    "tenant_logo": "企业管理后台显示的 Logo",
+    "tenant_logo_dark": "深色主题下优先显示的企业 Logo",
+    "tenant_icp": "企业自己的备案号；为空时沿用平台默认备案号"
+  },
+  "tenant_options": {
+    "tenant_login_methods": {
+      "password": "密码登录",
+      "sms": "短信登录"
+    }
   }
 }

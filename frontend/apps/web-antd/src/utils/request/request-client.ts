@@ -1,6 +1,15 @@
 /**
+ * HTTP request client
  * HTTP 请求客户端
  *
+ * Axios-based wrapper with support for:
+ * - Multi-endpoint auto Token attachment
+ * - Duplicate request cancellation
+ * - Loading state management
+ * - Business error code handling
+ * - Auto Token refresh
+ * - File upload/download
+ * - SSE streaming requests
  * 基于 axios 封装，支持：
  * - 多端 Token 自动携带
  * - 重复请求取消
@@ -35,11 +44,24 @@ import type {
 import axios from 'axios';
 import qs from 'qs';
 
+import { notifyAIAccessDenied } from './ai-availability-events';
+import {
+  formatAppErrorMessage,
+  normalizeHttpError,
+  normalizeSseTransportError,
+  toErrorWithAppError,
+} from './app-error';
+import { getEndpointByUrl } from './endpoint';
+import { isAuthError } from './error-codes';
+import { ensureTraceIdHeader } from './trace';
+
+/* eslint-disable perfectionist/sort-classes */
+
 // ============================================================
-// 默认配置
+// Default configuration / 默认配置
 // ============================================================
 
-/** 默认请求选项 */
+/** Default request options / 默认请求选项 */
 const DEFAULT_OPTIONS: Required<RequestOptions> = {
   cancelDuplicateRequest: true,
   loading: false,
@@ -52,10 +74,11 @@ const DEFAULT_OPTIONS: Required<RequestOptions> = {
 };
 
 // ============================================================
-// 工具函数
+// Utility functions / 工具函数
 // ============================================================
 
 /**
+ * Get parameter serializer
  * 获取参数序列化器
  */
 function getParamsSerializer(type: ParamsSerializer) {
@@ -73,15 +96,7 @@ function getParamsSerializer(type: ParamsSerializer) {
 }
 
 /**
- * 根据请求 URL 判断端类型
- */
-function getEndpointByUrl(url: string): ApiEndpoint {
-  if (url.startsWith('/admin')) return 'admin';
-  if (url.startsWith('/tenant')) return 'tenant';
-  return 'user';
-}
-
-/**
+ * Generate unique request key (for duplicate request detection)
  * 生成请求唯一标识（用于重复请求判断）
  */
 function getPendingKey(config: InternalAxiosRequestConfig): string {
@@ -97,53 +112,56 @@ function getPendingKey(config: InternalAxiosRequestConfig): string {
 }
 
 // ============================================================
-// RequestClient 类
+// RequestClient class / RequestClient 类
 // ============================================================
 
 export class RequestClient {
-  /** 重新认证函数（拦截器使用） */
+  /** Re-authenticate function (used by interceptors) / 重新认证函数（拦截器使用） */
   public doReAuthenticate?: () => Promise<void>;
 
-  /** Token 刷新函数（拦截器使用） */
+  /** Token refresh function (used by interceptors) / Token 刷新函数（拦截器使用） */
   public doRefreshToken?: () => Promise<string>;
 
-  /** Refresh Token 获取函数（拦截器使用） */
+  /** Refresh Token getter function (used by interceptors) / Refresh Token 获取函数（拦截器使用） */
   public getRefreshToken?: (endpoint: ApiEndpoint) => null | string;
 
-  /** Axios 实例 */
+  /** Axios instance / Axios 实例 */
   public readonly instance: AxiosInstance;
 
-  /** 正在刷新 Token */
+  /** Currently refreshing Token / 正在刷新 Token */
   public isRefreshing = false;
 
-  /** Token 刷新队列（存储 resolve/reject 回调） */
+  /** Token refresh queue (stores resolve/reject callbacks) / Token 刷新队列（存储 resolve/reject 回调） */
   public refreshTokenQueue: Array<{
     reject: (error: any) => void;
     resolve: (token: string) => void;
   }> = [];
 
-  /** 显示消息（拦截器使用） */
+  /** Show message (used by interceptors) / 显示消息（拦截器使用） */
   public showMessage?: (type: 'error' | 'success', message: string) => void;
 
-  /** 国际化函数（拦截器使用） */
+  /** i18n function (used by interceptors) / 国际化函数（拦截器使用） */
   public t?: (key: string) => string;
 
-  /** 默认选项 */
+  /** Default options / 默认选项 */
   private readonly defaultOptions: Required<RequestOptions>;
 
-  /** Token 获取函数 */
+  /** Locale getter function (for Accept-Language in SSE) / 语言获取函数（SSE Accept-Language） */
+  private getLocale?: () => string;
+
+  /** Token getter function / Token 获取函数 */
   private getToken?: (endpoint: ApiEndpoint) => null | string;
 
-  /** 待处理请求 Map（用于取消重复请求） */
+  /** Pending requests Map (for cancelling duplicate requests) / 待处理请求 Map（用于取消重复请求） */
   private pendingMap = new Map<string, AbortController>();
 
   constructor(options: RequestClientOptions = {}) {
     const { baseURL, timeout = 10_000, headers = {}, ...restOptions } = options;
 
-    // 合并默认选项
+    // 合并默认选项 / merge default request options
     this.defaultOptions = { ...DEFAULT_OPTIONS, ...restOptions };
 
-    // 创建 Axios 实例
+    // 创建 Axios 实例 / create axios instance
     this.instance = axios.create({
       baseURL,
       timeout,
@@ -156,15 +174,15 @@ export class RequestClient {
       ),
     });
 
-    // 绑定方法
+    // 绑定方法 / bind HTTP helpers to instance
     this.bindMethods();
   }
 
-  /** 添加待处理请求（拦截器使用） */
+  /** Add pending request (used by interceptors) / 添加待处理请求（拦截器使用） */
   public addPending(config: InternalAxiosRequestConfig) {
     const key = getPendingKey(config);
     if (this.pendingMap.has(key)) {
-      // 取消之前的请求
+      // 取消之前的请求 / abort prior duplicate
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const controller = this.pendingMap.get(key)!;
       controller.abort();
@@ -176,10 +194,10 @@ export class RequestClient {
   }
 
   // ============================================================
-  // 配置方法
+  // Configuration methods / 配置方法
   // ============================================================
 
-  /** 添加请求拦截器 */
+  /** Add request interceptor / 添加请求拦截器 */
   addRequestInterceptor(config: RequestInterceptorConfig) {
     this.instance.interceptors.request.use(
       config.fulfilled as any,
@@ -188,7 +206,7 @@ export class RequestClient {
     return this;
   }
 
-  /** 添加响应拦截器 */
+  /** Add response interceptor / 添加响应拦截器 */
   addResponseInterceptor(config: ResponseInterceptorConfig) {
     this.instance.interceptors.response.use(
       config.fulfilled as any,
@@ -197,21 +215,25 @@ export class RequestClient {
     return this;
   }
 
-  /** DELETE 请求 */
+  /** DELETE request / DELETE 请求 */
   delete<T = any>(url: string, config?: RequestClientConfig): Promise<T> {
     return this.request<T>(url, { ...config, method: 'DELETE' });
   }
 
   /**
+   * File download
    * 文件下载
-   * @param url 下载 URL
-   * @param config 请求配置
+   *
+   * @param url - Download URL / 下载 URL
+   * @param config - Request configuration / 请求配置
    */
   async download<T = Blob>(
     url: string,
     config?: RequestClientConfig & { data?: any; method?: 'GET' | 'POST' },
   ): Promise<T> {
     const { method = 'GET', data, ...restConfig } = config || {};
+    const headers = { ...restConfig.headers };
+    ensureTraceIdHeader(headers);
 
     try {
       const response = await this.instance.request<T>({
@@ -220,47 +242,63 @@ export class RequestClient {
         data,
         responseType: 'blob',
         ...restConfig,
-        // 下载请求不显示错误消息（由调用方处理）
+        headers,
+        // 下载请求：raw 模式跳过业务 code 解析，避免 Blob 被误判为错误
         ...({
-          __options: { showErrorMessage: false, showCodeMessage: false },
+          __options: {
+            showErrorMessage: false,
+            showCodeMessage: false,
+            responseReturn: 'raw',
+          },
         } as any),
       });
 
-      // 检查响应是否为错误（某些后端返回 JSON 错误而不是 Blob）
+      // 检查响应是否为错误（某些后端返回 JSON 错误而不是 Blob）/ JSON error masquerading as blob
       const blob = response.data as Blob;
       if (blob.type === 'application/json') {
-        // 解析 JSON 错误
+        // 解析 JSON 错误 / parse error JSON
         const text = await blob.text();
         const errorData = JSON.parse(text);
-        throw new Error(errorData.message || errorData.error || '下载失败');
+        const wrappedError = {
+          response: {
+            data: errorData,
+            headers: response.headers,
+            status: response.status,
+          },
+        };
+        throw toErrorWithAppError(normalizeHttpError(wrappedError, this.t));
       }
 
       return response.data;
     } catch (error: any) {
-      // 显示友好的错误提示
+      // 显示友好的错误提示 / user-facing download error
       if (this.showMessage) {
-        const message = error?.message || '文件下载失败';
-        this.showMessage('error', message);
+        const appError = normalizeHttpError(
+          error,
+          this.t,
+          this.t?.('common.http.downloadFailed') || 'Download failed',
+        );
+        this.showMessage('error', formatAppErrorMessage(appError, this.t));
       }
       throw error;
     }
   }
 
-  /** GET 请求 */
+  /** GET request / GET 请求 */
   get<T = any>(url: string, config?: RequestClientConfig): Promise<T> {
     return this.request<T>(url, { ...config, method: 'GET' });
   }
 
-  /** 获取基础 URL */
+  /** Get base URL / 获取基础 URL */
   getBaseUrl(): string | undefined {
     return this.instance.defaults.baseURL;
   }
 
   // ============================================================
-  // 拦截器方法
+  // Interceptor methods / 拦截器方法
   // ============================================================
 
-  /** PATCH 请求 */
+  /** PATCH request / PATCH 请求 */
   patch<T = any>(
     url: string,
     data?: any,
@@ -269,7 +307,7 @@ export class RequestClient {
     return this.request<T>(url, { ...config, data, method: 'PATCH' });
   }
 
-  /** POST 请求 */
+  /** POST request / POST 请求 */
   post<T = any>(
     url: string,
     data?: any,
@@ -279,17 +317,18 @@ export class RequestClient {
   }
 
   // ============================================================
-  // 重复请求取消
+  // Duplicate request cancellation / 重复请求取消
   // ============================================================
 
   /**
+   * SSE POST request
    * SSE POST 请求
    */
   async postSSE(url: string, data?: any, options?: SseRequestOptions) {
     return this.requestSSE(url, data, { ...options, method: 'POST' });
   }
 
-  /** PUT 请求 */
+  /** PUT request / PUT 请求 */
   put<T = any>(
     url: string,
     data?: any,
@@ -299,16 +338,18 @@ export class RequestClient {
   }
 
   // ============================================================
-  // HTTP 方法
+  // HTTP methods / HTTP 方法
   // ============================================================
 
-  /** 移除待处理请求（拦截器使用） */
+  /** Remove pending request (used by interceptors) / 移除待处理请求（拦截器使用） */
   public removePending(config: InternalAxiosRequestConfig) {
     const key = getPendingKey(config);
     this.pendingMap.delete(key);
   }
 
   /**
+   * Generic request method
+   * Loading is managed uniformly by interceptors
    * 通用请求方法
    * Loading 由拦截器统一管理
    */
@@ -316,7 +357,10 @@ export class RequestClient {
     url: string,
     config: RequestClientConfig = {},
   ): Promise<T> {
-    // 合并选项
+    const headers = { ...config.headers };
+    ensureTraceIdHeader(headers);
+
+    // 合并选项 / merge per-request options
     const options: Required<RequestOptions> = {
       ...this.defaultOptions,
       ...config,
@@ -328,6 +372,7 @@ export class RequestClient {
     >({
       url,
       ...config,
+      headers,
       // 存储选项到 config 中，供拦截器使用
       ...({ __options: options } as any),
     });
@@ -336,10 +381,12 @@ export class RequestClient {
   }
 
   /**
+   * SSE request
    * SSE 请求
-   * @param url 请求 URL
-   * @param data 请求数据
-   * @param options SSE 选项，包含 onMessage/onEnd/onError/abortController
+   *
+   * @param url - Request URL / 请求 URL
+   * @param data - Request data / 请求数据
+   * @param options - SSE options with onMessage/onEnd/onError/abortController / SSE 选项
    */
   async requestSSE(url: string, data?: any, options?: SseRequestOptions) {
     const { onMessage, onEnd, onError, abortController, ...fetchOptions } =
@@ -351,49 +398,71 @@ export class RequestClient {
         ? `${baseUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`
         : url;
 
-      // 构建请求头
-      const headers = new Headers();
-      headers.set('Accept', 'text/event-stream');
-      headers.set('Content-Type', 'application/json');
+      const buildSseHeaders = (): Headers => {
+        const headers = new Headers();
+        headers.set('Accept', 'text/event-stream');
+        headers.set('Content-Type', 'application/json');
 
-      // 添加 Token
-      if (this.getToken) {
-        const endpoint = getEndpointByUrl(url);
-        const token = this.getToken(endpoint);
-        if (token) {
-          headers.set('Authorization', `Bearer ${token}`);
+        if (this.getToken) {
+          const endpoint = getEndpointByUrl(url);
+          const token = this.getToken(endpoint);
+          if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
         }
-      }
 
-      // 合并自定义 headers
-      if (fetchOptions?.headers) {
-        new Headers(fetchOptions.headers).forEach((v, k) => headers.set(k, v));
-      }
+        if (this.getLocale) {
+          headers.set('Accept-Language', this.getLocale());
+        }
 
-      // 准备请求体
+        if (fetchOptions?.headers) {
+          new Headers(fetchOptions.headers).forEach((v, k) =>
+            headers.set(k, v),
+          );
+        }
+        ensureTraceIdHeader(headers);
+        return headers;
+      };
+
       let body: BodyInit | null = null;
       if (data && fetchOptions?.method !== 'GET') {
         body = typeof data === 'string' ? data : JSON.stringify(data);
       }
 
-      const response = await fetch(fullUrl, {
-        ...fetchOptions,
-        method: fetchOptions?.method || 'GET',
-        headers,
-        body,
-        signal: abortController?.signal,
-      });
+      const doFetch = () =>
+        fetch(fullUrl, {
+          ...fetchOptions,
+          method: fetchOptions?.method || 'GET',
+          headers: buildSseHeaders(),
+          body,
+          signal: abortController?.signal,
+        });
+
+      let response = await doFetch();
+
+      if (response.status === 401) {
+        response = await this._handleSse401(response, doFetch);
+      }
 
       if (!response.ok) {
-        // 尝试解析响应体获取详细错误信息
-        let errorMessage = `HTTP error! status: ${response.status}`;
+        let responseBody: null | Record<string, unknown> = null;
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
+          responseBody = await response.json();
         } catch {
-          // 无法解析 JSON，使用默认错误信息
+          // non-JSON body
         }
-        throw new Error(errorMessage);
+        notifyAIAccessDenied(responseBody);
+        const normalized = normalizeHttpError(
+          {
+            response: {
+              data: responseBody,
+              headers: response.headers,
+              status: response.status,
+            },
+          },
+          this.t,
+        );
+        throw toErrorWithAppError(normalized);
       }
 
       const reader = response.body?.getReader();
@@ -407,81 +476,169 @@ export class RequestClient {
       while (!isEnd) {
         const { done, value } = await reader.read();
         if (done) {
+          const tail = decoder.decode(new Uint8Array(), { stream: false });
+          if (tail) {
+            await Promise.resolve(onMessage?.(tail));
+          }
           isEnd = true;
-          onEnd?.();
+          await Promise.resolve(onEnd?.());
           break;
         }
         const content = decoder.decode(value, { stream: true });
-        onMessage?.(content);
+        await Promise.resolve(onMessage?.(content));
       }
     } catch (error: any) {
-      // 检查是否为取消操作
       if (error.name === 'AbortError') {
-        // 请求被取消，不触发错误回调
         return;
       }
-      // 触发错误回调
+      const appError = normalizeSseTransportError(error, this.t);
       if (onError) {
-        onError(error);
+        onError(toErrorWithAppError(appError));
       } else {
-        // 没有错误回调时抛出错误
-        throw error;
+        throw toErrorWithAppError(appError);
       }
     }
   }
 
-  /** 设置国际化函数 */
+  /**
+   * Handle SSE 401 by attempting token refresh, then retrying.
+   * Returns a fresh Response on success; throws on unrecoverable auth failure.
+   */
+  private async _handleSse401(
+    originalResponse: Response,
+    retryFetch: () => Promise<Response>,
+  ): Promise<Response> {
+    let responseBody: null | Record<string, unknown> = null;
+    try {
+      responseBody = await originalResponse.json();
+    } catch {
+      // non-JSON 401
+    }
+
+    const rawCode = responseBody?.code;
+    let businessCode: number | undefined;
+    if (typeof rawCode === 'number') {
+      businessCode = rawCode;
+    } else if (typeof rawCode === 'string' && /^\d+$/.test(rawCode)) {
+      businessCode = Number(rawCode);
+    }
+
+    const throwOriginal = (): never => {
+      const normalized = normalizeHttpError(
+        {
+          response: {
+            data: responseBody,
+            headers: originalResponse.headers,
+            status: 401,
+          },
+        },
+        this.t,
+      );
+      throw toErrorWithAppError(normalized);
+    };
+
+    if (!businessCode || !isAuthError(businessCode)) {
+      throwOriginal();
+    }
+
+    const refreshTokenHandler = this.doRefreshToken;
+
+    if (businessCode === 4010 || !refreshTokenHandler) {
+      await this.doReAuthenticate?.();
+      throwOriginal();
+    }
+    const guaranteedRefreshTokenHandler =
+      refreshTokenHandler ??
+      (async () => {
+        throw new Error('refresh token handler missing');
+      });
+
+    try {
+      if (this.isRefreshing) {
+        await new Promise<string>((resolve, reject) => {
+          this.refreshTokenQueue.push({ resolve, reject });
+        });
+      } else {
+        this.isRefreshing = true;
+        try {
+          const newToken = await guaranteedRefreshTokenHandler();
+          this.refreshTokenQueue.forEach((item) => item.resolve(newToken));
+          this.refreshTokenQueue = [];
+        } catch (refreshError) {
+          this.refreshTokenQueue.forEach((item) => item.reject(refreshError));
+          this.refreshTokenQueue = [];
+          throw refreshError;
+        } finally {
+          this.isRefreshing = false;
+        }
+      }
+    } catch {
+      await this.doReAuthenticate?.();
+      throwOriginal();
+    }
+
+    return await retryFetch();
+  }
+
+  /** Set i18n function / 设置国际化函数 */
   setI18n(fn: (key: string) => string) {
     this.t = fn;
     return this;
   }
 
-  /** 设置消息提示函数 */
+  /** Set locale getter (used by SSE for Accept-Language) / 设置语言获取函数（SSE Accept-Language） */
+  setLocaleGetter(fn: () => string) {
+    this.getLocale = fn;
+    return this;
+  }
+
+  /** Set message handler function / 设置消息提示函数 */
   setMessageHandler(fn: (type: 'error' | 'success', message: string) => void) {
     this.showMessage = fn;
     return this;
   }
 
-  /** 设置重新认证函数 */
+  /** Set re-authenticate handler / 设置重新认证函数 */
   setReAuthenticateHandler(fn: () => Promise<void>) {
     this.doReAuthenticate = fn;
     return this;
   }
 
   // ============================================================
-  // 文件上传
+  // File upload / 文件上传
   // ============================================================
 
-  /** 设置 Refresh Token 获取函数 */
+  /** Set Refresh Token getter / 设置 Refresh Token 获取函数 */
   setRefreshTokenGetter(fn: (endpoint: ApiEndpoint) => null | string) {
     this.getRefreshToken = fn;
     return this;
   }
 
   // ============================================================
-  // 文件下载
+  // File download / 文件下载
   // ============================================================
 
-  /** 设置 Token 刷新函数 */
+  /** Set Token refresh handler / 设置 Token 刷新函数 */
   setRefreshTokenHandler(fn: () => Promise<string>) {
     this.doRefreshToken = fn;
     return this;
   }
 
   // ============================================================
-  // SSE 流式请求
+  // SSE streaming requests / SSE 流式请求
   // ============================================================
 
-  /** 设置 Token 获取函数 */
+  /** Set Token getter function / 设置 Token 获取函数 */
   setTokenGetter(fn: (endpoint: ApiEndpoint) => null | string) {
     this.getToken = fn;
     return this;
   }
 
   /**
+   * File upload
    * 文件上传
    */
-  async upload<T = any>(
+  async upload<T = unknown>(
     url: string,
     data: UploadFileData,
     config?: RequestClientConfig,
@@ -523,10 +680,10 @@ export class RequestClient {
   }
 
   // ============================================================
-  // 辅助方法
+  // Helper methods / 辅助方法
   // ============================================================
 
-  /** 绑定方法上下文 */
+  /** Bind method context / 绑定方法上下文 */
   private bindMethods() {
     this.get = this.get.bind(this);
     this.post = this.post.bind(this);

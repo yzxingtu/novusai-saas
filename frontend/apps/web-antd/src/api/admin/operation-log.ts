@@ -1,59 +1,104 @@
 /**
- * 操作日志 API
- * 对接后端 /admin/operation-logs/* 接口
+ * Operation log API / 操作日志 API
+ * Backend: /admin/operation-logs/*
  */
+import type { SelectResponse } from '#/api/shared/types';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 操作日志列表查询参数 */
+/** Operation log list query params / 操作日志列表查询参数 */
 export type OperationLogListParams = Record<string, unknown>;
 
-/** 操作日志信息（后端原始格式 snake_case） */
+/** Operator dropdown option / 操作人下拉选项 */
+export interface OperatorItem {
+  user_id: number;
+  user_type: string;
+  display_name?: null | string;
+  username: string;
+  nickname?: null | string;
+  avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+}
+
+/** Operation log info (backend raw snake_case) / 操作日志信息（后端原始） */
 export interface OperationLogInfoRaw {
   id: number;
+  trace_id?: null | string;
   tenant_id: null | number;
   user_type: string;
+  user_id: null | number;
+  display_name?: null | string;
   username: null | string;
-  module: string;
-  action: string;
+  nickname?: null | string;
+  avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  module: null | string;
+  module_label?: null | string;
+  action: null | string;
+  action_label?: null | string;
   method: string;
   path: string;
   query_params: null | Record<string, unknown>;
   request_body: null | Record<string, unknown>;
   status_code: number;
   response_code: number;
+  response_message?: null | string;
   ip: string;
   user_agent: null | string;
   duration_ms: number;
   created_at: string;
 }
 
-/** 操作日志信息（前端格式 camelCase） */
+/** Operation log info (frontend camelCase) / 操作日志信息（前端） */
 export interface OperationLogInfo {
   id: number;
+  traceId?: null | string;
   tenantId: null | number;
   userType: string;
+  userId: null | number;
+  displayName?: null | string;
   username: null | string;
-  module: string;
-  action: string;
+  nickname?: null | string;
+  avatar?: null | string;
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
+  roleName?: null | string;
+  isActive?: boolean;
+  isLeader?: boolean;
+  isOwner?: boolean;
+  module: null | string;
+  moduleLabel?: null | string;
+  action: null | string;
+  actionLabel?: null | string;
   method: string;
   path: string;
   queryParams: null | Record<string, unknown>;
   requestBody: null | Record<string, unknown>;
   statusCode: number;
   responseCode: number;
+  responseMessage?: null | string;
   ip: string;
   userAgent: null | string;
   durationMs: number;
   createdAt: string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface OperationLogListResponse {
   items: OperationLogInfo[];
   total: number;
@@ -62,24 +107,38 @@ export interface OperationLogListResponse {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 将后端 snake_case 转换为前端 camelCase */
 function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
   return {
     id: raw.id,
+    traceId: raw.trace_id,
     tenantId: raw.tenant_id,
     userType: raw.user_type,
+    userId: raw.user_id,
+    displayName: raw.display_name,
     username: raw.username,
+    nickname: raw.nickname,
+    avatar: raw.avatar,
+    orgNodeId: raw.org_node_id,
+    orgNodeName: raw.org_node_name,
+    roleName: raw.role_name,
+    isActive: raw.is_active,
+    isLeader: raw.is_leader,
+    isOwner: raw.is_owner,
     module: raw.module,
+    moduleLabel: raw.module_label,
     action: raw.action,
+    actionLabel: raw.action_label,
     method: raw.method,
     path: raw.path,
     queryParams: raw.query_params,
     requestBody: raw.request_body,
     statusCode: raw.status_code,
     responseCode: raw.response_code,
+    responseMessage: raw.response_message,
     ip: raw.ip,
     userAgent: raw.user_agent,
     durationMs: raw.duration_ms,
@@ -88,13 +147,13 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/operation-logs';
 
 /**
- * 获取操作日志列表
+ * Get operation log list / 获取操作日志列表
  * GET /admin/operation-logs
  */
 export async function getOperationLogListApi(
@@ -117,7 +176,7 @@ export async function getOperationLogListApi(
 }
 
 /**
- * 获取操作日志详情
+ * Get operation log detail / 获取操作日志详情
  * GET /admin/operation-logs/{id}
  */
 export async function getOperationLogDetailApi(
@@ -132,7 +191,39 @@ export async function getOperationLogDetailApi(
 }
 
 /**
- * 删除操作日志（支持批量）
+ * Get operator dropdown list (with avatar) / 获取操作人下拉列表
+ * GET /admin/operation-logs/operators
+ */
+export async function getOperatorsApi(): Promise<OperatorItem[]> {
+  return requestClient.get<OperatorItem[]>(`${API_PREFIX}/operators`);
+}
+
+export interface OperationLogOperatorSelectExtra {
+  avatar?: null | string;
+  display_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  user_type?: null | string;
+  username?: null | string;
+}
+
+export async function getOperatorsSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<SelectResponse<OperationLogOperatorSelectExtra>> {
+  return requestClient.get<SelectResponse<OperationLogOperatorSelectExtra>>(
+    `${API_PREFIX}/operators`,
+    { params, ...options },
+  );
+}
+
+/**
+ * Delete operation logs (supports batch) / 删除操作日志（支持批量）
  * DELETE /admin/operation-logs
  */
 export async function deleteOperationLogsApi(

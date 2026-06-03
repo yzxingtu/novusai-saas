@@ -1,0 +1,238 @@
+{#
+{{ display_name }} Schema / {{ display_name_en }} Schema
+Response/Create/Update, from_model, FK computed, DetailResponse, dual mode (Admin + Tenant)
+#}
+"""
+{{ display_name }}相关 Schema / {{ display_name_en }} Schema
+
+定义请求和响应数据结构
+Defines request and response data structures.
+"""
+
+{% set _need_date = fields is defined and fields and (fields | selectattr('type', 'equalto', 'Date') | list | length > 0) %}
+{% set _types_joined = (fields | rejectattr('divider') | map(attribute='type', default='') | join(' ')) if fields else '' %}
+{% set _need_decimal = 'Decimal' in _types_joined %}
+{% if _need_date %}
+from datetime import date, datetime
+{% else %}
+from datetime import datetime
+{% endif %}
+{% if _need_decimal %}
+
+from decimal import Decimal
+{% endif %}
+
+from pydantic import Field
+
+from app.core.base_schema import (
+    BaseCreateSchema,
+    BaseResponseSchema,
+    BaseUpdateSchema,
+    TenantResponseSchema,
+)
+from app.core.i18n import _
+
+
+{% set base_class = model.base_class | default('TenantModel') %}
+{% set is_dual = scenario == 'D' %}
+{% set has_detail = detail and detail.get('enabled') %}
+{% set response_base = 'TenantResponseSchema' if base_class == 'TenantModel' and not is_dual else 'BaseResponseSchema' %}
+{% set fk_relations = relations | selectattr('type', 'equalto', 'many_to_one') | list %}
+
+class {{ resource | pascal }}Create(BaseCreateSchema):
+    """创建{{ display_name }}请求 / Create {{ display_name_en | lower }} request."""
+
+{% set _has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+{% set _exc_create = ['created_by', 'dept_id'] if _has_tree else ['parent_id', 'created_by', 'dept_id'] %}
+{% for f in fields if not f.get('divider') and f.name not in _exc_create %}
+{% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
+{% set def_val = f.default | default(f.db_default) %}
+{% set has_default = def_val is defined and def_val is not none %}
+{% set is_sql_expr = has_default and def_val is string and ('()' in def_val or def_val.startswith('now')) %}
+{% if f.get('required', true) and not has_default %}
+    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
+{% elif has_default and not is_sql_expr %}
+    {{ f.name }}: {{ py_type }} = Field({{ def_val | tojson if def_val is string else def_val }}, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
+{% else %}
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
+{% endif %}
+{% endfor %}
+
+
+class {{ resource | pascal }}Update(BaseUpdateSchema):
+    """更新{{ display_name }}请求 / Update {{ display_name_en | lower }} request."""
+
+{% set _exc_update = ['created_by', 'dept_id'] if _has_tree else ['parent_id', 'created_by', 'dept_id'] %}
+{% for f in fields if not f.get('divider') and f.name not in _exc_update %}
+{% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% endfor %}
+
+
+{% if is_dual %}
+{# 场景 D: Admin 端 Response（含 tenant_id） #}
+class Admin{{ resource | pascal }}Response(TenantResponseSchema):
+    """{{ display_name }}响应（管理端）/ {{ display_name_en }} response (admin)."""
+{% set _ns = namespace(has_body=false) %}
+{% for f in fields if not f.get('divider') and f.get('visibility', 'all') != 'tenant_only' and f.name not in ['created_by', 'dept_id'] %}
+{% set _ns.has_body = true %}
+{% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
+{% if f.get('nullable', not f.get('required', true)) %}
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% else %}
+    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% endif %}
+{% endfor %}
+{% for r in fk_relations %}
+{% set _ns.has_body = true %}
+{% set fk_col = r.foreign_key | default(r.target | model_to_fk) %}
+{% set rel_name = r.name | default(fk_col | replace('_id', '')) %}
+    {{ rel_name }}_name: str | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ rel_name }}_name"))
+
+{% endfor %}
+{% if not _ns.has_body %}
+    pass
+{% endif %}
+
+    @classmethod
+    def from_model(cls, obj) -> "Admin{{ resource | pascal }}Response":
+        """从模型创建响应 / Build response from model."""
+        return cls(
+            id=obj.id,
+{% if base_class == 'TenantModel' %}
+            tenant_id=obj.tenant_id,
+{% endif %}
+{% for f in fields if not f.get('divider') and f.get('visibility', 'all') != 'tenant_only' and f.name not in ['created_by', 'dept_id'] %}
+            {{ f.name }}=getattr(obj, "{{ f.name }}", None),
+{% endfor %}
+{% for r in fk_relations %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% endfor %}
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+        )
+
+
+{# 场景 D: Tenant 端 Response（不含 admin_only 字段） #}
+class Tenant{{ resource | pascal }}Response(TenantResponseSchema):
+    """{{ display_name }}响应（企业端）/ {{ display_name_en }} response (tenant)."""
+{% set _ns2 = namespace(has_body=false) %}
+{% for f in fields if not f.get('divider') and f.get('visibility', 'all') != 'admin_only' and f.name not in ['created_by', 'dept_id'] %}
+{% set _ns2.has_body = true %}
+{% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
+{% if f.get('nullable', not f.get('required', true)) %}
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% else %}
+    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% endif %}
+{% endfor %}
+{% for r in fk_relations %}
+{% set _ns2.has_body = true %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+    {{ rel_name }}_name: str | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ rel_name }}_name"))
+
+{% endfor %}
+{% if not _ns2.has_body %}
+    pass
+{% endif %}
+
+    @classmethod
+    def from_model(cls, obj) -> "Tenant{{ resource | pascal }}Response":
+        """从模型创建响应 / Build response from model."""
+        return cls(
+            id=obj.id,
+            tenant_id=obj.tenant_id,
+{% for f in fields if not f.get('divider') and f.get('visibility', 'all') != 'admin_only' and f.name not in ['created_by', 'dept_id'] %}
+            {{ f.name }}=getattr(obj, "{{ f.name }}", None),
+{% endfor %}
+{% for r in fk_relations %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% endfor %}
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+        )
+
+
+{% else %}
+{# 场景 A/B/C: 单一 Response #}
+class {{ resource | pascal }}Response({{ response_base }}):
+    """{{ display_name }}响应 / {{ display_name_en }} response."""
+{% set _ns3 = namespace(has_body=false) %}
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set _ns3.has_body = true %}
+{% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
+{% if f.get('nullable', not f.get('required', true)) %}
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% else %}
+    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
+{% endif %}
+{% endfor %}
+{% for r in fk_relations %}
+{% set _ns3.has_body = true %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+    {{ rel_name }}_name: str | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ rel_name }}_name"))
+
+{% endfor %}
+{% if not _ns3.has_body %}
+    pass
+{% endif %}
+
+    @classmethod
+    def from_model(cls, obj) -> "{{ resource | pascal }}Response":
+        """从模型创建响应 / Build response from model."""
+        return cls(
+            id=obj.id,
+{% if base_class == 'TenantModel' %}
+            tenant_id=obj.tenant_id,
+{% endif %}
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+            {{ f.name }}=getattr(obj, "{{ f.name }}", None),
+{% endfor %}
+{% for r in fk_relations %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% endfor %}
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+        )
+
+
+{% endif %}
+{% if has_detail %}
+{% if is_dual %}
+class {{ resource | pascal }}DetailResponse(Admin{{ resource | pascal }}Response):
+    """{{ display_name }}详情响应（管理端）/ Detail response (admin)."""
+    pass
+{% else %}
+class {{ resource | pascal }}DetailResponse({{ resource | pascal }}Response):
+    """{{ display_name }}详情响应（含关联数据）/ Detail response with relations."""
+
+    # 可扩展：嵌套关联 Schema
+    # Extensible: nested relation schemas
+
+{% endif %}
+{% endif %}
+__all__ = [
+    "{{ resource | pascal }}Create",
+    "{{ resource | pascal }}Update",
+{% if is_dual %}
+    "Admin{{ resource | pascal }}Response",
+    "Tenant{{ resource | pascal }}Response",
+{% else %}
+    "{{ resource | pascal }}Response",
+{% endif %}
+{% if has_detail %}
+    "{{ resource | pascal }}DetailResponse",
+{% endif %}
+]

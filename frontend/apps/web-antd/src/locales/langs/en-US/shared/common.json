@@ -22,8 +22,9 @@
   "save": "Save",
   "cancel": "Cancel",
   "confirm": "Confirm",
-  "delete": "Delete",
+  "select": "Select",
   "edit": "Edit",
+  "delete": "Delete",
   "create": "Create",
   "search": "Search",
   "reset": "Reset",
@@ -31,6 +32,11 @@
   "export": "Export",
   "import": "Import",
   "upload": "Upload",
+  "uploadFailed": "Upload failed",
+  "uploadSuccess": "Upload successful",
+  "type": "Type",
+  "change": "Change",
+  "preview": "Preview",
   "back": "Back",
   "loading": "Loading...",
   "noData": "No Data",
@@ -43,6 +49,8 @@
   "sortFailed": "Sort update failed",
   "exportSuccess": "Export successful",
   "exportFailed": "Export failed",
+  "importSuccess": "Import successful, {count} items",
+  "importFailed": "Import failed",
   "exportModal": {
     "title": "Export Data",
     "filename": "Filename",
@@ -85,9 +93,45 @@
     "last2Months": "Last 2 Months",
     "last3Months": "Last 3 Months"
   },
+  "all": "All",
   "status": "Status",
   "current": "Current",
   "featureComingSoon": "Feature coming soon",
   "yes": "Yes",
-  "no": "No"
+  "no": "No",
+  "primary": "Primary",
+  "confirmDelete": "Are you sure to delete?",
+  "pleaseRetry": "Please try again later",
+  "domainFormatHint": "Only lowercase letters, numbers and hyphens are allowed",
+  "recommended": "Recommended",
+  "prevStep": "Previous",
+  "nextStep": "Next",
+  "finish": "Finish",
+  "validate": {
+    "invalid": "Please enter a valid {field}"
+  },
+  "copied": "Copied to clipboard",
+  "notSet": "Not Set",
+  "saveSuccess": "Saved successfully",
+  "connectionLost": "Real-time connection lost, reconnecting...",
+  "page": {
+    "perPage": "/ page",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "inputVarsEditor": {
+    "colName": "Variable ID",
+    "colLabel": "Display Name",
+    "colType": "Type",
+    "colRequired": "Required",
+    "colDefault": "Default",
+    "typeString": "Single-line Text",
+    "typeText": "Multi-line Text",
+    "typeNumber": "Number",
+    "namePlaceholder": "e.g. user_name",
+    "labelPlaceholder": "e.g. User Name",
+    "defaultPlaceholder": "Default value (optional)",
+    "addVar": "Add Variable",
+    "empty": "No variables yet, click the button below to add"
+  }
 }

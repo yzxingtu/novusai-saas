@@ -1,43 +1,65 @@
 """
-租户公开配置 Schema
+企业公开配置 Schema / Tenant Public Config Schema
 
-定义登录前可获取的租户公开信息
+定义登录前可获取的企业公开信息
+Defines tenant public info accessible before login.
 """
 
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
-from app.schemas.public.platform import StoragePublicConfig
+from app.schemas.public.platform import (
+    CaptchaPluginFrontendRuntimePublicConfig,
+    StoragePublicConfig,
+)
 
 
 class TenantPublicConfig(BaseSchema):
     """
-    租户公开配置
-    
-    登录页面可获取的租户信息（无需认证）
+    企业公开配置 / Tenant public config.
+
+    登录页面可获取的企业信息（无需认证）
     """
-    
-    # 基本信息
-    tenant_id: int = Field(..., description="租户 ID")
-    tenant_code: str = Field(..., description="租户代码")
-    tenant_name: str = Field(..., description="租户名称")
-    
-    # 品牌设置
+
+    # 基本信息 / Basic info
+    tenant_id: int = Field(..., description="企业 ID")
+    tenant_code: str = Field(..., description="企业代码")
+    tenant_name: str = Field(..., description="企业名称")
+
+    # 品牌设置 / Branding
     logo_url: str | None = Field(None, description="Logo URL")
     favicon_url: str | None = Field(None, description="Favicon URL")
-    theme_color: str | None = Field(None, description="主题色")
+    logo_dark_url: str | None = Field(None, description="Dark Logo URL")
     login_bg: str | None = Field(None, description="登录页背景图")
-    primary_color: str | None = Field(None, description="主题主色")
-    accent_color: str | None = Field(None, description="主题强调色")
     login_title: str | None = Field(None, description="登录页标题")
     login_subtitle: str | None = Field(None, description="登录页副标题")
     footer_copyright: str | None = Field(None, description="页脚版权")
-    
-    # 登录设置
+    icp: str | None = Field(None, description="ICP备案号")
+
+    # 登录设置 / Login settings
     captcha_enabled: bool = Field(False, description="是否启用验证码")
+    user_login_captcha_enabled: bool = Field(
+        True,
+        description="用户端登录是否启用验证码",
+    )
+    user_registration_captcha_enabled: bool = Field(
+        True,
+        description="用户端注册是否启用验证码",
+    )
+    user_login_captcha_enable_threshold: int = Field(
+        0,
+        description="用户端登录验证码启用阈值",
+    )
     captcha_provider: str | None = Field(None, description="验证码驱动")
+    captcha_plugin: CaptchaPluginFrontendRuntimePublicConfig | None = Field(
+        None,
+        description="验证码插件前端运行时信息",
+    )
     captcha_difficulty: str | None = Field(None, description="验证码难度")
-    captcha_enable_threshold: int | None = Field(None, description="验证码启用阈值")
+    captcha_enable_threshold: int | None = Field(
+        None,
+        description="企业端登录验证码启用阈值",
+    )
     login_methods: list[str] = Field(
         default_factory=lambda: ["password"],
         description="支持的登录方式",
@@ -47,8 +69,8 @@ class TenantPublicConfig(BaseSchema):
     password_min_length: int | None = Field(None, description="密码最小长度")
     password_complexity: str | None = Field(None, description="密码复杂度")
     session_timeout: int | None = Field(None, description="会话超时时间（分钟）")
-    
-    # 功能开关
+
+    # 功能开关 / Feature toggles
     allow_registration: bool | None = Field(None, description="允许用户注册")
     registration_approval: bool | None = Field(None, description="注册需审批")
     allow_profile_edit: bool | None = Field(None, description="允许修改资料")
@@ -56,47 +78,61 @@ class TenantPublicConfig(BaseSchema):
     sms_notification: bool | None = Field(None, description="启用短信通知")
     api_access: bool | None = Field(None, description="启用 API 访问")
     file_upload: bool | None = Field(None, description="启用文件上传")
-    
-    # 域名信息
-    subdomain: str = Field(..., description="租户子域名")
+
+    # 注册页链接 / Registration page links
+    privacy_policy_url: str | None = Field(None, description="隐私政策链接")
+    terms_url: str | None = Field(None, description="服务条款链接")
+    # 是否启用站内富文本页（有正文则 true，注册页优先链到站内）
+    privacy_policy_internal: bool = Field(False, description="是否有站内隐私政策 HTML")
+    terms_internal: bool = Field(False, description="是否有站内服务条款 HTML")
+
+    # 域名信息 / Domain info
+    subdomain: str = Field(..., description="企业子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")
-    
-    # 存储配置
+
+    # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
 
 
 class DomainVerificationInfo(BaseSchema):
     """
-    域名验证信息
-    
+    域名验证信息 / Domain verification info.
+
     用于指导用户配置 DNS 记录
     """
-    
-    # 要验证的域名
+
+    # 要验证的域名 / Domain to verify
     domain: str = Field(..., description="待验证域名")
-    
+
     # CNAME 配置
     cname_target: str = Field(..., description="CNAME 解析目标")
     cname_name: str = Field(
         "@",
         description="CNAME 记录名称（通常为 @ 或子域名）",
     )
-    
+
     # TXT 验证记录（可选，用于验证域名所有权）
     txt_name: str | None = Field(None, description="TXT 记录名称")
     txt_value: str | None = Field(None, description="TXT 记录值")
-    
-    # 验证状态
+
+    # 验证状态 / Verification status
     is_verified: bool = Field(False, description="是否已验证")
-    
-    # 配置说明
+
+    # 配置说明 / Setup instructions
     instructions: str = Field(
         "",
         description="配置说明",
     )
 
 
+class TenantLegalDocumentResponse(BaseSchema):
+    """站内法律文档 HTML / In-site legal document HTML"""
+
+    html: str = Field("", description="消毒后的 HTML 正文")
+
+
 __all__ = [
     "TenantPublicConfig",
+    "TenantLegalDocumentResponse",
     "DomainVerificationInfo",
 ]

@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 /**
+ * Excel export modal component
  * Excel 导出弹窗组件
  *
- * 使用 Vben Modal + Ant Design Vue 组件，替代 vxe-table 原生导出弹窗
- * 支持：当前页数据、已选数据
+ * Uses Vben Modal + Ant Design Vue, replaces vxe-table native export dialog.
+ * Supports: current page data, selected data.
+ * 使用 Vben Modal + Ant Design Vue 组件，替代 vxe-table 原生导出弹窗。
+ * 支持：当前页数据、已选数据。
  */
 import type { VxeGridInstance } from 'vxe-table';
 
@@ -20,9 +23,10 @@ import {
   message,
   RadioGroup,
 } from 'ant-design-vue';
-import * as XLSX from 'xlsx';
 
 import { $t } from '#/locales';
+
+import { writeRecordsToExcel } from '../excel-export';
 
 interface ColumnOption {
   disabled?: boolean;
@@ -32,9 +36,9 @@ interface ColumnOption {
 }
 
 const props = defineProps<{
-  /** Grid 实例获取函数 */
+  /** Grid instance getter function / Grid 实例获取函数 */
   gridGetter: () => undefined | VxeGridInstance;
-  /** 注册打开方法的回调 */
+  /** Callback to register open method / 注册打开方法的回调 */
   onRegister?: (openFn: () => void) => void;
 }>();
 
@@ -42,20 +46,20 @@ const emits = defineEmits<{
   success: [];
 }>();
 
-// 表单数据
+// Form data / 表单数据
 const filename = ref(`export_${new Date().toISOString().slice(0, 10)}`);
 const sheetName = ref('Sheet1');
 const exportScope = ref<'current' | 'selected'>('current');
 const selectedColumns = ref<string[]>([]);
 
-// 列选项
+// Column options / 列选项
 const columnOptions = ref<ColumnOption[]>([]);
 
-// 是否有选中的行（用于显示"已选数据"选项）
+// Whether there are selected rows (for showing "selected data" option) / 是否有选中的行（用于显示“已选数据”选项）
 const hasSelectedRows = ref(false);
 const selectedRowCount = ref(0);
 
-// 弹窗
+// Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {
@@ -68,7 +72,7 @@ const [Modal, modalApi] = useVbenModal({
   },
 });
 
-/** 检查是否有选中的行 */
+/** Check for selected rows / 检查是否有选中的行 */
 function checkSelectedRows() {
   const grid = props.gridGetter();
   if (!grid) {
@@ -82,11 +86,11 @@ function checkSelectedRows() {
   hasSelectedRows.value = rows.length > 0;
   selectedRowCount.value = rows.length;
 
-  // 如果有选中的行，默认选择"已选数据"；否则默认选择"当前页数据"
+  // Default to "selected data" if rows selected, otherwise "current page" / 如果有选中的行，默认选择“已选数据”；否则默认选择“当前页数据”
   exportScope.value = hasSelectedRows.value ? 'selected' : 'current';
 }
 
-/** 初始化可导出的列 */
+/** Initialize exportable columns / 初始化可导出的列 */
 function initColumns() {
   const grid = props.gridGetter();
   if (!grid) return;
@@ -96,13 +100,13 @@ function initColumns() {
   const selected: string[] = [];
 
   tableColumns.forEach((col) => {
-    // 排除特殊列
+    // Exclude special columns / 排除特殊列
     if (!col.field) return;
     if (col.type === 'checkbox' || col.type === 'seq' || col.type === 'expand')
       return;
     if (col.field === '_drag') return;
 
-    // 操作列默认不选中
+    // Operation column not selected by default / 操作列默认不选中
     const isOperation = col.field === 'operation';
     const option: ColumnOption = {
       field: col.field,
@@ -121,7 +125,7 @@ function initColumns() {
   selectedColumns.value = selected;
 }
 
-/** 执行导出 */
+/** Execute export / 执行导出 */
 async function handleExport() {
   const grid = props.gridGetter();
   if (!grid) {
@@ -129,7 +133,7 @@ async function handleExport() {
     return;
   }
 
-  // 根据导出范围获取数据
+  // Get data based on export scope / 根据导出范围获取数据
   let tableData: any[];
   if (exportScope.value === 'selected') {
     tableData = grid.getCheckboxRecords();
@@ -143,7 +147,7 @@ async function handleExport() {
     return;
   }
 
-  // 获取选中的列配置
+  // Get selected column config / 获取选中的列配置
   const tableColumns = grid.getTableColumn().fullColumn;
   const exportColumns = tableColumns.filter(
     (col) => col.field && selectedColumns.value.includes(col.field),
@@ -154,31 +158,27 @@ async function handleExport() {
     return;
   }
 
-  // 转换数据
-  const exportData = tableData.map((row: any) => {
-    const rowData: Record<string, any> = {};
-    exportColumns.forEach((col) => {
-      const headerTitle = String(col.title || col.field);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      rowData[headerTitle] = row[col.field!] ?? '';
-    });
-    return rowData;
+  const headers = exportColumns.map((col) => String(col.title || col.field));
+  const rows = tableData.map((row: any) =>
+    exportColumns.map((col) => {
+      const field = col.field;
+      return field ? (row[field] ?? '') : '';
+    }),
+  );
+
+  await writeRecordsToExcel({
+    filename: filename.value,
+    headers,
+    rows,
+    sheetName: sheetName.value,
   });
-
-  // 创建工作簿
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.value);
-
-  // 导出文件
-  XLSX.writeFile(workbook, `${filename.value}.xlsx`);
 
   message.success($t('shared.common.exportSuccess'));
   emits('success');
   modalApi.close();
 }
 
-/** 全选/取消全选列 */
+/** Select/deselect all columns / 全选/取消全选列 */
 const isAllSelected = computed(() => {
   const selectableColumns = columnOptions.value.filter((c) => !c.disabled);
   return (
@@ -201,7 +201,7 @@ function toggleSelectAll(checked: boolean) {
     : [];
 }
 
-// 导出范围选项（常驻显示，未勾选时禁用“已选数据”）
+// Export scope options (always shown, "selected data" disabled when unchecked) / 导出范围选项
 const scopeOptions = computed(() => {
   return [
     {
@@ -215,12 +215,12 @@ const scopeOptions = computed(() => {
   ];
 });
 
-// 暴露打开方法
+// Expose open method / 暴露打开方法
 function open() {
   modalApi.open();
 }
 
-// 调用注册回调，传递 open 方法
+// Call register callback, pass open method / 调用注册回调，传递 open 方法
 if (props.onRegister) {
   props.onRegister(open);
 }
@@ -235,22 +235,22 @@ defineExpose({ open });
     :cancel-text="$t('shared.common.cancel')"
   >
     <Form layout="vertical" class="pt-2">
-      <!-- 文件名 -->
+      <!-- Filename / 文件名 -->
       <FormItem :label="$t('shared.common.exportModal.filename')">
         <Input v-model:value="filename" />
       </FormItem>
 
-      <!-- 工作表名 -->
+      <!-- Sheet name / 工作表名 -->
       <FormItem :label="$t('shared.common.exportModal.sheetName')">
         <Input v-model:value="sheetName" />
       </FormItem>
 
-      <!-- 导出范围 -->
+      <!-- Export scope / 导出范围 -->
       <FormItem :label="$t('shared.common.exportModal.scope')">
         <RadioGroup v-model:value="exportScope" :options="scopeOptions" />
       </FormItem>
 
-      <!-- 选择列 -->
+      <!-- Select columns / 选择列 -->
       <FormItem :label="$t('shared.common.exportModal.columns')">
         <div class="mb-2">
           <Checkbox

@@ -1,0 +1,7 @@
+{"file": "backend/app/ai/skills/resolver.py", "reason": "Primary startup/catalog/live capability-pack owner"}
+{"file": "backend/app/ai/skills/turn_activation.py", "reason": "Canonical turn-level activation seam and activation reasons"}
+{"file": "backend/app/ai/runtime/context_assembler.py", "reason": "Runtime capability assembly and live-vs-inventory diagnostics projection"}
+{"file": "backend/app/ai/runtime/manifest.py", "reason": "Compact summary and manifest should preserve the same startup/live boundary"}
+{"file": "backend/app/services/ai/runtime_inventory_service.py", "reason": "Runtime inventory should keep sharing the canonical resolver owner"}
+{"file": "backend/app/services/ai/runtime_inventory_service_support.py", "reason": "Catalog/read-model payloads must distinguish startup preview from live truth"}
+{"file": "backend/app/tasks/agent_batch.py", "reason": "Batch startup must not eager resolve a second broad agent inventory owner before live item execution"}

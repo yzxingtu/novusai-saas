@@ -1,42 +1,43 @@
 /**
- * 套餐管理 API
- * 对接后端 /admin/plans/* 接口
+ * Plan management API / 套餐管理 API
+ * Backend: /admin/plans/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 计费周期 */
+/** Billing cycle / 计费周期 */
 export type BillingCycle =
+  | 'custom'
   | 'lifetime'
   | 'monthly'
   | 'one_time'
   | 'quarterly'
   | 'yearly';
 
-/** 配额配置 */
+/** Quota config / 配额配置 */
 export interface QuotaSchema {
-  /** 是否允许自定义域名 */
+  /** Allow custom domain / 是否允许自定义域名 */
   allowCustomDomain?: boolean | null;
-  /** 每月 API 调用次数 */
+  /** Monthly API call count / 每月 API 调用次数 */
   apiCallsPerMonth?: null | number;
-  /** 最大管理员数 */
+  /** Max admins / 最大管理员数 */
   maxAdmins?: null | number;
-  /** 最大自定义域名数 */
+  /** Max custom domains / 最大自定义域名数 */
   maxCustomDomains?: null | number;
-  /** 最大文件大小(MB) */
+  /** Max file size (MB) / 最大文件大小 */
   maxFileSizeMb?: null | number;
-  /** 最大用户数 */
+  /** Max users / 最大用户数 */
   maxUsers?: null | number;
-  /** 存储限制(GB) */
+  /** Storage limit (GB) / 存储限制 */
   storageLimitGb?: null | number;
 }
 
-/** 后端配额格式 (snake_case) */
+/** Backend quota format (snake_case) / 后端配额格式 */
 interface QuotaSchemaRaw {
   allow_custom_domain?: boolean | null;
   api_calls_per_month?: null | number;
@@ -47,27 +48,30 @@ interface QuotaSchemaRaw {
   storage_limit_gb?: null | number;
 }
 
-/** 特性标记 */
+/** Feature flags / 特性标记 */
 export interface FeaturesSchema {
-  /** 高级分析 */
+  /** Advanced analytics / 高级分析 */
   advancedAnalytics?: boolean | null;
-  /** AI 功能 */
+  /** AI enabled / AI 功能 */
   aiEnabled?: boolean | null;
-  /** 优先支持 */
+  /** Priority support / 优先支持 */
   prioritySupport?: boolean | null;
-  /** 白标支持 */
+  /** Storage billing enabled / 对象存储账单对账收费 */
+  storageBillingEnabled?: boolean | null;
+  /** White label / 白标支持 */
   whiteLabel?: boolean | null;
 }
 
-/** 后端特性格式 (snake_case) */
+/** Backend feature format (snake_case) / 后端特性格式 */
 interface FeaturesSchemaRaw {
   advanced_analytics?: boolean | null;
   ai_enabled?: boolean | null;
   priority_support?: boolean | null;
+  storage_billing_enabled?: boolean | null;
   white_label?: boolean | null;
 }
 
-/** 套餐信息（后端原始格式 snake_case） */
+/** Plan info (backend raw snake_case) / 套餐信息（后端原始） */
 export interface TenantPlanInfoRaw {
   billing_cycle: BillingCycle;
   code: string;
@@ -83,7 +87,7 @@ export interface TenantPlanInfoRaw {
   updated_at?: string;
 }
 
-/** 套餐信息（前端格式 camelCase） */
+/** Plan info (frontend camelCase) / 套餐信息（前端） */
 export interface TenantPlanInfo {
   billingCycle: BillingCycle;
   code: string;
@@ -99,7 +103,7 @@ export interface TenantPlanInfo {
   updatedAt?: string;
 }
 
-/** 创建套餐请求 */
+/** Create plan request / 创建套餐请求 */
 export interface TenantPlanCreateRequest {
   billing_cycle?: BillingCycle;
   code: string;
@@ -112,7 +116,7 @@ export interface TenantPlanCreateRequest {
   sort_order?: number;
 }
 
-/** 更新套餐请求 */
+/** Update plan request / 更新套餐请求 */
 export interface TenantPlanUpdateRequest {
   billing_cycle?: BillingCycle | null;
   description?: null | string;
@@ -124,17 +128,17 @@ export interface TenantPlanUpdateRequest {
   sort_order?: null | number;
 }
 
-/** 切换状态请求 */
+/** Toggle status request / 切换状态请求 */
 export interface TenantPlanStatusRequest {
   is_active: boolean;
 }
 
-/** 设置权限请求 */
+/** Set permissions request / 设置权限请求 */
 export interface TenantPlanPermissionsRequest {
   permission_ids: number[];
 }
 
-/** 权限信息 */
+/** Permission info (tree structure) / 权限信息（树形） */
 export interface PermissionInfo {
   children?: PermissionInfo[];
   code: string;
@@ -143,7 +147,16 @@ export interface PermissionInfo {
   parentId?: null | number;
 }
 
-/** 后端权限格式 */
+/** Permission simple info (plan assigned permissions) / 权限简要信息 */
+export interface PermissionSimpleInfo {
+  code: string;
+  id: number;
+  name: string;
+  resource: string;
+  type: string;
+}
+
+/** Backend permission format / 后端权限格式 */
 interface PermissionInfoRaw {
   children?: PermissionInfoRaw[];
   code: string;
@@ -152,10 +165,10 @@ interface PermissionInfoRaw {
   parent_id?: null | number;
 }
 
-/** 套餐列表查询参数 */
+/** Plan list query params / 套餐列表查询参数 */
 export type TenantPlanListParams = Record<string, unknown>;
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface TenantPlanListResponse {
   items: TenantPlanInfo[];
   page: number;
@@ -163,7 +176,7 @@ export interface TenantPlanListResponse {
   total: number;
 }
 
-/** 下拉选项（遵循通用远程下拉方案） */
+/** Dropdown option (follows generic remote select pattern) / 下拉选项 */
 export interface TenantPlanSelectOption {
   label: string;
   value: number;
@@ -177,10 +190,10 @@ export interface TenantPlanSelectOption {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 转换配额 snake_case -> camelCase */
+/** Transform quota snake_case -> camelCase / 转换配额 */
 function transformQuota(raw?: null | QuotaSchemaRaw): null | QuotaSchema {
   if (!raw) return null;
   return {
@@ -194,7 +207,7 @@ function transformQuota(raw?: null | QuotaSchemaRaw): null | QuotaSchema {
   };
 }
 
-/** 转换特性 snake_case -> camelCase */
+/** Transform features snake_case -> camelCase / 转换特性 */
 function transformFeatures(
   raw?: FeaturesSchemaRaw | null,
 ): FeaturesSchema | null {
@@ -203,11 +216,12 @@ function transformFeatures(
     advancedAnalytics: raw.advanced_analytics,
     aiEnabled: raw.ai_enabled,
     prioritySupport: raw.priority_support,
+    storageBillingEnabled: raw.storage_billing_enabled,
     whiteLabel: raw.white_label,
   };
 }
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 将后端转换为前端格式 */
 function transformTenantPlanInfo(raw: TenantPlanInfoRaw): TenantPlanInfo {
   return {
     billingCycle: raw.billing_cycle,
@@ -225,7 +239,7 @@ function transformTenantPlanInfo(raw: TenantPlanInfoRaw): TenantPlanInfo {
   };
 }
 
-/** 转换权限树 */
+/** Transform permission tree / 转换权限树 */
 function transformPermission(raw: PermissionInfoRaw): PermissionInfo {
   return {
     children: raw.children?.map((child) => transformPermission(child)),
@@ -237,13 +251,13 @@ function transformPermission(raw: PermissionInfoRaw): PermissionInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/plans';
 
 /**
- * 获取套餐列表
+ * Get plan list / 获取套餐列表
  * GET /admin/plans
  */
 export async function getTenantPlanListApi(
@@ -266,7 +280,7 @@ export async function getTenantPlanListApi(
 }
 
 /**
- * 获取套餐详情
+ * Get plan detail / 获取套餐详情
  * GET /admin/plans/{plan_id}
  */
 export async function getTenantPlanDetailApi(
@@ -281,7 +295,7 @@ export async function getTenantPlanDetailApi(
 }
 
 /**
- * 创建套餐
+ * Create plan / 创建套餐
  * POST /admin/plans
  */
 export async function createTenantPlanApi(
@@ -297,7 +311,7 @@ export async function createTenantPlanApi(
 }
 
 /**
- * 更新套餐
+ * Update plan / 更新套餐
  * PUT /admin/plans/{plan_id}
  */
 export async function updateTenantPlanApi(
@@ -314,7 +328,7 @@ export async function updateTenantPlanApi(
 }
 
 /**
- * 删除套餐
+ * Delete plan / 删除套餐
  * DELETE /admin/plans/{plan_id}
  */
 export async function deleteTenantPlanApi(
@@ -325,7 +339,7 @@ export async function deleteTenantPlanApi(
 }
 
 /**
- * 重新排序套餐
+ * Reorder plans / 重新排序套餐
  * PUT /admin/plans/reorder
  */
 export async function reorderTenantPlansApi(
@@ -336,15 +350,15 @@ export async function reorderTenantPlansApi(
 }
 
 /**
- * 切换套餐状态
- * PUT /admin/plans/{plan_id}/status (假设有此接口，否则使用 update)
+ * Toggle plan status / 切换套餐状态
+ * PUT /admin/plans/{plan_id}/status
  */
 export async function toggleTenantPlanStatusApi(
   planId: number,
   data: TenantPlanStatusRequest,
   options?: ApiRequestOptions,
 ): Promise<TenantPlanInfo> {
-  // 使用 update 接口切换状态
+  // Use update API to toggle status / 使用 update 接口切换状态
   const raw = await requestClient.put<TenantPlanInfoRaw>(
     `${API_PREFIX}/${planId}`,
     data,
@@ -353,7 +367,7 @@ export async function toggleTenantPlanStatusApi(
   return transformTenantPlanInfo(raw);
 }
 
-/** 套餐下拉选项响应 */
+/** Plan select option response / 套餐下拉选项响应 */
 export interface TenantPlanSelectResponse {
   items: TenantPlanSelectOption[];
   total?: number;
@@ -363,10 +377,10 @@ export interface TenantPlanSelectResponse {
 }
 
 /**
- * 获取套餐下拉选项
+ * Get plan select options / 获取套餐下拉选项
  * GET /admin/plans/select
  *
- * 返回结构遵循《通用远程下拉方案》: { data: { items: [{label, value, extra}] } }
+ * Response follows generic remote select pattern: { data: { items: [{label, value, extra}] } }
  */
 export async function getTenantPlanSelectApi(params?: {
   is_active?: string;
@@ -380,7 +394,7 @@ export async function getTenantPlanSelectApi(params?: {
 }
 
 /**
- * 获取可分配的权限列表
+ * Get available permissions / 获取可分配的权限列表
  * GET /admin/plans/available-permissions
  */
 export async function getAvailablePermissionsApi(
@@ -394,21 +408,23 @@ export async function getAvailablePermissionsApi(
 }
 
 /**
- * 获取套餐权限
+ * Get plan permissions / 获取套餐权限
  * GET /admin/plans/{plan_id}/permissions
+ *
+ * Backend returns PermissionSimpleInfo[], frontend extracts id array for PermissionSelector
  */
 export async function getTenantPlanPermissionsApi(
   planId: number,
   options?: ApiRequestOptions,
-): Promise<number[]> {
-  return requestClient.get<number[]>(
+): Promise<PermissionSimpleInfo[]> {
+  return requestClient.get<PermissionSimpleInfo[]>(
     `${API_PREFIX}/${planId}/permissions`,
     options,
   );
 }
 
 /**
- * 设置套餐权限
+ * Set plan permissions / 设置套餐权限
  * PUT /admin/plans/{plan_id}/permissions
  */
 export async function setTenantPlanPermissionsApi(

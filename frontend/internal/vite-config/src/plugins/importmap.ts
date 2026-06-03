@@ -16,14 +16,14 @@ type pluginOptions = GeneratorOptions & {
   importmap?: Array<{ name: string; range?: string }>;
 };
 
-// async function getLatestVersionOfShims() {
+// async function getLatestVersionOfShims() { / 动态取 shims 版本（已注释）/ fetch version (off)
 //   const result = await fetch('https://ga.jspm.io/npm:es-module-shims');
 //   const version = result.text();
 //   return version;
 // }
 
 async function getShimsUrl(provide: string) {
-  // const version = await getLatestVersionOfShims();
+  // const version = await getLatestVersionOfShims(); / 使用固定版本号 / pinned version below
   const version = '1.10.0';
 
   const shimsSubpath = `dist/es-module-shims.js`;

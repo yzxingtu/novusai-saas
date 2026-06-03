@@ -64,7 +64,9 @@ export function useExpandable(props: FormRenderProps) {
     //   return;
     // }
 
-    const formItems = [...wrapperRef.value.children];
+    const formItems = [...wrapperRef.value.children].filter(
+      (el) => (el as HTMLElement).offsetParent !== null,
+    );
 
     const container = wrapperRef.value;
     const containerStyles = window.getComputedStyle(container);
@@ -101,5 +103,17 @@ export function useExpandable(props: FormRenderProps) {
     calculateRowMapping();
   });
 
-  return { isCalculated, keepFormItemIndex, wrapperRef };
+  const shouldShowCollapseButton = computed(() => {
+    if (!props.showCollapseButton) return false;
+    if (!isCalculated.value) return true;
+    const schemaCount = props.schema?.length ?? 0;
+    return schemaCount > keepFormItemIndex.value + 1;
+  });
+
+  return {
+    isCalculated,
+    keepFormItemIndex,
+    shouldShowCollapseButton,
+    wrapperRef,
+  };
 }

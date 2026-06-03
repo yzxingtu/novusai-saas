@@ -1,0 +1,122 @@
+"""
+智能体版本 Repository / Agent Version Repository
+"""
+
+from sqlalchemy import and_, select
+
+from app.core.base_repository import TenantRepository
+from app.models.ai.agent_version import AgentVersion
+
+
+class AgentVersionRepository(TenantRepository[AgentVersion]):
+    """
+    企业级智能体版本 Repository / Tenant agent version repository.
+
+    提供基于企业隔离的版本数据访问
+    """
+
+    model = AgentVersion
+
+    @staticmethod
+    def _sanitize_create_data(data: dict) -> dict:
+        payload = dict(data)
+        if payload.get("created_by") is None:
+            payload.pop("created_by", None)
+        return payload
+
+    async def create(self, data: dict) -> AgentVersion:
+        return await super().create(self._sanitize_create_data(data))
+
+    async def create_many(self, data_list: list[dict]) -> list[AgentVersion]:
+        return await super().create_many(
+            [self._sanitize_create_data(data) for data in data_list]
+        )
+
+    async def get_by_agent_and_version(
+        self,
+        agent_id: int,
+        version: int,
+    ) -> AgentVersion | None:
+        """
+        按智能体 ID 和版本号获取版本记录 / Get version record by agent ID and version number.
+
+        Args:
+            agent_id: 智能体 ID
+            version: 版本号
+
+        Returns:
+            AgentVersion 实例或 None
+        """
+        stmt = select(AgentVersion).where(
+            and_(
+                AgentVersion.tenant_id == self.tenant_id,
+                AgentVersion.agent_id == agent_id,
+                AgentVersion.version == version,
+                AgentVersion.is_deleted.is_(False),
+            )
+        )
+        stmt = self._apply_data_permission_if_needed(stmt)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_versions_by_agent(
+        self,
+        agent_id: int,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AgentVersion]:
+        """
+        获取智能体的版本列表（按版本号降序）/ Get agent version list (desc by version number).
+
+        Args:
+            agent_id: 智能体 ID
+            skip: 跳过数量
+            limit: 返回数量
+
+        Returns:
+            AgentVersion 列表
+        """
+        stmt = (
+            select(AgentVersion)
+            .where(
+                and_(
+                    AgentVersion.tenant_id == self.tenant_id,
+                    AgentVersion.agent_id == agent_id,
+                    AgentVersion.is_deleted.is_(False),
+                )
+            )
+            .order_by(AgentVersion.version.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        stmt = self._apply_data_permission_if_needed(stmt)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_latest_version_number(
+        self,
+        agent_id: int,
+    ) -> int:
+        """
+        获取智能体的最新版本号 / Get latest version number for agent.
+
+        Args:
+            agent_id: 智能体 ID
+
+        Returns:
+            最新版本号（无版本时返回 0）
+        """
+        from sqlalchemy import func
+
+        stmt = select(func.coalesce(func.max(AgentVersion.version), 0)).where(
+            and_(
+                AgentVersion.tenant_id == self.tenant_id,
+                AgentVersion.agent_id == agent_id,
+                AgentVersion.is_deleted.is_(False),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
+
+__all__ = ["AgentVersionRepository"]

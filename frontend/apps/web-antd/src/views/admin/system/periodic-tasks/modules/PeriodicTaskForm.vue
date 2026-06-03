@@ -1,0 +1,105 @@
+<script lang="ts" setup>
+/**
+ * 定时任务定义表单
+ */
+import type { adminApi } from '#/api';
+
+import { computed } from 'vue';
+
+import { useVbenForm } from '#/adapter/form';
+import { getPeriodicTaskDetailApi } from '#/api/admin/periodic-task';
+import { useCrudDrawer } from '#/composables';
+import { $t } from '#/locales';
+
+import { getFormDefaults, useFormSchema } from '../data';
+
+defineOptions({ name: 'PeriodicTaskForm' });
+
+const emits = defineEmits<{ success: [] }>();
+
+type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
+
+function parseCodeList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatCodeList(value: string[] | undefined): string {
+  return (value ?? []).join(', ');
+}
+
+const [Form, formApi] = useVbenForm({
+  schema: useFormSchema(false),
+  showDefaultActions: false,
+});
+
+const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
+  formApi,
+  schema: useFormSchema,
+  defaults: getFormDefaults,
+  transform: (values) => {
+    return {
+      name: values.name,
+      task_path: values.task_path,
+      schedule_type: values.schedule_type,
+      cron_expression: values.cron_expression || null,
+      interval_seconds: values.interval_seconds || null,
+      is_active: values.is_active ?? true,
+      description: values.description || null,
+      scope: values.scope || 'admin_only',
+      owner_tenant_id: null,
+      tenant_ids: Array.isArray(values.tenant_ids) ? values.tenant_ids : [],
+      default_priority: values.default_priority ?? null,
+      required_feature_codes: parseCodeList(values.required_feature_codes),
+      required_plugin_names: parseCodeList(values.required_plugin_names),
+      max_retries: values.max_retries ?? 0,
+      retry_delay: values.retry_delay ?? 60,
+      timeout: values.timeout ?? 3600,
+      notify_on_failure: values.notify_on_failure ?? false,
+      notify_emails: values.notify_emails || null,
+    };
+  },
+  toFormValues: (data) => {
+    return {
+      name: data.name,
+      task_path: data.taskPath,
+      schedule_type: data.scheduleType,
+      cron_expression: data.cronExpression,
+      interval_seconds: data.intervalSeconds,
+      is_active: data.isActive,
+      description: data.description,
+      scope: data.scope,
+      tenant_ids: data.assignedTenantIds ?? [],
+      default_priority: data.defaultPriority,
+      required_feature_codes: formatCodeList(data.requiredFeatureCodes),
+      required_plugin_names: formatCodeList(data.requiredPluginNames),
+      max_retries: data.maxRetries,
+      retry_delay: data.retryDelay,
+      timeout: data.timeout,
+      notify_on_failure: data.notifyOnFailure,
+      notify_emails: data.notifyEmails,
+    };
+  },
+  onSuccess: () => {
+    emits('success');
+  },
+  detailApi: (id) => getPeriodicTaskDetailApi(id as number),
+});
+
+const title = computed(() =>
+  isEdit.value
+    ? $t('admin.system.periodicTask.edit')
+    : $t('admin.system.periodicTask.create'),
+);
+</script>
+
+<template>
+  <Drawer :title="title" class="w-[680px]">
+    <Form />
+  </Drawer>
+</template>

@@ -6,7 +6,7 @@ import { Button, Card, message } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 
 const [Form, formApi] = useVbenForm({
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
   schema: [
     {
@@ -14,7 +14,7 @@ const [Form, formApi] = useVbenForm({
       defaultValue: 'hidden value',
       dependencies: {
         show: false,
-        // 随意一个字段改变时，都会触发
+        // 随意一个字段改变时，都会触发 / Any listed field change retriggers
         triggerFields: ['field1Switch'],
       },
       fieldName: 'hiddenField',
@@ -50,12 +50,12 @@ const [Form, formApi] = useVbenForm({
         if(values) {
           return !!values.field1Switch;
         },
-        // 只有指定的字段改变时，才会触发
+        // 只有指定的字段改变时，才会触发 / Only listed fields retrigger
         triggerFields: ['field1Switch'],
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field1',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '字段1',
     },
     {
@@ -159,7 +159,7 @@ const [Form, formApi] = useVbenForm({
       label: '字段7',
     },
   ],
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个 / Responsive grid columns
   wrapperClass: 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4',
 });
 
@@ -168,9 +168,9 @@ const [SyncForm] = useVbenForm({
   schema: [
     {
       component: 'Input',
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field1',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '字段1',
     },
     {
@@ -182,16 +182,16 @@ const [SyncForm] = useVbenForm({
         trigger(values, form) {
           form.setFieldValue('field2', values.field1);
         },
-        // 只有指定的字段改变时，才会触发
+        // 只有指定的字段改变时，才会触发 / Only listed fields retrigger
         triggerFields: ['field1'],
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field2',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '字段2',
     },
   ],
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个 / Responsive grid columns
   wrapperClass: 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4',
 });
 

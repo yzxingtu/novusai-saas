@@ -1,5 +1,8 @@
 /**
+ * Common base components shared across adapters, extracted from adapter/form for broader usage.
  * 通用组件共同的使用的基础组件，原先放在 adapter/form 内部，限制了使用范围，这里提取出来，方便其他地方使用
+ *
+ * Can be used in vben-form, vben-modal, vben-drawer, etc.
  * 可用于 vben-form、vben-modal、vben-drawer 等组件使用,
  */
 
@@ -34,6 +37,8 @@ import { isEmpty } from '@vben/utils';
 import { message, notification } from 'ant-design-vue';
 
 import { ApiSelect } from '#/components/business/api-select';
+import { IconSelector } from '#/components/business/icon-selector';
+import { IdentityRemoteSelect } from '#/components/business/identity-display';
 
 const AutoComplete = defineAsyncComponent(
   () => import('ant-design-vue/es/auto-complete'),
@@ -45,9 +50,28 @@ const Checkbox = defineAsyncComponent(
 const CheckboxGroup = defineAsyncComponent(() =>
   import('ant-design-vue/es/checkbox').then((res) => res.CheckboxGroup),
 );
-const DatePicker = defineAsyncComponent(
+const DatePickerRaw = defineAsyncComponent(
   () => import('ant-design-vue/es/date-picker'),
 );
+
+// DatePicker wrapper - set default date format uniformly / DatePicker 包装器 - 统一设置默认日期格式
+const DatePicker = (props: any, { attrs, slots }: any) => {
+  // Use unified format if no custom format is set / 如果没有自定义 format,使用统一格式
+  const format = attrs?.format || props?.format || 'YYYY-MM-DD HH:mm:ss';
+  const valueFormat =
+    attrs?.valueFormat || props?.valueFormat || 'YYYY-MM-DD HH:mm:ss';
+
+  return h(
+    DatePickerRaw,
+    {
+      ...props,
+      ...attrs,
+      format,
+      valueFormat,
+    },
+    slots,
+  );
+};
 const Divider = defineAsyncComponent(() => import('ant-design-vue/es/divider'));
 const Input = defineAsyncComponent(() => import('ant-design-vue/es/input'));
 const InputNumber = defineAsyncComponent(
@@ -83,6 +107,7 @@ const Cascader = defineAsyncComponent(
   () => import('ant-design-vue/es/cascader'),
 );
 const Upload = defineAsyncComponent(() => import('ant-design-vue/es/upload'));
+const Alert = defineAsyncComponent(() => import('ant-design-vue/es/alert'));
 const Image = defineAsyncComponent(() => import('ant-design-vue/es/image'));
 const PreviewGroup = defineAsyncComponent(() =>
   import('ant-design-vue/es/image').then((res) => res.ImagePreviewGroup),
@@ -101,7 +126,7 @@ const withDefaultPlaceholder = <T extends Component>(
         props?.placeholder ||
         attrs?.placeholder ||
         $t(`ui.placeholder.${type}`);
-      // 透传组件暴露的方法
+      // Pass through methods exposed by the component / 透传组件暴露的方法
       const innerRef = ref();
       expose(
         new Proxy(
@@ -123,7 +148,7 @@ const withDefaultPlaceholder = <T extends Component>(
 };
 
 const withPreviewUpload = () => {
-  // 创建默认的上传按钮插槽
+  // Create default upload button slots / 创建默认的上传按钮插槽
   const createDefaultSlotsWithUpload = (
     listType: string,
     placeholder: string,
@@ -141,7 +166,7 @@ const withPreviewUpload = () => {
               Button,
               {
                 icon: h(IconifyIcon, {
-                  icon: 'ant-design:upload-outlined',
+                  icon: 'lucide:upload',
                   class: 'mb-1 size-4',
                 }),
               },
@@ -151,13 +176,29 @@ const withPreviewUpload = () => {
       }
     }
   };
-  // 构建预览图片组
+  // Build preview image group / 构建预览图片组
   const previewImage = async (
     file: UploadFile,
     visible: Ref<boolean>,
     fileList: Ref<UploadProps['fileList']>,
   ) => {
-    // 检查是否为图片文件的辅助函数
+    type UploadPreviewFile = UploadFile & {
+      preview_url?: string;
+      previewUrl?: string;
+    };
+
+    const getPreviewSource = (item: UploadFile): string | undefined => {
+      const previewFile = item as UploadPreviewFile;
+      if (previewFile.previewUrl) {
+        return previewFile.previewUrl;
+      }
+      if (previewFile.preview_url) {
+        return previewFile.preview_url;
+      }
+      return typeof item.preview === 'string' ? item.preview : item.url;
+    };
+
+    // Helper function to check if file is an image / 检查是否为图片文件的辅助函数
     const isImageFile = (file: UploadFile): boolean => {
       const imageExtensions = new Set([
         'bmp',
@@ -167,8 +208,13 @@ const withPreviewUpload = () => {
         'png',
         'webp',
       ]);
-      if (file.url) {
-        const ext = file.url?.split('.').pop()?.toLowerCase();
+      const previewSource = getPreviewSource(file);
+      if (previewSource) {
+        const ext = previewSource
+          .split('?')[0]
+          ?.split('.')
+          .pop()
+          ?.toLowerCase();
         return ext ? imageExtensions.has(ext) : false;
       }
       if (!file.type) {
@@ -178,19 +224,18 @@ const withPreviewUpload = () => {
       return file.type.startsWith('image/');
     };
 
-    // 如果当前文件不是图片，直接打开
+    // If current file is not an image, open directly / 如果当前文件不是图片，直接打开
     if (!isImageFile(file)) {
-      if (file.url) {
-        window.open(file.url, '_blank');
-      } else if (file.preview) {
-        window.open(file.preview, '_blank');
+      const previewSource = getPreviewSource(file);
+      if (previewSource) {
+        window.open(previewSource, '_blank', 'noopener,noreferrer');
       } else {
         message.error($t('ui.formRules.previewWarning'));
       }
       return;
     }
 
-    // 对于图片文件，继续使用预览组
+    // For image files, continue using preview group / 对于图片文件，继续使用预览组
     const [ImageComponent, PreviewGroupComponent] = await Promise.all([
       Image,
       PreviewGroup,
@@ -204,21 +249,21 @@ const withPreviewUpload = () => {
         reader.addEventListener('error', (error) => reject(error));
       });
     };
-    // 从fileList中过滤出所有图片文件
+    // Filter all image files from fileList / 从file列表中过滤出所有图片文件
     const imageFiles = (unref(fileList) || []).filter((element) =>
       isImageFile(element),
     );
 
-    // 为所有没有预览地址的图片生成预览
+    // Generate previews for all images without preview URLs / 为所有没有预览地址的图片生成预览
     for (const imgFile of imageFiles) {
-      if (!imgFile.url && !imgFile.preview && imgFile.originFileObj) {
+      if (!getPreviewSource(imgFile) && imgFile.originFileObj) {
         imgFile.preview = (await getBase64(imgFile.originFileObj)) as string;
       }
     }
     const container: HTMLElement | null = document.createElement('div');
     document.body.append(container);
 
-    // 用于追踪组件是否已卸载
+    // Track whether component has been unmounted / 用于追踪组件是否已卸载
     let isUnmounted = false;
 
     const PreviewWrapper = {
@@ -231,12 +276,12 @@ const withPreviewUpload = () => {
               class: 'hidden',
               preview: {
                 visible: visible.value,
-                // 设置初始显示的图片索引
+                // Set initial image index to display / 设置初始显示的图片索引
                 current: imageFiles.findIndex((f) => f.uid === file.uid),
                 onVisibleChange: (value: boolean) => {
                   visible.value = value;
                   if (!value) {
-                    // 延迟清理，确保动画完成
+                    // Delay cleanup to ensure animation completes / 延迟清理，确保动画完成
                     setTimeout(() => {
                       if (!isUnmounted && container) {
                         isUnmounted = true;
@@ -249,11 +294,11 @@ const withPreviewUpload = () => {
               },
             },
             () =>
-              // 渲染所有图片文件
+              // Render all image files / 渲染所有图片文件
               imageFiles.map((imgFile) =>
                 h(ImageComponent, {
                   key: imgFile.uid,
-                  src: imgFile.url || imgFile.preview,
+                  src: getPreviewSource(imgFile),
                 }),
               ),
           );
@@ -307,18 +352,18 @@ const withPreviewUpload = () => {
       const renderUploadButton = (): any => {
         const isDisabled = attrs.disabled;
 
-        // 如果禁用，不渲染上传按钮
+        // If disabled, don't render upload button / 如果禁用，不渲染上传按钮
         if (isDisabled) {
           return null;
         }
 
-        // 否则渲染默认上传按钮
+        // Otherwise render default upload button / 否则渲染默认上传按钮
         return isEmpty(slots)
           ? createDefaultSlotsWithUpload(listType, placeholder)
           : slots;
       };
 
-      // 可以监听到表单API设置的值
+      // Watch for values set by form API / 可以监听到表单API设置的值
       watch(
         () => attrs.modelValue,
         (res) => {
@@ -343,8 +388,10 @@ const withPreviewUpload = () => {
   });
 };
 
+// Adapt component types based on your UI library; all used components need type declarations here
 // 这里需要自行根据业务组件库进行适配，需要用到的组件都需要在这里类型说明
 export type ComponentType =
+  | 'Alert'
   | 'ApiCascader'
   | 'ApiSelect'
   | 'ApiTreeSelect'
@@ -352,10 +399,14 @@ export type ComponentType =
   | 'Cascader'
   | 'Checkbox'
   | 'CheckboxGroup'
+  | 'CronPicker'
   | 'DatePicker'
   | 'DefaultButton'
   | 'Divider'
   | 'IconPicker'
+  | 'IconSelector'
+  | 'IdentityRemoteSelect'
+  | 'ImageUpload'
   | 'Input'
   | 'InputNumber'
   | 'InputPassword'
@@ -365,20 +416,24 @@ export type ComponentType =
   | 'RadioGroup'
   | 'RangePicker'
   | 'Rate'
+  | 'RichText'
   | 'Select'
   | 'Space'
   | 'Switch'
   | 'Textarea'
   | 'TimePicker'
+  | 'ToolkitEditor'
   | 'TreeSelect'
   | 'Upload'
+  | 'ValvesConfigForm'
   | BaseFormComponentType;
 
 async function initComponentAdapter() {
   const components: Partial<Record<ComponentType, Component>> = {
-    // 如果你的组件体积比较大，可以使用异步加载
+    // For large components, async loading is recommended / 如果你的组件体积比较大，可以使用异步加载
     // Button: () =>
     // import('xxx').then((res) => res.Button),
+    Alert,
     ApiCascader: withDefaultPlaceholder(ApiComponent, 'select', {
       component: Cascader,
       fieldNames: { label: 'label', value: 'value', children: 'children' },
@@ -387,6 +442,7 @@ async function initComponentAdapter() {
       visibleEvent: 'onVisibleChange',
     }),
     ApiSelect,
+    IdentityRemoteSelect,
     ApiTreeSelect: withDefaultPlaceholder(
       {
         ...ApiComponent,
@@ -406,8 +462,11 @@ async function initComponentAdapter() {
     Cascader,
     Checkbox,
     CheckboxGroup,
+    CronPicker: defineAsyncComponent(
+      () => import('#/components/business/cron-picker/CronPicker.vue'),
+    ),
     DatePicker,
-    // 自定义默认按钮
+    // Custom default button / 自定义默认按钮
     DefaultButton: (props, { attrs, slots }) => {
       return h(Button, { ...props, attrs, type: 'default' }, slots);
     },
@@ -417,11 +476,15 @@ async function initComponentAdapter() {
       inputComponent: Input,
       modelValueProp: 'value',
     }),
+    IconSelector,
+    ImageUpload: defineAsyncComponent(
+      () => import('#/components/business/image-upload/ImageUpload.vue'),
+    ),
     Input: withDefaultPlaceholder(Input, 'input'),
     InputNumber: withDefaultPlaceholder(InputNumber, 'input'),
     InputPassword: withDefaultPlaceholder(InputPassword, 'input'),
     Mentions: withDefaultPlaceholder(Mentions, 'input'),
-    // 自定义主要按钮
+    // Custom primary button / 自定义主要按钮
     PrimaryButton: (props, { attrs, slots }) => {
       return h(Button, { ...props, attrs, type: 'primary' }, slots);
     },
@@ -429,6 +492,15 @@ async function initComponentAdapter() {
     RadioGroup,
     RangePicker,
     Rate,
+    RichText: defineAsyncComponent(
+      () => import('#/components/business/rich-text-editor/RichTextEditor.vue'),
+    ),
+    ToolkitEditor: defineAsyncComponent(
+      () => import('#/components/business/toolkit-editor/ToolkitEditor.vue'),
+    ),
+    ValvesConfigForm: defineAsyncComponent(
+      () => import('#/components/business/toolkit-editor/ValvesConfigForm.vue'),
+    ),
     Select: withDefaultPlaceholder(Select, 'select'),
     Space,
     Switch,
@@ -438,12 +510,12 @@ async function initComponentAdapter() {
     Upload: withPreviewUpload(),
   };
 
-  // 将组件注册到全局共享状态中
+  // Register components to global shared state / 将组件注册到全局共享状态中
   globalShareState.setComponents(components);
 
-  // 定义全局共享状态中的消息提示
+  // Define message notifications in global shared state / 定义全局共享状态中的消息提示
   globalShareState.defineMessage({
-    // 复制成功消息提示
+    // Copy success message notification / 复制成功消息提示
     copyPreferencesSuccess: (title, content) => {
       notification.success({
         description: content,

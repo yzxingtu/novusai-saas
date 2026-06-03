@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}{{ subject }}{% endblock %}
+
+{% block header_title %}{{ subject }}{% endblock %}
+
+{% block content %}
+{{ content | safe }}
+{% endblock %}

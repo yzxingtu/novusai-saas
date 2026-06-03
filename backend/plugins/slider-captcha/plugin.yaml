@@ -1,0 +1,104 @@
+name: slider-captcha
+version: "1.0.0"
+display_name:
+  zh-CN: "滑动拼图验证码"
+  en: "Slider Puzzle CAPTCHA"
+description:
+  zh-CN: "现代化滑动拼图验证码插件，可用于管理端、企业端和用户端登录。"
+  en: "Modern slider puzzle captcha plugin for admin, tenant, and user login flows."
+author: "NovusAI"
+icon: ""
+scope: global_shared
+tags: ["captcha", "login", "security"]
+
+capabilities: []
+
+extensions:
+  custom:
+    - type: captcha_provider
+      name: slider
+      description: "Dynamic slider captcha provider"
+      data:
+        entry_point: "captcha_provider.SliderCaptchaProvider"
+        public_endpoints: ["admin", "tenant", "user"]
+        display_name:
+          zh-CN: "滑动拼图验证码"
+          en: "Slider Puzzle CAPTCHA"
+  frontend:
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"
+
+config_schema:
+  type: object
+  properties:
+    background_1:
+      type: string
+      format: image
+      title:
+        zh-CN: "背景图 1"
+        en: "Background 1"
+      description:
+        zh-CN: "上传后覆盖插件内置的第 1 张背景图。"
+        en: "Override the first bundled background image."
+      default: ""
+    background_2:
+      type: string
+      format: image
+      title:
+        zh-CN: "背景图 2"
+        en: "Background 2"
+      description:
+        zh-CN: "上传后覆盖插件内置的第 2 张背景图。"
+        en: "Override the second bundled background image."
+      default: ""
+    background_3:
+      type: string
+      format: image
+      title:
+        zh-CN: "背景图 3"
+        en: "Background 3"
+      description:
+        zh-CN: "上传后覆盖插件内置的第 3 张背景图。"
+        en: "Override the third bundled background image."
+      default: ""
+    background_4:
+      type: string
+      format: image
+      title:
+        zh-CN: "背景图 4"
+        en: "Background 4"
+      description:
+        zh-CN: "上传后覆盖插件内置的第 4 张背景图。"
+        en: "Override the fourth bundled background image."
+      default: ""
+    square_length:
+      type: integer
+      title:
+        zh-CN: "拼图边长"
+        en: "Puzzle Size"
+      description:
+        zh-CN: "拼图主体边长，建议 36 到 54。"
+        en: "Main puzzle square size. Recommended range: 36 to 54."
+      minimum: 36
+      maximum: 54
+      default: 42
+    tolerance_px:
+      type: integer
+      title:
+        zh-CN: "容差像素"
+        en: "Tolerance"
+      description:
+        zh-CN: "允许误差像素，数值越大越容易通过。"
+        en: "Allowed pixel tolerance. Higher values are easier to pass."
+      minimum: 3
+      maximum: 12
+      default: 6
+
+dependencies:
+  python: []
+  plugins: []
+
+pricing:
+  type: free

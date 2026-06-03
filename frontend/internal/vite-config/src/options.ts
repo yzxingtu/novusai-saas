@@ -6,18 +6,12 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 const getDefaultPwaOptions = (name: string): Partial<PwaPluginOptions> => ({
   manifest: {
-    description:
-      'Novusai Saas is a modern admin dashboard template based on Vue 3. ',
+    description: 'NovusAI SaaS Platform',
     icons: [
       {
         sizes: '192x192',
-        src: 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/pwa-icon-192.png',
-        type: 'image/png',
-      },
-      {
-        sizes: '512x512',
-        src: 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/pwa-icon-512.png',
-        type: 'image/png',
+        src: '/favicon.ico',
+        type: 'image/x-icon',
       },
     ],
     name: `${name}${isDevelopment ? ' dev' : ''}`,
@@ -36,7 +30,7 @@ const defaultImportmapOptions: ImportmapPluginOptions = {
     { name: 'vue' },
     { name: 'pinia' },
     { name: 'vue-router' },
-    // { name: 'vue-i18n' },
+    // { name: 'vue-i18n' }, / 默认不通过 importmap 引入 / omit from importmap
     { name: 'dayjs' },
     { name: 'vue-demi' },
   ],

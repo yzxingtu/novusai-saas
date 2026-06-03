@@ -9,12 +9,12 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
   onConfirm() {
     message.info('onConfirm');
-    // drawerApi.close();
+    // drawerApi.close(); / 演示可在此关闭 / demo: close here if needed
   },
   title: '动态修改配置示例',
 });
 
-// const state = drawerApi.useStore();
+// const state = drawerApi.useStore(); / 可选：订阅抽屉内部状态 / optional: subscribe drawer store
 
 function handleUpdateTitle() {
   drawerApi.setState({ title: '内部动态标题' });

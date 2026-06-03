@@ -14,7 +14,7 @@ try {
       run({ command });
     });
 
-  // Invalid command
+  // Invalid command / 非法子命令
   turboRun.on('command:*', () => {
     consola.error(colors.red('Invalid command!'));
     process.exit(1);

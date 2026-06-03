@@ -1,0 +1,278 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 列表页 (Card 模式)
+ * {{ display_name_en }} List Page (Card mode)
+ */
+{% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
+{% set _fe = _ep.get('frontend') or {} %}
+{% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
+{% set resource_path = route_prefix | path_no_leading_slash or resource_plural %}
+{% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set perm = _ep.get('permission') or {} %}
+{% set perm_resource = perm.get('resource') or resource %}
+{% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
+{% set search_field = (fields | selectattr('filterable', 'equalto', true) | selectattr('name') | map(attribute='name') | first) or name_field %}
+{% set _recycle_bin = _fe.get('recycle_bin', False) %}
+{% set _quick_search = _fe.get('quick_search', True) %}
+{% set _page_size = _fe.get('page_size') or 12 %}
+{% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+{% set _quick_search_enabled = _quick_search != false %}
+{% set _qs_ns = namespace(options=[]) %}
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id', 'parent_id'] %}
+{% set search_ok = f.get('search', {}) %}
+{% if search_ok is mapping %}
+{% set sen = search_ok.get('enabled', f.get('filterable', false)) %}
+{% else %}
+{% set sen = f.get('filterable', false) %}
+{% endif %}
+{% if sen %}
+{% set search_comp = type_registry.get_search_component(f) if type_registry else 'input' %}
+{% if search_comp == 'input' %}
+{% set _q = ((f.get('form', {}) if f.get('form') is mapping else {}).get('queryType') or f.get('query_type') or 'ilike') %}
+{% set _field_key = 'filter[' ~ f.name ~ ']' if _q == 'eq' else 'filter[' ~ f.name ~ '][' ~ _q ~ ']' %}
+{% set _qs_ns.options = _qs_ns.options + [{'sourceField': f.name, 'fieldName': _field_key, 'labelKey': i18n_pre ~ '.' ~ (f.name | camel)}] %}
+{% endif %}
+{% endif %}
+{% endfor %}
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _recycle_bin or _quick_search_enabled %}
+import { computed, ref } from 'vue';
+{% endif %}
+import {
+  get{{ resource | pascal }}ListApi,
+} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _recycle_bin %}
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
+{% endif %}
+import { useCrudList } from '#/composables';
+import { {% if _recycle_bin %}Badge, Tooltip, {% endif %}Input, Pagination{% if _quick_search_enabled %}, Select{% endif %} } from 'ant-design-vue';
+import { Page } from '@vben/common-ui';
+import { MoreOutlined } from '@ant-design/icons-vue';
+import { Dropdown, Card, Menu, Button } from 'ant-design-vue';
+import { $t } from '#/locales';
+
+import { getFormDefaults, useFormSchema } from './data';
+import Form from './modules/form.vue';
+
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}CardList' });
+
+const createPermission = '{{ perm_resource }}:create';
+const updatePermission = createPermission.replace(/:\w+$/, ':update');
+const deletePermission = createPermission.replace(/:\w+$/, ':delete');
+{% if _recycle_bin %}
+const recycleBinPermission = createPermission.replace(/:\w+$/, ':recycle_bin');
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(null);
+const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
+{% endif %}
+{% if _quick_search_enabled %}
+const rawQuickSearch = {{ _quick_search | tojson }};
+const quickSearchOptions = [
+{% for option in _qs_ns.options %}
+  {
+    sourceField: '{{ option.sourceField }}',
+    fieldName: '{{ option.fieldName }}',
+    label: $t('{{ option.labelKey }}'),
+    placeholder: $t('{{ i18n_pre }}.placeholder.search'),
+  },
+{% endfor %}
+];
+
+function resolveCardQuickSearchOptions(
+  rawConfig: boolean | { default_field?: string; defaultField?: string; fields?: Array<string | { fieldName?: string; label?: string; placeholder?: string }> },
+  options: Array<{ sourceField: string; fieldName: string; label: string; placeholder?: string }>,
+) {
+  if (rawConfig === false) {
+    return [];
+  }
+  if (rawConfig === true || !rawConfig?.fields?.length) {
+    return options;
+  }
+  const fieldOverrides = new Map<
+    string,
+    { label?: string; placeholder?: string }
+  >();
+  for (const field of rawConfig.fields) {
+    if (typeof field === 'string') {
+      fieldOverrides.set(field, {});
+      continue;
+    }
+    if (
+      field &&
+      typeof field === 'object' &&
+      typeof field.fieldName === 'string'
+    ) {
+      fieldOverrides.set(field.fieldName, {
+        label: typeof field.label === 'string' ? field.label : undefined,
+        placeholder:
+          typeof field.placeholder === 'string'
+            ? field.placeholder
+            : undefined,
+      });
+    }
+  }
+  return options
+    .filter((option) => fieldOverrides.has(option.sourceField))
+    .map((option) => {
+      const override = fieldOverrides.get(option.sourceField);
+      return {
+        ...option,
+        label: override?.label ?? option.label,
+        placeholder: override?.placeholder ?? option.placeholder,
+      };
+    });
+}
+
+const resolvedQuickSearchOptions = computed(() =>
+  resolveCardQuickSearchOptions(rawQuickSearch, quickSearchOptions),
+);
+const quickSearchField = ref(
+  (typeof rawQuickSearch === 'object' &&
+  rawQuickSearch &&
+  !Array.isArray(rawQuickSearch)
+    ? resolvedQuickSearchOptions.value.find(
+        (option) =>
+          option.sourceField ===
+          (rawQuickSearch.default_field || rawQuickSearch.defaultField),
+      )?.fieldName
+    : undefined) ??
+    resolvedQuickSearchOptions.value[0]?.fieldName ??
+    '',
+);
+
+function onCardQuickSearchFieldChange(fieldName: string) {
+  quickSearchField.value = fieldName;
+  if (searchKeyword.value.trim()) {
+    onSearch({ [fieldName]: searchKeyword.value });
+  }
+}
+
+function onCardQuickSearch(keyword: string) {
+  const nextKeyword = typeof keyword === 'string' ? keyword : '';
+  const fieldName =
+    quickSearchField.value || resolvedQuickSearchOptions.value[0]?.fieldName;
+  if (!fieldName) {
+    return;
+  }
+  onSearch(nextKeyword.trim() ? { [fieldName]: nextKeyword } : {});
+}
+{% endif %}
+
+const {
+  FormDrawer,
+  currentPage,
+  handleMenuAction,
+  loadList,
+  onCreate,
+  onPageChange,
+  onSearch,
+  pageSize,
+  searchKeyword,
+  total,
+  list,
+  loading,
+} = useCrudList<{{ resource | pascal }}Info>({
+  api: {
+    list: get{{ resource | pascal }}ListApi,
+    resource: '{{ full_path }}',
+  },
+  createPermission,
+  defaultSort: '{{ _default_sort }}',
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: '{{ i18n_pre }}',
+  nameField: '{{ name_field | camel }}',
+  pageSize: {{ _page_size }},
+  recycleBin: {{ _recycle_bin | lower }},
+});
+</script>
+
+<template>
+  <Page>
+    <div class="mb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        {% if _quick_search_enabled %}
+        <Select
+          v-if="resolvedQuickSearchOptions.length > 1"
+          :value="quickSearchField"
+          :options="
+            resolvedQuickSearchOptions.map((option) => ({
+              label: option.label,
+              value: option.fieldName,
+            }))
+          "
+          class="min-w-[140px]"
+          @change="(value) => onCardQuickSearchFieldChange(String(value ?? ''))"
+        />
+        <Input.Search
+          v-model:value="searchKeyword"
+          allow-clear
+          :placeholder="
+            resolvedQuickSearchOptions.find(
+              (option) => option.fieldName === quickSearchField,
+            )?.placeholder || $t('{{ i18n_pre }}.placeholder.search')
+          "
+          class="max-w-md"
+          @search="(val) => onCardQuickSearch(String(val ?? ''))"
+        />
+        {% endif %}
+        {% if _recycle_bin %}
+        <span v-access:code="[recycleBinPermission]">
+          <Tooltip :title="$t('common.recycleBin.title')">
+            <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+              <Button @click="openRecycleBin">
+                {{ "{{ $t('common.recycleBin.title') }}" }}
+              </Button>
+            </Badge>
+          </Tooltip>
+        </span>
+        {% endif %}
+      </div>
+      <Button v-access:code="[createPermission]" type="primary" @click="onCreate">
+        {{ "{{ $t('shared.common.create') }}" }}
+      </Button>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <Card v-for="item in list" :key="item.id" hoverable>
+        <template #title>{{ "{{ item." + (name_field | camel) + " }}" }}</template>
+        <template #extra>
+          <Dropdown :trigger="['click']">
+            <MoreOutlined class="cursor-pointer" />
+            <template #overlay>
+              <Menu @click="({ key }) => handleMenuAction(key, item)">
+                <Menu.Item key="edit" v-access:code="[updatePermission]">{{ "{{ $t('shared.common.edit') }}" }}</Menu.Item>
+                <Menu.Item key="delete" danger v-access:code="[deletePermission]">{{ "{{ $t('shared.common.delete') }}" }}</Menu.Item>
+              </Menu>
+            </template>
+          </Dropdown>
+        </template>
+        {% if fields | selectattr('name', 'equalto', 'description') | list | length > 0 %}
+        <p class="line-clamp-2">{{ "{{ item.description }}" }}</p>
+        {% else %}
+        <p class="text-gray-500">{{ "{{ $t('" + i18n_pre + ".id') }}" }}: {{ "{{ item.id }}" }}</p>
+        {% endif %}
+      </Card>
+    </div>
+    <Pagination
+      v-if="total > 0"
+      :current="currentPage"
+      :page-size="pageSize"
+      :total="total"
+      class="mt-4"
+      show-size-changer
+      @change="onPageChange"
+    />
+    <FormDrawer @success="loadList" />
+    {% if _recycle_bin %}
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="{{ full_path }}"
+      @restored="loadList"
+    />
+    {% endif %}
+  </Page>
+</template>

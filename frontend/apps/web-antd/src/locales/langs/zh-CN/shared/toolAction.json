@@ -1,0 +1,9 @@
+{
+  "confirmOk": "允许执行",
+  "confirmCancel": "取消",
+  "confirmCountdown": "{seconds}s 内有效",
+  "msg": {
+    "actionCompleted": "已执行 {target}",
+    "operationNotRegistered": "编辑器动作「{op}」未注册到「{page}」"
+  }
+}

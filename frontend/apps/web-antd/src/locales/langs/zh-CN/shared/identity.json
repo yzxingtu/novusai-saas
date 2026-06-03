@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/i18n",
+  "action": {
+    "openDialogAria": "查看人物详情",
+    "viewDetail": "查看详情"
+  },
+  "approval": {
+    "approved": "已通过",
+    "pending": "待审批",
+    "rejected": "已拒绝"
+  },
+  "detail": {
+    "accountSection": "账号属性",
+    "activitySection": "最近活动",
+    "basicSection": "身份信息",
+    "emptyDescription": "暂无可展示的人物详情",
+    "overviewSection": "身份概览",
+    "title": "人物详情"
+  },
+  "field": {
+    "aiChat": "AI 对话",
+    "aiDisabled": "AI 关闭",
+    "approvalStatus": "审批状态",
+    "createdAt": "创建时间",
+    "email": "邮箱",
+    "empty": "暂无",
+    "lastLoginAt": "最近登录",
+    "lastLoginIp": "最近登录 IP",
+    "leader": "负责人",
+    "organization": "所属架构",
+    "owner": "所有者",
+    "phone": "手机号",
+    "role": "角色",
+    "status": "账号状态",
+    "superAdmin": "超级管理员",
+    "tenant": "所属企业",
+    "updatedAt": "更新时间",
+    "userType": "身份类型",
+    "username": "用户名"
+  },
+  "owner": "所有者",
+  "unassignedArchitecture": "未分配架构",
+  "unassignedRole": "未分配角色",
+  "userTypes": {
+    "admin": "平台管理员",
+    "tenantAdmin": "企业管理员",
+    "tenantUser": "企业用户",
+    "unknown": "未知身份"
+  }
+}

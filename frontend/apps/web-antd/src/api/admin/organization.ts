@@ -1,27 +1,33 @@
 /**
- * 平台组织架构管理 API
- * 对接后端 /admin/roles/* 组织架构相关接口
+ * Platform organization management API / 平台组织架构管理 API
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-// ============================================================
-// 类型定义
-// ============================================================
+export type OrgNodeType = 'department' | 'position';
 
-/** 节点类型枚举 */
-export type OrgNodeType = 'department' | 'position' | 'role';
+export type OrgLeaderScopeType =
+  | 'all'
+  | 'custom'
+  | 'dept_children'
+  | 'dept_only'
+  | 'self';
 
-/** 负责人基本信息 */
 export interface LeaderInfo {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
+  real_name?: string;
   avatar?: string;
 }
 
-/** 组织架构节点信息（后端原始格式 snake_case） */
+export interface OrgScopeTargetRaw {
+  id: number;
+  name: string;
+  type?: string;
+}
+
 export interface OrgNodeInfoRaw {
   id: number;
   code: string;
@@ -38,11 +44,18 @@ export interface OrgNodeInfoRaw {
   leader_id?: null | number;
   leader?: LeaderInfo | null;
   permissions_count?: number;
+  permission_ids?: number[];
+  permission_codes?: string[];
+  can_manage_member_ai?: boolean;
+  data_scope?: null | OrgLeaderScopeType;
+  custom_dept_ids?: null | number[];
+  scope_target_count?: number;
+  scope_targets?: OrgScopeTargetRaw[];
   created_at: string;
   updated_at?: string;
+  children?: OrgNodeInfoRaw[];
 }
 
-/** 组织架构节点信息（前端格式 camelCase） */
 export interface OrgNodeInfo {
   id: number;
   code: string;
@@ -59,67 +72,70 @@ export interface OrgNodeInfo {
   leaderId?: null | number;
   leader?: LeaderInfo | null;
   permissionsCount?: number;
+  permissionIds?: number[];
+  permissionCodes?: string[];
+  canManageMemberAi?: boolean;
+  dataScope?: null | OrgLeaderScopeType;
+  customDeptIds?: null | number[];
+  scopeTargetCount?: number;
+  scopeTargets?: OrgScopeTargetRaw[];
   createdAt: string;
   updatedAt?: string;
-  /** 前端树形控件使用：子节点（按需加载时动态填充） */
   children?: OrgNodeInfo[];
-  /** 前端树形控件使用：是否正在加载子节点 */
   loading?: boolean;
 }
 
-/** 节点成员信息（后端原始格式） */
 export interface OrgMemberRaw {
   id: number;
   username: string;
-  real_name?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
+  ai_enabled?: boolean;
+  effective_ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
+  can_manage_ai?: boolean;
   is_active: boolean;
   is_leader: boolean;
   joined_at: string;
-  /** 所属角色 ID */
-  role_id?: number;
-  /** 所属角色名称 */
-  role_name?: string;
-  /** 创建时间 */
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  permission_role_id?: null | number;
+  permission_role_name?: null | string;
+  role_id?: null | number;
+  role_name?: null | string;
   created_at?: string;
-  /** 更新时间 */
   updated_at?: string;
 }
 
-/** 节点成员信息（前端格式） */
 export interface OrgMember {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
+  aiEnabled: boolean;
+  effectiveAiEnabled: boolean;
+  aiUnavailableReason?: null | string;
+  canManageAi?: boolean;
   isActive: boolean;
   isLeader: boolean;
   joinedAt: string;
-  /** 所属角色 ID */
-  roleId?: number;
-  /** 所属角色名称 */
-  roleName?: string;
-  /** 创建时间 */
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
+  roleId?: null | number;
+  roleName?: null | string;
   createdAt?: string;
-  /** 更新时间 */
   updatedAt?: string;
 }
 
-/** 成员列表查询参数 */
 export interface MemberListParams {
-  /** 搜索关键词（用户名/昵称/邮箱） */
   search?: string;
-  /** 页码 */
   page?: number;
-  /** 每页数量 */
   pageSize?: number;
-  /** 是否包含子节点成员（递归查询），默认 true */
   includeDescendants?: boolean;
 }
 
-/** 成员列表分页响应（后端原始格式） */
 export interface MemberListResponseRaw {
   items: OrgMemberRaw[];
   total: number;
@@ -127,7 +143,6 @@ export interface MemberListResponseRaw {
   page_size: number;
 }
 
-/** 成员列表分页响应（前端格式） */
 export interface MemberListResponse {
   items: OrgMember[];
   total: number;
@@ -135,21 +150,71 @@ export interface MemberListResponse {
   pageSize: number;
 }
 
-/** 添加成员请求 */
 export interface AddMemberRequest {
   admin_id: number;
 }
 
-/** 设置负责人请求 */
+export interface CreateMemberRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: null | string;
+  nickname?: null | string;
+  is_active?: boolean;
+  ai_enabled?: boolean;
+  is_super?: boolean;
+  org_node_id?: null | number;
+}
+
+export interface UpdateMemberRequest {
+  email?: null | string;
+  phone?: null | string;
+  nickname?: null | string;
+  avatar?: null | string;
+  is_active?: boolean | null;
+  ai_enabled?: boolean | null;
+  is_super?: boolean | null;
+  org_node_id?: null | number;
+}
+
+export interface ResetMemberPasswordRequest {
+  new_password: string;
+}
+
+export interface MemberStatusRequest {
+  is_active: boolean;
+}
+
 export interface SetLeaderRequest {
   leader_id: null | number;
 }
 
-// ============================================================
-// 转换函数
-// ============================================================
+export interface CreateOrganizationNodeRequest {
+  name: string;
+  description?: null | string;
+  type?: OrgNodeType;
+  parent_id?: null | number;
+  allow_members?: boolean;
+  is_active?: boolean;
+  sort_order?: number;
+  permission_ids?: null | number[];
+  data_scope?: null | OrgLeaderScopeType;
+  custom_dept_ids?: null | number[];
+}
 
-/** 将后端节点数据转换为前端格式 */
+export interface UpdateOrganizationNodeRequest {
+  name?: null | string;
+  description?: null | string;
+  type?: null | OrgNodeType;
+  allow_members?: boolean | null;
+  is_active?: boolean | null;
+  sort_order?: null | number;
+  leader_id?: null | number;
+  permission_ids?: null | number[];
+  data_scope?: null | OrgLeaderScopeType;
+  custom_dept_ids?: null | number[];
+}
+
 function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
   return {
     id: raw.id,
@@ -167,74 +232,123 @@ function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
     leaderId: raw.leader_id,
     leader: raw.leader,
     permissionsCount: raw.permissions_count,
+    permissionIds: raw.permission_ids,
+    permissionCodes: raw.permission_codes,
+    canManageMemberAi: raw.can_manage_member_ai,
+    dataScope: raw.data_scope,
+    customDeptIds: raw.custom_dept_ids,
+    scopeTargetCount:
+      raw.scope_target_count ?? raw.custom_dept_ids?.length ?? 0,
+    scopeTargets: raw.scope_targets,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    children: raw.children?.map((child) =>
+      transformOrgNode(child as OrgNodeInfoRaw),
+    ),
   };
 }
 
-/** 将后端成员数据转换为前端格式 */
 function transformOrgMember(raw: OrgMemberRaw): OrgMember {
   return {
     id: raw.id,
     username: raw.username,
-    realName: raw.real_name,
+    nickname: raw.nickname,
     email: raw.email,
     avatar: raw.avatar,
+    aiEnabled: raw.ai_enabled ?? true,
+    effectiveAiEnabled: raw.effective_ai_enabled ?? raw.ai_enabled ?? true,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? null,
+    canManageAi: raw.can_manage_ai ?? false,
     isActive: raw.is_active,
     isLeader: raw.is_leader,
     joinedAt: raw.joined_at,
-    roleId: raw.role_id,
-    roleName: raw.role_name,
+    orgNodeId: raw.org_node_id ?? null,
+    orgNodeName: raw.org_node_name ?? null,
+    roleId: raw.permission_role_id ?? raw.role_id ?? null,
+    roleName: raw.permission_role_name ?? raw.role_name ?? null,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
 }
 
-// ============================================================
-// API 接口
-// ============================================================
+const API_PREFIX = '/admin/organization';
 
-const API_PREFIX = '/admin/roles';
-
-/**
- * 获取组织架构根节点
- * GET /admin/roles/organization
- * 返回 level=1 的根节点列表，包含 has_children 标记
- */
 export async function getOrganizationRootNodesApi(
   options?: ApiRequestOptions,
 ): Promise<OrgNodeInfo[]> {
   const response = await requestClient.get<OrgNodeInfoRaw[]>(
-    `${API_PREFIX}/organization`,
+    API_PREFIX,
     options,
   );
   return response.map((item) => transformOrgNode(item));
 }
 
-/**
- * 获取子节点（按需加载）
- * GET /admin/roles/{role_id}/children
- */
-export async function getNodeChildrenApi(
-  roleId: number,
+export async function getOrganizationTreeApi(
   options?: ApiRequestOptions,
 ): Promise<OrgNodeInfo[]> {
   const response = await requestClient.get<OrgNodeInfoRaw[]>(
-    `${API_PREFIX}/${roleId}/children`,
+    `${API_PREFIX}/tree`,
     options,
   );
   return response.map((item) => transformOrgNode(item));
 }
 
-/**
- * 获取节点成员列表（分页 + 搜索）
- * GET /admin/roles/{role_id}/members
- * @param roleId - 节点 ID
- * @param params - 查询参数（搜索、分页）
- * @param options - 请求选项
- */
+export async function getOrganizationNodeDetailApi(
+  nodeId: number,
+  options?: ApiRequestOptions,
+): Promise<OrgNodeInfo> {
+  const response = await requestClient.get<OrgNodeInfoRaw>(
+    `${API_PREFIX}/${nodeId}`,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function getNodeChildrenApi(
+  orgNodeId: number,
+  options?: ApiRequestOptions,
+): Promise<OrgNodeInfo[]> {
+  const response = await requestClient.get<OrgNodeInfoRaw[]>(
+    `${API_PREFIX}/${orgNodeId}/children`,
+    options,
+  );
+  return response.map((item) => transformOrgNode(item));
+}
+
+export async function createOrganizationNodeApi(
+  data: CreateOrganizationNodeRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgNodeInfo> {
+  const response = await requestClient.post<OrgNodeInfoRaw>(
+    API_PREFIX,
+    data,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function updateOrganizationNodeApi(
+  nodeId: number,
+  data: UpdateOrganizationNodeRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgNodeInfo> {
+  const response = await requestClient.put<OrgNodeInfoRaw>(
+    `${API_PREFIX}/${nodeId}`,
+    data,
+    options,
+  );
+  return transformOrgNode(response);
+}
+
+export async function deleteOrganizationNodeApi(
+  nodeId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${API_PREFIX}/${nodeId}`, options);
+}
+
 export async function getNodeMembersApi(
-  roleId: number,
+  orgNodeId: number,
   params?: MemberListParams,
   options?: ApiRequestOptions,
 ): Promise<MemberListResponse> {
@@ -248,13 +362,12 @@ export async function getNodeMembersApi(
   if (params?.pageSize) {
     queryParams['page[size]'] = params.pageSize;
   }
-  // 递归查询子节点成员，默认 true
   if (params?.includeDescendants !== undefined) {
     queryParams.include_descendants = params.includeDescendants;
   }
 
   const response = await requestClient.get<MemberListResponseRaw>(
-    `${API_PREFIX}/${roleId}/members`,
+    `${API_PREFIX}/${orgNodeId}/members`,
     {
       ...options,
       params: queryParams,
@@ -268,51 +381,90 @@ export async function getNodeMembersApi(
   };
 }
 
-/**
- * 添加成员到节点
- * POST /admin/roles/{role_id}/members
- */
 export async function addMemberToNodeApi(
-  roleId: number,
+  orgNodeId: number,
   adminId: number,
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.post(
-    `${API_PREFIX}/${roleId}/members`,
+    `${API_PREFIX}/${orgNodeId}/members`,
     { admin_id: adminId } as AddMemberRequest,
     options,
   );
 }
 
-/**
- * 从节点移除成员
- * DELETE /admin/roles/{role_id}/members/{admin_id}
- */
-export async function removeMemberFromNodeApi(
-  roleId: number,
+export async function createMemberApi(
+  orgNodeId: number,
+  data: CreateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.post<OrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/create`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function updateMemberApi(
+  orgNodeId: number,
   adminId: number,
+  data: UpdateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.put<OrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function resetMemberPasswordApi(
+  orgNodeId: number,
+  adminId: number,
+  data: ResetMemberPasswordRequest,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.delete(
-    `${API_PREFIX}/${roleId}/members/${adminId}`,
+  await requestClient.put(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}/reset-password`,
+    data,
     options,
   );
 }
 
-/**
- * 设置节点负责人
- * PUT /admin/roles/{role_id}/leader
- * @param roleId - 节点 ID
- * @param leaderId - 负责人 ID，传 null 表示取消负责人
- * @param options - 请求选项
- */
+export async function toggleMemberStatusApi(
+  orgNodeId: number,
+  adminId: number,
+  data: MemberStatusRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.put<OrgMemberRaw>(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}/status`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+export async function removeMemberFromNodeApi(
+  orgNodeId: number,
+  adminId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${API_PREFIX}/${orgNodeId}/members/${adminId}`,
+    options,
+  );
+}
+
 export async function setNodeLeaderApi(
-  roleId: number,
+  orgNodeId: number,
   leaderId: null | number,
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.put(
-    `${API_PREFIX}/${roleId}/leader`,
+    `${API_PREFIX}/${orgNodeId}/leader`,
     { leader_id: leaderId } as SetLeaderRequest,
     options,
   );

@@ -1,12 +1,11 @@
 """
-操作日志模型
+操作日志模型 / Operation Log Model
 
 记录系统中所有 API 调用的审计日志
+Records audit logs for all API calls in the system.
 """
 
-from datetime import datetime
-
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import BaseModel
@@ -14,28 +13,29 @@ from app.core.base_model import BaseModel
 
 class OperationLog(BaseModel):
     """
-    操作日志模型
-    
+    操作日志模型 / Operation log model.
+
     记录所有 API 调用的审计日志，支持：
     - 平台端操作（tenant_id 为空）
-    - 租户端操作（tenant_id 不为空）
+    - 企业端操作（tenant_id 不为空）
     """
-    
+
     __tablename__ = "operation_logs"
-    
-    # 表级索引
+
+    # 表级索引 / Table-level indexes
     __table_args__ = (
-        # 复合索引：租户 + 时间，用于租户日志查询
+        # 复合索引：企业 + 时间，用于企业日志查询 / tenant + time for tenant log queries
         Index("ix_operation_logs_tenant_created", "tenant_id", "created_at"),
-        # 复合索引：用户类型 + 用户ID，用于用户操作追溯
+        # 复合索引：用户类型 + 用户ID，用于用户操作追溯 / user type + id trace
         Index("ix_operation_logs_user", "user_type", "user_id"),
-        # 复合索引：模块 + 操作，用于操作统计
+        # 复合索引：模块 + 操作，用于操作统计 / module + action stats
         Index("ix_operation_logs_module_action", "module", "action"),
     )
-    
-    # 可过滤字段声明
+
+    # 可过滤字段声明 / Declared filterable fields
     __filterable__ = {
         "id": "id",
+        "trace_id": "trace_id",
         "tenant_id": "tenant_id",
         "user_type": "user_type",
         "user_id": "user_id",
@@ -45,159 +45,143 @@ class OperationLog(BaseModel):
         "resource": "resource",
         "method": "method",
         "path": "path",
+        "status_code": "status_code",
         "response_code": "response_code",
         "ip": "ip",
         "created_at": "created_at",
     }
-    
-    # ==================== 用户信息 ====================
-    
-    # 租户ID（平台操作时为空）
+
+    __sortable__ = [
+        "id",
+        "username",
+        "module",
+        "action",
+        "method",
+        "response_code",
+        "created_at",
+    ]
+
+    # ==================== 用户信息 ==================== / User identity
+
+    # 企业ID（平台操作时为空） / Tenant id (null for platform ops)
     tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="租户ID（平台操作为空）"
+        comment="企业ID（平台操作为空）",
     )
-    
+
     # 用户类型: admin / tenant_admin / tenant_user
     user_type: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        index=True,
-        comment="用户类型"
+        String(20), nullable=False, index=True, comment="用户类型"
     )
-    
+
     # 用户ID
     user_id: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="用户ID"
+        Integer, nullable=True, comment="用户ID"
     )
-    
-    # 用户名（冗余存储，便于查询和展示）
+
+    # 用户名（冗余存储，便于查询和展示） / Username denormalized
     username: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        index=True,
-        comment="用户名"
+        String(100), nullable=True, index=True, comment="用户名"
     )
-    
-    # 用户昵称（冗余存储，便于展示）
+
+    # 用户昵称（冗余存储，便于展示） / Nickname denormalized
     nickname: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-        comment="用户昵称"
+        String(100), nullable=True, comment="用户昵称"
     )
-    
-    # ==================== 操作信息 ====================
-    
+
+    # 身份快照（避免昵称/组织/角色变更导致历史展示漂移） / Identity snapshot
+    identity_snapshot: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="身份快照（显示名/头像/组织/角色等）",
+    )
+
+    # ==================== 操作信息 ==================== / Operation details
+
     # 业务模块: auth / permission / role / admin_user / tenant / config / plan / ...
     module: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        index=True,
-        comment="业务模块"
+        String(50), nullable=True, index=True, comment="业务模块"
     )
-    
+
     # 操作类型: create / update / delete / query / login / logout / export / import
     action: Mapped[str | None] = mapped_column(
-        String(20),
-        nullable=True,
-        index=True,
-        comment="操作类型"
+        String(50), nullable=True, index=True, comment="操作类型"
     )
-    
+
     # 资源标识（权限代码）: admin_user:create / role:update 等
     resource: Mapped[str | None] = mapped_column(
-        String(100),
+        String(100), nullable=True, index=True, comment="资源标识（权限代码）"
+    )
+
+    # ==================== 追踪信息 ==================== / Tracing
+
+    # 请求追踪 ID（用于关联日志、审计、Celery 任务）
+    trace_id: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
         index=True,
-        comment="资源标识（权限代码）"
+        comment="请求追踪 ID / Trace ID for request correlation",
     )
-    
-    # ==================== 请求信息 ====================
-    
+
+    # ==================== 请求信息 ==================== / Request
+
     # HTTP 方法: GET / POST / PUT / DELETE / PATCH
-    method: Mapped[str] = mapped_column(
-        String(10),
-        nullable=False,
-        comment="HTTP 方法"
-    )
-    
-    # 请求路径
+    method: Mapped[str] = mapped_column(String(10), nullable=False, comment="HTTP 方法")
+
+    # 请求路径 / Request path
     path: Mapped[str] = mapped_column(
-        String(500),
-        nullable=False,
-        index=True,
-        comment="请求路径"
+        String(500), nullable=False, index=True, comment="请求路径"
     )
-    
+
     # 查询参数（JSON 格式）
     query_params: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment="查询参数"
+        JSON, nullable=True, comment="查询参数"
     )
-    
+
     # 请求体摘要（JSON 格式，已脱敏）
     request_body: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment="请求体摘要（已脱敏）"
+        JSON, nullable=True, comment="请求体摘要（已脱敏）"
     )
-    
-    # ==================== 响应信息 ====================
-    
+
+    # ==================== 响应信息 ==================== / Response
+
     # HTTP 响应状态码
     status_code: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="HTTP 响应状态码"
+        Integer, nullable=True, comment="HTTP 响应状态码"
     )
-    
-    # 业务响应码
+
+    # 业务响应码 / App response code
     response_code: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        index=True,
-        comment="业务响应码"
+        Integer, nullable=True, index=True, comment="业务响应码"
     )
-    
-    # 响应消息
+
+    # 响应消息 / Response message
     response_message: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="响应消息"
+        String(500), nullable=True, comment="响应消息"
     )
-    
-    # ==================== 客户端信息 ====================
-    
+
+    # ==================== 客户端信息 ==================== / Client
+
     # 客户端 IP
     ip: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        index=True,
-        comment="客户端 IP"
+        String(50), nullable=True, index=True, comment="客户端 IP"
     )
-    
-    # User-Agent
+
+    # User-Agent / 浏览器 UA 字符串
     user_agent: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="User-Agent"
+        String(500), nullable=True, comment="User-Agent"
     )
-    
-    # ==================== 性能指标 ====================
-    
-    # 请求耗时（毫秒）
+
+    # ==================== 性能指标 ==================== / Performance
+
+    # 请求耗时（毫秒） / Request duration (ms)
     duration_ms: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="请求耗时（毫秒）"
+        Integer, nullable=True, comment="请求耗时（毫秒）"
     )
-    
+
     def __repr__(self) -> str:
         return (
             f"<OperationLog(id={self.id}, user={self.username}, "

@@ -1,14 +1,15 @@
 /**
+ * Common utility functions
  * 通用工具函数
  */
 
 // ============================================================
-// 随机编码生成
+// Random code generation / 随机编码生成
 // ============================================================
 
-/** 排除易混淆字符的字符集 */
+/** Character set excluding easily confused characters / 排除易混淆字符的字符集 */
 // ============================================================
-// 树形展开状态管理
+// Tree expand state management / 树形展开状态管理
 // ============================================================
 
 import type { Ref } from 'vue';
@@ -16,7 +17,7 @@ import type { Ref } from 'vue';
 import { ref } from 'vue';
 
 // ============================================================
-// 删除确认弹窗
+// Delete confirmation dialog / 删除确认弹窗
 // ============================================================
 import { message, Modal } from 'ant-design-vue';
 
@@ -24,42 +25,44 @@ import { $t } from '#/locales';
 
 // cspell:disable-next-line
 const SAFE_CHARS = {
-  /** 小写字母（排除 l, o） */
+  /** Lowercase letters (excluding l, o) / 小写字母（排除 l, o） */
   lowercase: 'abcdefghjkmnpqrstuvwxyz', // cspell:disable-line
-  /** 大写字母（排除 I, L, O） */
+  /** Uppercase letters (excluding I, L, O) / 大写字母（排除 I, L, O） */
   uppercase: 'ABCDEFGHJKMNPQRSTUVWXYZ', // cspell:disable-line
-  /** 数字（排除 0, 1） */
+  /** Numbers (excluding 0, 1) / 数字（排除 0, 1） */
   numbers: '23456789',
 };
 
-/** 随机编码生成选项 */
+/** Random code generation options / 随机编码生成选项 */
 export interface GenerateCodeOptions {
-  /** 编码长度，默认 8 */
+  /** Code length, default 8 / 编码长度，默认 8 */
   length?: number;
-  /** 是否包含大写字母，默认 true */
+  /** Include uppercase letters, default true / 是否包含大写字母，默认 true */
   uppercase?: boolean;
-  /** 是否包含小写字母，默认 true */
+  /** Include lowercase letters, default true / 是否包含小写字母，默认 true */
   lowercase?: boolean;
-  /** 是否包含数字，默认 true */
+  /** Include numbers, default true / 是否包含数字，默认 true */
   numbers?: boolean;
-  /** 是否添加分隔符（-），默认 false */
+  /** Add separator (-), default false / 是否添加分隔符（-），默认 false */
   separator?: boolean;
-  /** 分隔符间隔（每隔多少位添加分隔符），默认 4 */
+  /** Separator interval (characters between separators), default 4 / 分隔符间隔（每隔多少位添加分隔符），默认 4 */
   separatorInterval?: number;
-  /** 自定义分隔符，默认 '-' */
+  /** Custom separator character, default '-' / 自定义分隔符，默认 '-' */
   separatorChar?: string;
-  /** 前缀 */
+  /** Prefix / 前缀 */
   prefix?: string;
-  /** 后缀 */
+  /** Suffix / 后缀 */
   suffix?: string;
 }
 
 /**
+ * Generate random code
+ * Excludes easily confused characters: 0, O, o, 1, I, l, L
  * 生成随机编码
  * 排除易混淆字符：0, O, o, 1, I, l, L
  *
- * @param options 生成选项
- * @returns 随机编码字符串
+ * @param options - Generation options / 生成选项
+ * @returns Random code string / 随机编码字符串
  *
  * @example
  * // 默认 8 位混合编码
@@ -90,22 +93,22 @@ export function generateCode(options: GenerateCodeOptions = {}): string {
     suffix = '',
   } = options;
 
-  // 构建字符集
+  // 构建字符集 / Build charset
   let charset = '';
   if (lowercase) charset += SAFE_CHARS.lowercase;
   if (uppercase) charset += SAFE_CHARS.uppercase;
   if (numbers) charset += SAFE_CHARS.numbers;
 
-  // 如果没有选择任何字符类型，使用全部
+  // 如果没有选择任何字符类型，使用全部 / If no type selected, use all
   if (!charset) {
     charset = SAFE_CHARS.lowercase + SAFE_CHARS.uppercase + SAFE_CHARS.numbers;
   }
 
-  // 生成随机字符
+  // 生成随机字符 / Generate random char
   let code = '';
   const charsetLength = charset.length;
 
-  // 使用 crypto API 生成更安全的随机数（如果可用）
+  // 使用 crypto API 生成更安全的随机数（如果可用）/ Use crypto API for secure random if available
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     const randomValues = new Uint32Array(length);
     crypto.getRandomValues(randomValues);
@@ -114,13 +117,13 @@ export function generateCode(options: GenerateCodeOptions = {}): string {
       code += charset[randomValues[i]! % charsetLength];
     }
   } else {
-    // 降级到 Math.random
+    // 降级到 Math.random / Fallback to Math.random
     for (let i = 0; i < length; i++) {
       code += charset[Math.floor(Math.random() * charsetLength)];
     }
   }
 
-  // 添加分隔符
+  // 添加分隔符 / Add separator
   if (separator && separatorInterval > 0) {
     const parts: string[] = [];
     for (let i = 0; i < code.length; i += separatorInterval) {
@@ -133,17 +136,19 @@ export function generateCode(options: GenerateCodeOptions = {}): string {
 }
 
 /**
+ * Generate UUID v4 format code
+ * Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
  * 生成 UUID v4 格式的编码
  * 格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
  *
- * @returns UUID 字符串
+ * @returns UUID string / UUID 字符串
  */
 export function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
 
-  // 降级实现
+  // 降级实现 / Fallback impl
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replaceAll(/[xy]/g, (c) => {
     const r = Math.trunc(Math.random() * 16);
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -152,39 +157,40 @@ export function generateUUID(): string {
 }
 
 // ============================================================
-// 时间格式化
+// Date/time formatting / 时间格式化
 // ============================================================
 
-/** 日期格式化选项 */
+/** Date format options / 日期格式化选项 */
 export interface FormatDateOptions {
-  /** 格式模板，默认 'YYYY-MM-DD HH:mm:ss' */
+  /** Format template, default 'YYYY-MM-DD HH:mm:ss' / 格式模板，默认 'YYYY-MM-DD HH:mm:ss' */
   format?: string;
-  /** 空值显示，默认 '-' */
+  /** Null value display, default '-' / 空值显示，默认 '-' */
   fallback?: string;
 }
 
 /**
+ * Format date/time
  * 格式化日期时间
  *
- * @param date 日期值（Date对象、时间戳、ISO字符串）
- * @param options 格式化选项
- * @returns 格式化后的字符串
+ * @param date - Date value (Date object, timestamp, ISO string) / 日期值（Date对象、时间戳、ISO字符串）
+ * @param options - Format options / 格式化选项
+ * @returns Formatted string / 格式化后的字符串
  *
- * 支持的格式占位符：
- * - YYYY: 四位年份
- * - YY: 两位年份
- * - MM: 两位月份（01-12）
- * - M: 月份（1-12）
- * - DD: 两位日期（01-31）
- * - D: 日期（1-31）
- * - HH: 24小时制小时（00-23）
- * - H: 24小时制小时（0-23）
- * - hh: 12小时制小时（01-12）
- * - h: 12小时制小时（1-12）
- * - mm: 分钟（00-59）
- * - m: 分钟（0-59）
- * - ss: 秒（00-59）
- * - s: 秒（0-59）
+ * Supported format placeholders / 支持的格式占位符：
+ * - YYYY: 4-digit year / 四位年份
+ * - YY: 2-digit year / 两位年份
+ * - MM: 2-digit month (01-12) / 两位月份（01-12）
+ * - M: month (1-12) / 月份（1-12）
+ * - DD: 2-digit day (01-31) / 两位日期（01-31）
+ * - D: day (1-31) / 日期（1-31）
+ * - HH: 24h hours (00-23) / 24小时制小时（00-23）
+ * - H: 24h hours (0-23) / 24小时制小时（0-23）
+ * - hh: 12h hours (01-12) / 12小时制小时（01-12）
+ * - h: 12h hours (1-12) / 12小时制小时（1-12）
+ * - mm: minutes (00-59) / 分钟（00-59）
+ * - m: minutes (0-59) / 分钟（0-59）
+ * - ss: seconds (00-59) / 秒（00-59）
+ * - s: seconds (0-59) / 秒（0-59）
  * - A: AM/PM
  * - a: am/pm
  *
@@ -197,7 +203,7 @@ export function formatDate(
   date: Date | null | number | string | undefined,
   options: FormatDateOptions | string = {},
 ): string {
-  // 支持直接传入格式字符串
+  // 支持直接传入格式字符串 / Support format string directly
   const opts: FormatDateOptions =
     typeof options === 'string' ? { format: options } : options;
   const { format = 'YYYY-MM-DD HH:mm:ss', fallback = '-' } = opts;
@@ -206,7 +212,7 @@ export function formatDate(
 
   const d = date instanceof Date ? date : new Date(date);
 
-  // 检查日期有效性
+  // 检查日期有效性 / Validate date
   if (Number.isNaN(d.getTime())) return fallback;
 
   const year = d.getFullYear();
@@ -238,7 +244,7 @@ export function formatDate(
     a: hours < 12 ? 'am' : 'pm',
   };
 
-  // 按长度降序排列 key，确保先替换长的（如 YYYY 优先于 YY）
+  // 按长度降序排列 key，确保先替换长的（如 YYYY 优先于 YY）/ Sort keys by length desc for replacement order
   const sortedKeys = Object.keys(replacements).toSorted(
     (a, b) => b.length - a.length,
   );
@@ -253,9 +259,10 @@ export function formatDate(
 }
 
 /**
+ * Format as date only (without time)
  * 格式化为日期（不含时间）
- * @param date 日期值
- * @param fallback 空值显示
+ * @param date - Date value / 日期值
+ * @param fallback - Null value display / 空值显示
  */
 export function formatDateOnly(
   date: Date | null | number | string | undefined,
@@ -265,9 +272,10 @@ export function formatDateOnly(
 }
 
 /**
+ * Format as time only (without date)
  * 格式化为时间（不含日期）
- * @param date 日期值
- * @param fallback 空值显示
+ * @param date - Date value / 日期值
+ * @param fallback - Null value display / 空值显示
  */
 export function formatTimeOnly(
   date: Date | null | number | string | undefined,
@@ -277,11 +285,12 @@ export function formatTimeOnly(
 }
 
 /**
+ * Format as relative time (e.g., just now, 5 minutes ago, yesterday)
  * 格式化为相对时间（如：刚刚、5分钟前、昨天）
  *
- * @param date 日期值
- * @param fallback 空值显示
- * @returns 相对时间字符串
+ * @param date - Date value / 日期值
+ * @param fallback - Null value display / 空值显示
+ * @returns Relative time string / 相对时间字符串
  *
  * @example
  * formatRelativeTime(new Date()) // '刚刚'
@@ -308,24 +317,54 @@ export function formatRelativeTime(
   const months = Math.floor(days / 30);
   const years = Math.floor(days / 365);
 
-  const suffix = diff > 0 ? '前' : '后';
+  const isPast = diff > 0;
 
-  if (seconds < 60) return '刚刚';
-  if (minutes < 60) return `${minutes} 分钟${suffix}`;
-  if (hours < 24) return `${hours} 小时${suffix}`;
-  if (days < 30) return `${days} 天${suffix}`;
-  if (months < 12) return `${months} 个月${suffix}`;
-  return `${years} 年${suffix}`;
+  if (seconds < 60) return $t('common.relativeTime.justNow');
+  if (minutes < 60) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.minutesAgo'
+        : 'common.relativeTime.minutesLater',
+      { n: minutes },
+    );
+  }
+  if (hours < 24) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.hoursAgo'
+        : 'common.relativeTime.hoursLater',
+      { n: hours },
+    );
+  }
+  if (days < 30) {
+    return $t(
+      isPast ? 'common.relativeTime.daysAgo' : 'common.relativeTime.daysLater',
+      { n: days },
+    );
+  }
+  if (months < 12) {
+    return $t(
+      isPast
+        ? 'common.relativeTime.monthsAgo'
+        : 'common.relativeTime.monthsLater',
+      { n: months },
+    );
+  }
+  return $t(
+    isPast ? 'common.relativeTime.yearsAgo' : 'common.relativeTime.yearsLater',
+    { n: years },
+  );
 }
 
 // ============================================================
-// 其他常用工具
+// Other common utilities / 其他常用工具
 // ============================================================
 
 /**
+ * Copy text to clipboard
  * 复制文本到剪贴板
- * @param text 要复制的文本
- * @returns 是否成功
+ * @param text - Text to copy / 要复制的文本
+ * @returns Whether successful / 是否成功
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -333,7 +372,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-    // 降级方案
+    // 降级方案 / Fallback
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -349,9 +388,10 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
+ * Debounce function
  * 防抖函数
- * @param fn 要执行的函数
- * @param delay 延迟时间（毫秒）
+ * @param fn - Function to execute / 要执行的函数
+ * @param delay - Delay in milliseconds / 延迟时间（毫秒）
  */
 export function debounce<T extends (...args: any[]) => any>(
   fn: T,
@@ -365,9 +405,10 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
+ * Throttle function
  * 节流函数
- * @param fn 要执行的函数
- * @param delay 间隔时间（毫秒）
+ * @param fn - Function to execute / 要执行的函数
+ * @param delay - Interval in milliseconds / 间隔时间（毫秒）
  */
 export function throttle<T extends (...args: any[]) => any>(
   fn: T,
@@ -384,30 +425,31 @@ export function throttle<T extends (...args: any[]) => any>(
 }
 
 // ============================================================
-// 树形数据处理
+// Tree data processing / 树形数据处理
 // ============================================================
 
-/** 树节点基础接口 */
+/** Tree node base interface / 树节点基础接口 */
 export interface TreeNodeBase {
   id: number;
   parentId?: null | number;
   sortOrder?: number;
 }
 
-/** buildTree 配置选项 */
+/** buildTree configuration options / buildTree 配置选项 */
 export interface BuildTreeOptions<T> {
-  /** 排序字段，默认 'sortOrder' */
+  /** Sort field, default 'sortOrder' / 排序字段，默认 'sortOrder' */
   sortField?: keyof T;
-  /** 子节点字段名，默认 'children' */
+  /** Children field name, default 'children' / 子节点字段名，默认 'children' */
   childrenField?: string;
 }
 
 /**
+ * Build flat data into tree structure
  * 将扁平数据构建为树形结构
  *
- * @param items 扁平数据数组
- * @param options 配置选项
- * @returns 树形结构数组
+ * @param items - Flat data array / 扁平数据数组
+ * @param options - Configuration options / 配置选项
+ * @returns Tree structure array / 树形结构数组
  *
  * @example
  * const flat = [
@@ -424,18 +466,18 @@ export function buildTree<T extends TreeNodeBase>(
   const { sortField = 'sortOrder' as keyof T, childrenField = 'children' } =
     options;
 
-  // 使用 Record 类型以支持动态字段名
+  // 使用 Record 类型以支持动态字段名 / Use Record for dynamic field names
   type TreeNode = Record<string, any> & T;
   const map = new Map<number, TreeNode>();
   const roots: TreeNode[] = [];
 
-  // 创建所有节点的映射
+  // 创建所有节点的映射 / Create node map
   for (const item of items) {
     const node: TreeNode = { ...item, [childrenField]: [] };
     map.set(item.id, node);
   }
 
-  // 构建树形结构
+  // 构建树形结构 / Build tree
   for (const item of items) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const node = map.get(item.id)!;
@@ -448,7 +490,7 @@ export function buildTree<T extends TreeNodeBase>(
     }
   }
 
-  // 递归排序
+  // 递归排序 / Recursive sort
   const sortNodes = (nodes: TreeNode[]) => {
     nodes.sort((a, b) => {
       const aVal = (a[sortField] as number) ?? 0;
@@ -464,26 +506,27 @@ export function buildTree<T extends TreeNodeBase>(
   return roots as (T & { children: (T & { children: any[] })[] })[];
 }
 
-/** useTreeExpand 返回类型 */
+/** useTreeExpand return type / useTreeExpand 返回类型 */
 export interface TreeExpandReturn {
-  /** 展开的节点 ID 集合 */
+  /** Set of expanded node IDs / 展开的节点 ID 集合 */
   expandedIds: Ref<Set<number>>;
-  /** 切换指定节点的展开状态 */
+  /** Toggle expand state of a node / 切换指定节点的展开状态 */
   toggle: (id: number) => void;
-  /** 展开所有节点 */
+  /** Expand all nodes / 展开所有节点 */
   expandAll: () => void;
-  /** 折叠所有节点 */
+  /** Collapse all nodes / 折叠所有节点 */
   collapseAll: () => void;
-  /** 判断节点是否展开 */
+  /** Check if a node is expanded / 判断节点是否展开 */
   isExpanded: (id: number) => boolean;
 }
 
 /**
+ * Tree expand state management Hook
  * 树形展开状态管理 Hook
  *
- * @param getItems 获取所有节点的函数（返回包含 id 的数组）
- * @param defaultExpanded 是否默认展开所有，默认 true
- * @returns 展开状态管理方法
+ * @param getItems - Function to get all nodes (returns array with id) / 获取所有节点的函数（返回包含 id 的数组）
+ * @param defaultExpanded - Whether to expand all by default, default true / 是否默认展开所有，默认 true
+ * @returns Expand state management methods / 展开状态管理方法
  *
  * @example
  * const roles = ref<Role[]>([]);
@@ -496,7 +539,7 @@ export function useTreeExpand<T extends { id: number }>(
 ): TreeExpandReturn {
   const expandedIds = ref<Set<number>>(new Set()) as Ref<Set<number>>;
 
-  // 初始化时如果需要默认展开
+  // 初始化时如果需要默认展开 / Default expand on init if needed
   if (defaultExpanded) {
     const items = getItems();
     if (items.length > 0) {
@@ -535,28 +578,29 @@ export function useTreeExpand<T extends { id: number }>(
   };
 }
 
-/** confirmDelete 配置选项 */
+/** confirmDelete configuration options / confirmDelete 配置选项 */
 export interface ConfirmDeleteOptions<T> {
-  /** 要删除的数据行 */
+  /** Data row to delete / 要删除的数据行 */
   row: T;
-  /** 显示名称的字段 */
+  /** Field for display name / 显示名称的字段 */
   nameField: keyof T;
-  /** 名称标题（用于提示），如 '角色名' */
+  /** Name title (for prompt), e.g. 'role name' / 名称标题（用于提示），如 '角色名' */
   nameTitle?: string;
-  /** 删除 API 函数 */
+  /** Delete API function / 删除 API 函数 */
   deleteApi: (id: number) => Promise<unknown>;
-  /** 获取 ID 的字段，默认 'id' */
+  /** Field to get ID, default 'id' / 获取 ID 的字段，默认 'id' */
   idField?: keyof T;
-  /** 删除成功后的回调 */
+  /** Callback after successful deletion / 删除成功后的回调 */
   onSuccess?: () => void;
-  /** i18n 前缀，用于自定义文案 */
+  /** i18n prefix for custom messages / i18n 前缀，用于自定义文案 */
   i18nPrefix?: string;
 }
 
 /**
+ * Generic delete confirmation dialog
  * 通用删除确认弹窗
  *
- * @param options 配置选项
+ * @param options - Configuration options / 配置选项
  *
  * @example
  * confirmDelete({
@@ -583,7 +627,7 @@ export function confirmDelete<T extends Record<string, any>>(
   const name = String(row[nameField] || '');
   const id = row[idField] as number;
 
-  // 支持自定义 i18n 或使用通用文案
+  // 支持自定义 i18n 或使用通用文案 / Support custom i18n or generic copy
   const titleKey = i18nPrefix
     ? `${i18nPrefix}.messages.deleteTitle`
     : 'shared.common.deleteTitle';
@@ -624,18 +668,20 @@ export function confirmDelete<T extends Record<string, any>>(
 }
 
 // ============================================================
-// 层级颜色配置
+// Level color configuration / 层级颜色配置
 // ============================================================
 
-/** 层级颜色类型 */
+/** Level color type / 层级颜色类型 */
 export interface LevelColor {
-  /** 左侧装饰条颜色 */
+  /** Left decoration bar color / 左侧装饰条颜色 */
   bar: string;
-  /** 徽章颜色 */
+  /** Badge color / 徽章颜色 */
   badge: string;
 }
 
 /**
+ * Default level color configuration
+ * Uses different opacity variants of theme color to follow theme switching
  * 默认层级颜色配置
  * 使用主题色的不同透明度变体，确保跟随主题切换
  */
@@ -647,11 +693,12 @@ export const DEFAULT_LEVEL_COLORS: LevelColor[] = [
 ];
 
 /**
+ * Get level color
  * 获取层级颜色
  *
- * @param level 层级（从 0 开始）
- * @param colors 自定义颜色配置，默认使用 DEFAULT_LEVEL_COLORS
- * @returns 对应层级的颜色配置
+ * @param level - Level (starting from 0) / 层级（从 0 开始）
+ * @param colors - Custom color config, defaults to DEFAULT_LEVEL_COLORS / 自定义颜色配置，默认使用 DEFAULT_LEVEL_COLORS
+ * @returns Color config for the level / 对应层级的颜色配置
  *
  * @example
  * getLevelColor(0) // { bar: 'bg-primary', badge: 'bg-primary/10 text-primary' }

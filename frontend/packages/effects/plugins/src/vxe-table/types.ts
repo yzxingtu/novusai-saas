@@ -73,6 +73,11 @@ export interface VxeGridProps<
    */
   showSearchForm?: boolean;
   /**
+   * Whether the search panel should animate its expand/collapse transition.
+   * 搜索面板展开/收起时是否启用过渡动画。
+   */
+  searchPanelAnimation?: boolean;
+  /**
    * 搜索表单与表格主体之间的分隔条
    */
   separator?: boolean | SeparatorOptions;

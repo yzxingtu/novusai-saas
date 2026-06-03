@@ -1,0 +1,92 @@
+{
+  "title": "附件管理",
+  "list": "附件列表",
+  "detail": "附件详情",
+  "name": "文件名",
+  "path": "存储路径",
+  "mimeType": "文件类型",
+  "size": "文件大小",
+  "hash": "文件哈希",
+  "driver": "存储驱动",
+  "visibility": "可见性",
+  "category": "分类",
+  "preview": "预览",
+  "refType": "关联类型",
+  "refId": "关联ID",
+  "uploadedBy": "上传者",
+  "uploadedAt": "上传时间",
+  "createdAt": "创建时间",
+  "tenantId": "企业ID",
+  "tenantName": "企业名称",
+  "visibilityType": {
+    "public": "公开",
+    "private": "私有"
+  },
+  "categoryType": {
+    "image": "图片",
+    "document": "文档",
+    "video": "视频",
+    "audio": "音频",
+    "archive": "压缩包",
+    "other": "其他"
+  },
+  "stats": {
+    "title": "存储统计",
+    "totalCount": "总文件数",
+    "totalSize": "总大小",
+    "byCategory": "按分类统计",
+    "byTenant": "按企业统计",
+    "byDriver": "按存储驱动统计"
+  },
+  "quota": {
+    "title": "存储配额",
+    "spaceLimit": "空间上限",
+    "spaceUsed": "已用空间",
+    "spaceAvailable": "可用空间",
+    "spacePercent": "使用率",
+    "fileCount": "文件数量",
+    "fileCountLimit": "文件数量上限",
+    "maxFileSize": "单文件大小上限",
+    "bandwidthLimit": "流量上限",
+    "bandwidthUsed": "已用流量",
+    "unlimited": "不限"
+  },
+  "actions": {
+    "preview": "预览",
+    "download": "下载",
+    "delete": "删除",
+    "batchDelete": "批量删除",
+    "copyUrl": "复制链接",
+    "getPreviewUrl": "获取预览链接",
+    "getDownloadUrl": "获取下载链接"
+  },
+  "messages": {
+    "deleteConfirm": "确定要删除附件「{name}」吗？删除后不可恢复。",
+    "deleteTitle": "删除确认",
+    "deleteSuccess": "删除成功",
+    "batchDeleteConfirm": "确定要删除选中的 {count} 个附件吗？",
+    "batchDeleteSuccess": "批量删除成功",
+    "copySuccess": "链接已复制",
+    "copyFailed": "复制失败",
+    "previewNotSupported": "该文件类型暂不支持预览",
+    "downloadStarted": "下载已开始"
+  },
+  "placeholder": {
+    "searchName": "搜索文件名",
+    "allCategory": "全部分类",
+    "allVisibility": "全部可见性",
+    "allTenant": "全部企业",
+    "selectTenant": "请选择企业"
+  },
+  "empty": {
+    "title": "暂无附件",
+    "description": "还没有上传任何附件"
+  },
+  "sizeUnit": {
+    "bytes": "B",
+    "kb": "KB",
+    "mb": "MB",
+    "gb": "GB",
+    "tb": "TB"
+  }
+}

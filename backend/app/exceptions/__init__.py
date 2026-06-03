@@ -1,31 +1,40 @@
 """
-异常模块
+异常模块 / Exception Module
 
 提供应用的异常类层次结构
+Provides the application's exception class hierarchy.
 """
 
 from app.exceptions.base import (
     AppException,
-    ValidationException,
     AuthenticationException,
     AuthorizationException,
-    NotFoundException,
-    ConflictException,
     BusinessException,
-    RateLimitException,
+    ConflictException,
+    DependencyBlockedException,
     ExternalServiceException,
+    NotFoundException,
+    RateLimitException,
     ServiceUnavailableException,
+    TokenExpiredException,
+    ValidationException,
 )
-from app.exceptions.storage import StorageError, StorageConfigError, StorageNotFoundError
+from app.exceptions.storage import (
+    StorageConfigError,
+    StorageError,
+    StorageNotFoundError,
+)
 
 __all__ = [
     "AppException",
     "ValidationException",
     "AuthenticationException",
+    "TokenExpiredException",
     "AuthorizationException",
     "NotFoundException",
     "ConflictException",
     "BusinessException",
+    "DependencyBlockedException",
     "RateLimitException",
     "ExternalServiceException",
     "ServiceUnavailableException",

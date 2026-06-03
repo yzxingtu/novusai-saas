@@ -127,9 +127,7 @@ function resetCanvas() {
   if (!puzzleCanvas || !pieceCanvas) return;
   pieceCanvas.width = canvasWidth;
   const puzzleCanvasCtx = puzzleCanvas.getContext('2d');
-  // Canvas2D: Multiple readback operations using getImageData
-  // are faster with the willReadFrequently attribute set to true.
-  // See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently (anonymous)
+  // 频繁 getImageData 时建议 willReadFrequently / Browser hint for Canvas2D readback (WHATWG)
   const pieceCanvasCtx = pieceCanvas.getContext('2d', {
     willReadFrequently: true,
   });
@@ -144,15 +142,13 @@ function initCanvas() {
   const pieceCanvas = unref(pieceCanvasRef);
   if (!puzzleCanvas || !pieceCanvas) return;
   const puzzleCanvasCtx = puzzleCanvas.getContext('2d');
-  // Canvas2D: Multiple readback operations using getImageData
-  // are faster with the willReadFrequently attribute set to true.
-  // See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently (anonymous)
+  // 频繁 getImageData 时建议 willReadFrequently / Browser hint for Canvas2D readback (WHATWG)
   const pieceCanvasCtx = pieceCanvas.getContext('2d', {
     willReadFrequently: true,
   });
   if (!puzzleCanvasCtx || !pieceCanvasCtx) return;
   const img = new Image();
-  // 解决跨域
+  // 解决跨域画布污染 / crossOrigin for canvas taint
   img.crossOrigin = 'Anonymous';
   img.src = src;
   img.addEventListener('load', () => {
@@ -178,7 +174,7 @@ function getRandomNumberByRange(start: number, end: number) {
   return Math.round(Math.random() * (end - start) + start);
 }
 
-// 绘制拼图
+// 绘制拼图 / Draw puzzle mask on both canvases
 function draw(ctx1: CanvasRenderingContext2D, ctx2: CanvasRenderingContext2D) {
   const { canvasWidth, canvasHeight, squareLength, circleRadius } = props;
   state.pieceX = getRandomNumberByRange(
@@ -193,7 +189,7 @@ function draw(ctx1: CanvasRenderingContext2D, ctx2: CanvasRenderingContext2D) {
   drawPiece(ctx2, state.pieceX, state.pieceY, CanvasOpr.Clip);
 }
 
-// 绘制拼图切块
+// 绘制拼图切块 / Draw single puzzle piece path
 function drawPiece(
   ctx: CanvasRenderingContext2D,
   x: number,

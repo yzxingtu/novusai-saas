@@ -1,6 +1,15 @@
 {
   "admin": "管理员",
-  "tenant": "租户",
+  "tenant": "企业",
+  "enable": "启用",
+  "disable": "禁用",
+  "notAssigned": "未分配",
+  "basicInfo": "基本信息",
+  "contactInfo": "联系方式",
+  "permissionSettings": "权限设置",
+  "accountStatus": "账号状态",
+  "operationSuccess": "操作成功",
+  "operationFailed": "操作失败",
   "user": "用户",
   "dashboard": "控制台",
   "settings": "设置",
@@ -13,6 +22,7 @@
   "save": "保存",
   "edit": "编辑",
   "delete": "删除",
+  "confirmDelete": "确定要删除吗？",
   "create": "创建",
   "detail": "详情",
   "actions": "操作",
@@ -23,5 +33,12 @@
   "loading": "加载中...",
   "success": "操作成功",
   "failed": "操作失败",
-  "noData": "暂无数据"
+  "noData": "暂无数据",
+  "prev": "上一页",
+  "next": "下一页",
+  "createdAt": "创建时间",
+  "deletedAt": "删除时间",
+  "tenantAdmin": "企业管理员",
+  "noPlan": "当前企业未分配套餐",
+  "noPlanDesc": "无法使用任何功能，请联系平台管理员分配套餐。"
 }

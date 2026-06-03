@@ -1,0 +1,356 @@
+"""中文: AI 测试模块分类标记。
+
+EN: AI test module classification marker.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
+
+import asyncio
+from types import SimpleNamespace
+
+from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.recovery_manager import RecoveryManager
+from app.ai.engine.stream_handler import StreamExecutionHandler
+from app.ai.engine.turn_executor import TurnExecutionResult, TurnExecutor
+from app.ai.engine.types import (
+    ExecutionRequest,
+    IntentPlan,
+    PreparedExecution,
+    RecoveryDecision,
+)
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse
+
+
+def _make_agent() -> SimpleNamespace:
+    provider = SimpleNamespace(
+        code="test-provider",
+        type="mock",
+        base_url="",
+        config={},
+        decrypt_key=lambda: "fake-key",
+    )
+    model = SimpleNamespace(
+        provider=provider,
+        code="test-model",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        supports_streaming=True,
+        config={},
+    )
+    return SimpleNamespace(
+        id=1,
+        name="Consent Agent",
+        system_prompt="",
+        temperature=0.0,
+        max_tokens=256,
+        top_p=1.0,
+        model=model,
+    )
+
+
+def _build_prepared_execution(
+    pending_payload: dict[str, object],
+) -> tuple[PreparedExecution, list[ChatMessage]]:
+    messages = [
+        ChatMessage(role="user", content="Please delete this item."),
+        ChatMessage(
+            role="assistant",
+            content="Need your confirmation before proceeding.",
+            metadata={"pending_consent": pending_payload},
+        ),
+    ]
+    intent = IntentPlan(
+        intent_id="intent-consent",
+        kind="consent",
+        family="general",
+        order=1,
+        user_visible_label="Approve delete",
+        source_text="",
+        status="awaiting_consent",
+        requires_tools=True,
+        metadata={"pending_consent": pending_payload},
+    )
+    prep = PreparedExecution(
+        messages=list(messages),
+        tools=[],
+        all_tools=[],
+        intent_plan=[intent],
+        execution_path="normal",
+    )
+    prep.rag_sources = []
+    prep.rag_source_kinds = []
+    return prep, list(messages)
+
+
+async def _drain_async_generator(generator):
+    async for _ in generator:
+        pass
+
+
+def test_conversation_pauses_for_consent(monkeypatch):
+    agent = _make_agent()
+    pending_payload = {"tool_name": "delete_record", "arguments": {"id": 123}}
+    prep, _ = _build_prepared_execution(pending_payload)
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        conversation_id=42,
+        stream=False,
+        messages=[ChatMessage(role="user", content="Delete the file.")],
+        interaction_updates=[],
+    )
+    decision = RecoveryDecision(
+        action="pause_for_consent",
+        reason="pending_consent",
+        metadata={"pending_consent": pending_payload},
+        unfinished_intent_ids=["intent-consent"],
+    )
+
+    def _fake_decide(*_args, **_kwargs):
+        return decision
+
+    monkeypatch.setattr(RecoveryManager, "decide", _fake_decide)
+
+    async def fake_prepare(self, agent, request, skill_result=None):
+        return prep
+
+    monkeypatch.setattr(ConversationEngine, "_prepare_execution", fake_prepare)
+
+    async def fake_call(self, agent, messages, **kwargs):
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="Need your consent"),
+            total_tokens=0,
+            output_tokens=0,
+        )
+
+    monkeypatch.setattr(ConversationEngine, "_call_llm", fake_call)
+
+    engine = ConversationEngine(db=None, gateway=None, sandbox=None)
+    result = asyncio.run(engine.execute(agent, request))
+
+    assert not result.partial
+    assert result.interrupted
+    assert not result.success
+    assert result.completion_reason == "pending_consent"
+    assert result.diagnostics["current_state"] == "awaiting_consent"
+    assert any(
+        (msg.get("metadata") or {}).get("pending_consent", {}).get("tool_name")
+        == "delete_record"
+        for msg in result.messages
+    )
+    assert result.output == "Need your consent"
+
+
+def test_stream_pauses_for_consent(monkeypatch):
+    agent = _make_agent()
+    pending_payload = {"tool_name": "delete_record", "arguments": {"id": 456}}
+    prep, _ = _build_prepared_execution(pending_payload)
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        conversation_id=99,
+        stream=True,
+        messages=[ChatMessage(role="user", content="Delete it now.")],
+        interaction_updates=[],
+    )
+    decision = RecoveryDecision(
+        action="pause_for_consent",
+        reason="pending_consent",
+        metadata={"pending_consent": pending_payload},
+        unfinished_intent_ids=["intent-consent"],
+    )
+
+    def _fake_decide(*_args, **_kwargs):
+        return decision
+
+    monkeypatch.setattr(RecoveryManager, "decide", _fake_decide)
+
+    engine = ConversationEngine(db=None, gateway=None, sandbox=None)
+
+    async def fake_stream(*args, **kwargs):
+        yield ChatChunk(
+            delta="Need your consent",
+            total_tokens=1,
+            metadata={
+                "runtime_model_info": {
+                    "model_id": 1,
+                    "model_name": "mock",
+                    "provider_id": 2,
+                    "provider_name": "mock",
+                },
+                "runtime_turn_record": {},
+            },
+        )
+
+    monkeypatch.setattr(engine, "_stream_llm_chunks", fake_stream)
+
+    handler = StreamExecutionHandler(
+        engine=engine,
+        agent=agent,
+        request=request,
+        prep=prep,
+        start_time=0,
+        on_complete=lambda result: _capture_stream_result(captured, result),
+    )
+
+    captured: dict[str, object] = {}
+
+    asyncio.run(_drain_async_generator(handler.generate()))
+    result = captured["result"]
+
+    assert not result.partial
+    assert result.interrupted
+    assert not result.success
+    assert result.completion_reason == "pending_consent"
+    assert result.diagnostics["current_state"] == "awaiting_consent"
+    assert any(
+        (msg.get("metadata") or {}).get("pending_consent", {}).get("tool_name")
+        == "delete_record"
+        for msg in result.messages
+    )
+    assert result.output == "Need your consent"
+
+
+def test_sync_respects_skip_final_assistant(monkeypatch):
+    agent = _make_agent()
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="Hello")],
+        tools=[],
+        all_tools=[],
+        intent_plan=[],
+        execution_path="normal",
+    )
+    prep.rag_sources = []
+    prep.rag_source_kinds = []
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        conversation_id=123,
+        stream=False,
+        messages=[ChatMessage(role="user", content="Hello")],
+        interaction_updates=[],
+    )
+
+    async def fake_prepare(self, agent, request, skill_result=None):
+        return prep
+
+    async def fake_run(*_args, **_kwargs):
+        response = ChatResponse(
+            message=ChatMessage(role="assistant", content="Hidden"),
+            total_tokens=0,
+            output_tokens=0,
+            metadata={"skip_final_assistant": True},
+        )
+        return TurnExecutionResult(
+            output="Hidden",
+            total_tokens=0,
+            completion_tokens_used=0,
+            tool_results=[],
+            response=response,
+            partial=False,
+            paused_for_consent=False,
+            completion_reason="completed",
+            final_output_source="assistant",
+        )
+
+    monkeypatch.setattr(ConversationEngine, "_prepare_execution", fake_prepare)
+    monkeypatch.setattr(TurnExecutor, "run", fake_run)
+
+    engine = ConversationEngine(db=None, gateway=None, sandbox=None)
+    result = asyncio.run(engine.execute(agent, request))
+
+    assert result.output == "Hidden"
+    assistant_contents = [
+        msg.get("content") for msg in result.messages if msg.get("role") == "assistant"
+    ]
+    assert "Hidden" not in assistant_contents
+
+
+def test_sync_exception_path_projects_turn_record(monkeypatch):
+    agent = _make_agent()
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="Hello")],
+        tools=[],
+        all_tools=[],
+        intent_plan=[],
+        execution_path="normal",
+    )
+    prep.rag_sources = []
+    prep.rag_source_kinds = []
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        conversation_id=321,
+        stream=False,
+        messages=[ChatMessage(role="user", content="Hello")],
+        interaction_updates=[],
+    )
+
+    async def fake_prepare(self, agent, request, skill_result=None):
+        return prep
+
+    async def fake_run(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ConversationEngine, "_prepare_execution", fake_prepare)
+    monkeypatch.setattr(TurnExecutor, "run", fake_run)
+
+    engine = ConversationEngine(db=None, gateway=None, sandbox=None)
+    result = asyncio.run(engine.execute(agent, request))
+
+    assert result.success is False
+    assert result.turn_record is not None
+    assert result.turn_record["execution_path"] == "normal"
+    assert result.turn_record["metadata"]["orchestration"] == result.diagnostics
+
+
+async def _capture_stream_result(
+    captured: dict[str, object],
+    result,
+):
+    captured.setdefault("result", result)
+    return None
+
+
+def test_update_intent_statuses_keeps_pending_consent_ahead_of_completed():
+    intent = IntentPlan(
+        intent_id="intent-weather",
+        kind="weather_query",
+        family="weather",
+        order=1,
+        user_visible_label="weather",
+        source_text="帮我查天气",
+        requires_tools=True,
+        completion_signals=["get_current_weather"],
+        allowed_tool_names=["get_current_weather"],
+    )
+
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "call-weather-1",
+                    "function": {"name": "get_current_weather", "arguments": "{}"},
+                    "pending_consent": {
+                        "tool_name": "get_current_weather",
+                        "arguments": {"city": "上海"},
+                    },
+                }
+            ],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        [intent],
+        messages=messages,
+        tool_results=[],
+    )
+
+    assert updated[0].status == "awaiting_consent"
+    assert updated[0].completed_by_tool_names == []
+    assert updated[0].cached_result is None
+    assert updated[0].metadata["pending_consent"]["tool_name"] == "get_current_weather"

@@ -1,0 +1,1 @@
+You are a helpful assistant. Given a user question, write a brief hypothetical answer (1-2 paragraphs) as if you found the answer in a document. Do NOT say "I don't know". Just write the hypothetical content directly.

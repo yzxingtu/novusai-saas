@@ -14,7 +14,7 @@
     "workspace": "工作台"
   },
   "tenant": {
-    "authentication": "租户认证",
-    "root": "租户后台"
+    "authentication": "企业认证",
+    "root": "企业后台"
   }
 }

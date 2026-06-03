@@ -1,0 +1,662 @@
+"""Regression tests for startup restore owner/non-owner modes. / 测试"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from app.core.config import settings
+from app.enums.plugin import PluginStatusEnum
+from app.plugins.exceptions import PluginSecurityError
+from app.plugins.startup import restore_enabled_plugins
+
+
+class _ScalarsResult:
+    def __init__(self, items):
+        self._items = items
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._items
+
+
+class _RowsResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+
+def _build_manifest(
+    *,
+    python_deps: list[str] | None = None,
+    version: str = "1.0.0",
+    tasks: list[object] | None = None,
+):
+    manifest = SimpleNamespace(
+        version=version,
+        dependencies=SimpleNamespace(python=python_deps or []),
+        compatibility=None,
+        extensions=SimpleNamespace(frontend=SimpleNamespace(), tasks=tasks or []),
+    )
+    manifest.model_dump = lambda: {
+        "version": manifest.version,
+        "dependencies": {"python": list(manifest.dependencies.python)},
+        "extensions": {"tasks": list(manifest.extensions.tasks)},
+    }
+    return manifest
+
+
+@pytest.mark.asyncio
+async def test_restore_owner_mode_runs_heavy_and_mutates_status(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=1,
+        name="demo-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=2,
+        error_message="old error",
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([]),
+        ]
+    )
+
+    plugins_dir = tmp_path / "plugins"
+    (plugins_dir / "demo-plugin" / "backend" / "migrations" / "versions").mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = plugins_dir
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest(
+                python_deps=["pydantic"],
+                tasks=[
+                    SimpleNamespace(
+                        name="run-timeout-sweeper",
+                        schedule_type="interval",
+                        interval_seconds=300,
+                        cron_expression=None,
+                        description="sweep timeout runs",
+                    )
+                ],
+            )
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self.run_alembic_upgrade = AsyncMock()
+            self._restore_plugin_permissions = AsyncMock()
+            self._sync_plugin_task_definitions = AsyncMock()
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+    registry.get_registered_count.return_value = 3
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert len(lifecycle_instances) == 1
+    lifecycle = lifecycle_instances[0]
+    lifecycle.run_alembic_upgrade.assert_not_awaited()
+    lifecycle._restore_plugin_permissions.assert_awaited_once_with(
+        plugin.name,
+        auto_grant_plans=True,
+    )
+    lifecycle._sync_plugin_task_definitions.assert_awaited_once()
+    lifecycle._set_plugin_permissions_enabled.assert_not_awaited()
+    registry.unregister_all.assert_not_called()
+
+    assert plugin.error_count == 0
+    assert plugin.error_message is None
+    db.flush.assert_awaited_once()
+    assert result == {"restored": 1, "failed": 0, "total": 1}
+
+
+@pytest.mark.asyncio
+async def test_restore_owner_mode_restores_plugin_permissions_via_shared_helper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=101,
+        name="demo-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([]),
+        ]
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest(python_deps=[])
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._set_plugin_permissions_enabled = AsyncMock()
+            self._restore_plugin_permissions = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+    registry.get_registered_count.return_value = 1
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert result == {"restored": 1, "failed": 0, "total": 1}
+    assert len(lifecycle_instances) == 1
+    lifecycle = lifecycle_instances[0]
+    assert lifecycle._restore_plugin_permissions.await_count == 1
+    restore_call = lifecycle._restore_plugin_permissions.await_args
+    assert restore_call is not None
+    assert restore_call.args[0] == plugin.name
+    lifecycle._set_plugin_permissions_enabled.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_restore_non_owner_mode_is_register_only_and_no_db_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=2,
+        name="demo-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=5,
+        error_message="keep me",
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(side_effect=[_ScalarsResult([plugin])])
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest(python_deps=["pydantic"])
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+
+    def _raise_register(*_args, **_kwargs):
+        raise RuntimeError("register failed")
+
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        _raise_register,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=False,
+        mutate_db_status=False,
+    )
+
+    assert lifecycle_instances == []
+    registry.unregister_all.assert_called_once_with(plugin.name)
+    assert plugin.status == PluginStatusEnum.ENABLED.value
+    assert plugin.error_count == 5
+    assert plugin.error_message == "keep me"
+    assert db.flush.await_count == 0
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+
+
+@pytest.mark.asyncio
+async def test_restore_skips_license_inactive_plugins_and_disables_them(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=3,
+        name="paid-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="paid",
+        manifest=None,
+        error_count=4,
+        error_message="old",
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([]),
+        ]
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            raise AssertionError(
+                "license inactive plugin should not continue loading manifest"
+            )
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(
+            return_value={
+                "runtime_allowed": False,
+                "status": "expired",
+                "message": "License expired",
+            }
+        ),
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert plugin.status == PluginStatusEnum.DISABLED.value
+    assert plugin.error_message == "Startup restore skipped: License expired"
+    assert plugin.error_count == 0
+    assert lifecycle_instances
+    lifecycle = lifecycle_instances[0]
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
+    registry.unregister_all.assert_called_once_with(plugin.name)
+    db.flush.assert_awaited_once()
+    assert result == {"restored": 0, "failed": 0, "total": 1}
+
+
+@pytest.mark.asyncio
+async def test_restore_marks_error_when_python_dependencies_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=4,
+        name="broken-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult(
+                [
+                    (
+                        "broken-plugin",
+                        "Startup restore failed: Dependency validation failed: impossible-lib missing or version mismatch",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest(python_deps=["impossible-lib>=9.9.9"])
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+    assert plugin.status == PluginStatusEnum.ERROR.value
+    assert lifecycle_instances
+    lifecycle = lifecycle_instances[0]
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
+    registry.unregister_all.assert_called_once_with(plugin.name)
+    assert "Dependency validation failed" in (plugin.error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_restore_marks_error_when_heavy_restore_step_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=5,
+        name="broken-migration-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([]),
+        ]
+    )
+
+    plugins_dir = tmp_path / "plugins"
+    (
+        plugins_dir / "broken-migration-plugin" / "backend" / "migrations" / "versions"
+    ).mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = plugins_dir
+
+        def load_manifest(self, _plugin_name: str):
+            return _build_manifest(
+                tasks=[
+                    SimpleNamespace(
+                        name="run-timeout-sweeper",
+                        schedule_type="interval",
+                        interval_seconds=300,
+                        cron_expression=None,
+                        description="sweep timeout runs",
+                    )
+                ],
+            )
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self.run_alembic_upgrade = AsyncMock()
+            self._sync_plugin_task_definitions = AsyncMock(
+                side_effect=RuntimeError("heavy restore boom")
+            )
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+    register_all_extensions = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.register_all_extensions",
+        register_all_extensions,
+    )
+    monkeypatch.setattr(
+        "app.plugins._extension_registrar.get_failed_extensions",
+        lambda _plugin_name: [],
+    )
+
+    original_debug = settings.DEBUG
+    settings.DEBUG = False
+    try:
+        result = await restore_enabled_plugins(
+            db,
+            run_heavy=True,
+            mutate_db_status=True,
+        )
+    finally:
+        settings.DEBUG = original_debug
+
+    assert len(lifecycle_instances) == 1
+    lifecycle = lifecycle_instances[0]
+    lifecycle.run_alembic_upgrade.assert_not_awaited()
+    lifecycle._sync_plugin_task_definitions.assert_awaited_once()
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
+    register_all_extensions.assert_not_called()
+    registry.unregister_all.assert_called_once_with(plugin.name)
+    db.flush.assert_awaited_once()
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+    assert plugin.status == PluginStatusEnum.ERROR.value
+    assert plugin.error_count == 1
+    assert plugin.error_message == "Startup restore failed"
+
+
+@pytest.mark.asyncio
+async def test_restore_fail_closes_plugin_when_security_scan_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=6,
+        name="suspicious-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([("suspicious-plugin", "blocked by security scan")]),
+        ]
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            raise AssertionError("blocked plugin should not continue loading manifest")
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins.startup._assert_startup_security_clean",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PluginSecurityError(message="blocked by security scan")
+        ),
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+    assert plugin.status == PluginStatusEnum.ERROR.value
+    assert plugin.error_message == "blocked by security scan"
+    assert lifecycle_instances
+    lifecycle_instances[0]._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name,
+        False,
+    )
+    registry.unregister_all.assert_called_once_with(plugin.name)

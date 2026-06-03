@@ -62,7 +62,7 @@ function loadLocalesMapFromDir(
   const localesRaw: Record<Locale, Record<string, () => Promise<unknown>>> = {};
   const localesMap: Record<Locale, ImportLocaleFn> = {};
 
-  // Iterate over the modules to extract language and file names
+  // Iterate over the modules to extract language and file names / 遍历 glob 提取语言与文件名
   for (const path in modules) {
     const match = path.match(regexp);
     if (match) {
@@ -78,7 +78,7 @@ function loadLocalesMapFromDir(
     }
   }
 
-  // Helper function to set nested object value
+  // Helper function to set nested object value / 按路径写入嵌套 messages
   const setNestedValue = (
     obj: Record<string, any>,
     path: string,
@@ -87,15 +87,19 @@ function loadLocalesMapFromDir(
     const keys = path.split('/');
     let current = obj;
     for (let i = 0; i < keys.length - 1; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const key = keys[i]!;
+      const key = keys[i];
+      if (!key) {
+        continue;
+      }
       if (!current[key]) {
         current[key] = {};
       }
       current = current[key];
     }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const lastKey = keys[keys.length - 1]!;
+    const lastKey = keys[keys.length - 1];
+    if (!lastKey) {
+      return;
+    }
     // Merge if both are objects, otherwise assign
     if (
       current[lastKey] &&
@@ -108,14 +112,14 @@ function loadLocalesMapFromDir(
     }
   };
 
-  // Convert raw locale data into async import functions
+  // Convert raw locale data into async import functions / 组装按语言懒加载函数
   for (const [locale, files] of Object.entries(localesRaw)) {
     localesMap[locale] = async () => {
       const messages: Record<string, any> = {};
       for (const [fileName, importFn] of Object.entries(files)) {
         const content = ((await importFn()) as any)?.default;
-        // Build nested structure from path
-        // e.g., 'admin/tenant' creates { admin: { tenant: {...content} } }
+        // Build nested structure from path / 由文件路径拼嵌套 key
+        // e.g., 'admin/tenant' creates { admin: { tenant: {...content} } } / 例：admin/tenant → 嵌套对象
         setNestedValue(messages, fileName, content);
       }
       return { default: messages };
@@ -142,7 +146,7 @@ async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
   app.use(i18n);
   await loadLocaleMessages(defaultLocale);
 
-  // 在控制台打印警告
+  // 在控制台打印警告 / Log missing dotted keys when enabled
   i18n.global.setMissingHandler((locale, key) => {
     if (options.missingWarn && key.includes('.')) {
       console.warn(

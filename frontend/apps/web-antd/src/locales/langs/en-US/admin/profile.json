@@ -1,0 +1,19 @@
+{
+  "tabs": {
+    "basic": "Basic Info",
+    "password": "Change Password"
+  },
+  "save": "Save Changes",
+  "changePassword": "Change Password",
+  "messages": {
+    "loadFailed": "Failed to load profile",
+    "updateSuccess": "Profile updated",
+    "updateFailed": "Failed to update profile",
+    "avatarUpdated": "Avatar updated",
+    "avatarFailed": "Failed to upload avatar",
+    "avatarTypeError": "Only image files are allowed",
+    "avatarSizeError": "Image size must be less than 2MB",
+    "passwordChanged": "Password changed successfully",
+    "passwordFailed": "Failed to change password"
+  }
+}

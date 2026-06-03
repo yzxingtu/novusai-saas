@@ -2,6 +2,19 @@
   "title": "首页",
   "welcome": "欢迎回来",
   "greeting": "您好，{name}！",
+  "greetingDesc": "欢迎使用智能助手平台，以下是您的概览",
   "recentOrders": "最近订单",
-  "notifications": "通知消息"
+  "notifications": "通知消息",
+  "quickActions": "快捷操作",
+  "aiChat": "AI 对话",
+  "aiChatDesc": "与 AI 助手实时对话",
+  "myProfile": "个人中心",
+  "myProfileDesc": "查看和编辑个人信息",
+  "changePassword": "修改密码",
+  "changePasswordDesc": "更新您的登录密码",
+  "lastLoginAt": "上次登录",
+  "memberSince": "注册时间",
+  "role": "角色",
+  "noRole": "普通用户",
+  "neverLoggedIn": "从未登录"
 }

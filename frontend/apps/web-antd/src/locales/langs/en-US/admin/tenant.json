@@ -15,6 +15,8 @@
   "remark": "Remark",
   "createdAt": "Created At",
   "enterBackend": "Enter Backend",
+  "enterCurrentTab": "Enter in Current Tab",
+  "unverified": "Unverified",
   "planOptions": {
     "free": "Free",
     "basic": "Basic",
@@ -41,9 +43,13 @@
     "deleteSuccess": "Deleted successfully",
     "createSuccess": "Created successfully",
     "updateSuccess": "Updated successfully",
+    "noPrimaryDomain": "This tenant has no primary domain. Please configure one in domain management first",
     "impersonating": "Entering \"{name}\" backend...",
     "impersonateSuccess": "Opening tenant backend",
-    "impersonateFailed": "Login failed, please try again"
+    "impersonateFailed": "Login failed, please try again",
+    "resetPasswordFor": "Resetting admin password for tenant \"{name}\"",
+    "resetPasswordSuccess": "Password reset successfully",
+    "passwordMismatch": "Passwords do not match"
   },
   "placeholder": {
     "searchCode": "Search tenant code",
@@ -60,7 +66,12 @@
     "selectPlan": "Select plan",
     "selectPlanId": "Select associated plan",
     "selectExpiresAt": "Select expiration date",
-    "inputRemark": "Enter remark"
+    "inputRemark": "Enter remark",
+    "inputAdminUsername": "Enter admin username",
+    "inputAdminEmail": "Enter admin email",
+    "inputAdminPassword": "Enter admin password",
+    "inputNewPassword": "Enter new password",
+    "confirmPassword": "Please confirm new password"
   },
   "help": {
     "codeFormat": "Start with lowercase letter, only lowercase letters, numbers, underscores, and hyphens allowed"
@@ -71,9 +82,45 @@
     "codeMaxLength": "Tenant code must be at most 50 characters",
     "codePattern": "Tenant code must start with lowercase letter, only lowercase letters, numbers, underscores, hyphens allowed",
     "nameRequired": "Please enter tenant name",
-    "nameMaxLength": "Tenant name must be at most 100 characters"
+    "nameMaxLength": "Tenant name must be at most 100 characters",
+    "usernameMin": "Username must be at least 2 characters",
+    "usernameMax": "Username must be at most 50 characters",
+    "emailInvalid": "Please enter a valid email address",
+    "passwordMin": "Password must be at least 6 characters",
+    "passwordMax": "Password must be at most 100 characters",
+    "confirmRequired": "Please confirm password"
   },
   "tip": "Manage platform tenants, configure tenant plans and expiration",
+  "adminInfo": "Admin Info",
+  "adminUsername": "Admin Username",
+  "adminEmail": "Admin Email",
+  "adminPassword": "Admin Password",
+  "adminPanel": {
+    "title": "Admin List",
+    "createAdmin": "Create Sub-Admin",
+    "empty": "No admins yet",
+    "owner": "Owner",
+    "lastLogin": "Last login",
+    "ownerCannotDisable": "Owner admin cannot be disabled",
+    "confirmDisable": "Are you sure to disable this admin?",
+    "confirmEnable": "Are you sure to enable this admin?",
+    "createTitle": "Create Admin for \"{name}\"",
+    "editTitle": "Edit Admin - {name}",
+    "username": "Username",
+    "usernamePlaceholder": "Enter username",
+    "email": "Email",
+    "emailPlaceholder": "Enter email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter password",
+    "nickname": "Nickname",
+    "nicknamePlaceholder": "Enter nickname (optional)",
+    "aiConversation": "AI Chat",
+    "aiReadonlyHelp": "Only accounts with AI chat switch management permission can edit this",
+    "formRequired": "Username, email and password are required"
+  },
+  "resetPassword": "Reset Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
   "domain": {
     "title": "Domain Management",
     "domain": "Domain",
@@ -118,6 +165,9 @@
     "verifiedAt": "Verified At",
     "updatedAt": "Updated At",
     "isPrimary": "Is Primary",
+    "primaryTag": "Primary",
+    "unverifiedTag": "Unverified",
+    "totalCount": "{count} domains total",
     "updateSuccess": "Domain info updated successfully",
     "dnsGuide": {
       "title": "DNS Configuration Guide",
@@ -135,7 +185,8 @@
       "noteRoot": "For root domains (e.g., example.com), use '@' as host record",
       "nextStep": "Next",
       "prevStep": "Previous",
-      "verifyHint": "After configuration, click the button below to verify"
+      "verifyHint": "After configuration, click the button below to verify",
+      "devModeBanner": "\u26a0\ufe0f Local Dev: hosts file auto-updated (127.0.0.1 \u2192 {domain}). No DNS configuration needed. Skip to Step 3 and click \"Verify\" to complete."
     },
     "ssl": {
       "title": "SSL Certificate Management",
@@ -149,7 +200,10 @@
       "status": {
         "active": "Active",
         "expired": "Expired",
+        "provisioning": "Provisioning",
         "pending": "Pending",
+        "failed": "Failed",
+        "revoked": "Revoked",
         "none": "Not Configured"
       },
       "info": {
@@ -177,16 +231,65 @@
         "upload": "Upload Certificate",
         "reupload": "Re-upload",
         "edit": "Edit Certificate",
-        "delete": "Delete Certificate"
+        "delete": "Delete Certificate",
+        "provision": "Issue Certificate",
+        "renew": "Renew Certificate"
       },
+      "provisionStarted": "Certificate issuance started, please wait",
+      "renewStarted": "Certificate renewal started, please wait",
+      "autoRenewUpdated": "Auto-renewal setting updated",
+      "uploadSuccess": "Custom certificate uploaded successfully",
+      "uploadRequired": "Please fill in certificate and private key",
+      "deleteConfirm": "Are you sure you want to delete this domain's SSL certificate? Access will fall back to HTTP.",
+      "deleteSuccess": "Certificate deleted",
+      "renewalError": "Renewal Error",
       "certManage": "Certificate Management",
       "sourceSelect": "Certificate Source",
       "platformHint": "Platform auto-issues free SSL certificates with auto renewal support",
       "uploadHint": "Upload your own SSL certificate files",
-      "deleteHint": "Deleting certificate will fall back to HTTP access"
+      "deleteHint": "Deleting certificate will fall back to HTTP access",
+      "platformWildcard": "Platform Wildcard SSL Certificate Active",
+      "platformWildcardDesc": "Default domains are automatically protected by the platform wildcard SSL certificate, no separate configuration needed"
+    },
+    "devHosts": {
+      "title": "Dev Hosts Management",
+      "runtimeInfo": "Runtime Info",
+      "os": "Operating System",
+      "hostsPath": "Hosts File Path",
+      "writeAccess": "Write Access",
+      "writeYes": "Writable",
+      "writeNo": "Elevation Required",
+      "disabled": "Dev Hosts disabled (not DEBUG mode or unsupported OS)",
+      "syncAll": "Sync All",
+      "syncAllSuccess": "Batch sync complete: {synced} synced, {skipped} skipped",
+      "sync": "Sync hosts",
+      "syncSuccess": "Synced to hosts",
+      "syncRequiresElevation": "Hosts not written: current process lacks permission. Run the command above manually.",
+      "syncNoChange": "Hosts status did not change. Please refresh and try again.",
+      "remove": "Remove managed entry",
+      "removeSuccess": "Removed from hosts",
+      "refresh": "Refresh status",
+      "status": {
+        "managed_present": "Managed",
+        "manual_present": "Manual Entry",
+        "missing": "Not in hosts",
+        "not_required": "Not Required",
+        "unsupported": "Unsupported"
+      },
+      "elevationHint": "Current process lacks write permission. Run backend as admin or execute manually:",
+      "cliCommand": "python -m app.core.hosts_helper add {domain}",
+      "remoteWarning": "Note: Hosts changes only affect the backend machine. Browser on a remote machine may not be able to access the domain.",
+      "loadError": "Failed to load Dev Hosts status. Please refresh and try again.",
+      "reason": {
+        "unverified": "Domain not verified, no hosts entry needed",
+        "unsupported_platform": "Current OS does not support hosts management",
+        "dev_hosts_disabled": "Dev Hosts disabled (not DEBUG mode)",
+        "requires_elevation": "Current process lacks hosts write permission"
+      }
     }
   },
   "manageDomains": "Manage Domains",
+  "managePlugins": "Manage Plugins",
   "plan": {
     "title": "Plan Management",
     "create": "Create Plan",
@@ -212,7 +315,8 @@
       "quarterly": "Quarterly",
       "yearly": "Yearly",
       "lifetime": "Lifetime",
-      "one_time": "One-time"
+      "one_time": "One-time",
+      "custom": "Custom"
     },
     "storageLimitGb": "Storage Limit (GB)",
     "maxUsers": "Max Users",
@@ -225,6 +329,8 @@
     "advancedAnalytics": "Advanced Analytics",
     "whiteLabel": "White Label",
     "prioritySupport": "Priority Support",
+    "storageBillingEnabled": "Object Storage Billing Reconciliation",
+    "storageBillingHelp": "Enabling this requires the storage-billing plugin to be installed and enabled, plus at least one cloud object storage plugin (Alibaba OSS, Tencent COS, or Qiniu Kodo).",
     "placeholder": {
       "searchName": "Search plan name",
       "searchCode": "Search plan code",
@@ -246,6 +352,25 @@
       "codePattern": "Plan code must start with lowercase letter, only lowercase letters, numbers and underscores allowed"
     },
     "selectedCount": "{count} selected",
-    "permissionsCreateHint": "Permission settings will take effect after creation. Please edit again to configure."
+    "permissionsCreateHint": "Permission settings will take effect after creation. Please edit again to configure.",
+    "defaultPlan": "Default Plan",
+    "userUnit": "users",
+    "quotaDetail": "Quota Details",
+    "featureAI": "AI",
+    "featureAnalytics": "Analytics",
+    "featureWhiteLabel": "White Label",
+    "featureSupport": "Support",
+    "featureStorageBilling": "Storage Billing"
+  },
+  "aiUsage": {
+    "title": "AI Usage Statistics",
+    "totalCalls": "Total Calls",
+    "totalTokens": "Total Tokens",
+    "avgLatency": "Avg Latency",
+    "successRate": "Success Rate",
+    "totalCost": "Total Cost",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "viewUsage": "AI Usage"
   }
 }

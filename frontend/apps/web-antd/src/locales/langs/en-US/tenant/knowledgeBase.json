@@ -1,0 +1,124 @@
+{
+  "title": "Knowledge Base",
+  "entityDescription": "Manage knowledge base configuration and documents",
+  "name": "Knowledge Base Name",
+  "pageDesc": "Create and manage knowledge bases. Upload documents for auto-chunking and vectorization, bind to agents for RAG retrieval.",
+  "create": "Create Knowledge Base",
+  "edit": "Edit Knowledge Base",
+  "detail": "Knowledge Base Detail",
+  "search": "Search knowledge bases",
+  "empty": "No knowledge bases yet. Click the button above to create one.",
+  "field": {
+    "name": "Name",
+    "description": "Description",
+    "avatar": "Icon",
+    "embeddingModel": "Embedding Model",
+    "embeddingDimensions": "Vector Dimensions",
+    "visionModel": "Vision Model",
+    "visionModelAuto": "Auto (first available Vision model)",
+    "extractImages": "Extract Image Content",
+    "chunkSize": "Chunk Size",
+    "chunkOverlap": "Chunk Overlap",
+    "chunkStrategy": "Chunk Strategy",
+    "searchMode": "Search Mode",
+    "topK": "Top-K Results",
+    "scoreThreshold": "Score Threshold",
+    "status": "Status",
+    "chunkStrategyRecursive": "Recursive",
+    "chunkStrategySentence": "Sentence",
+    "chunkStrategySemantic": "Semantic",
+    "chunkStrategyParagraph": "Paragraph",
+    "searchModeHybrid": "Hybrid",
+    "searchModeVector": "Vector",
+    "searchModeKeyword": "Keyword",
+    "documentCount": "Documents",
+    "totalChunks": "Chunks",
+    "totalSizeBytes": "Storage Size"
+  },
+  "document": {
+    "title": "Documents",
+    "upload": "Upload Document",
+    "uploadHint": "Supports PDF, Word, TXT, Markdown, CSV, PPTX, Images (JPG/PNG/WebP) formats",
+    "addUrl": "Add Web URL",
+    "addQa": "Add Q&A",
+    "delete": "Delete Document",
+    "retry": "Retry",
+    "viewChunks": "View Chunks",
+    "field": {
+      "fileName": "File Name",
+      "fileType": "Type",
+      "fileSize": "Size",
+      "chunkCount": "Chunks",
+      "tokenCount": "Token Usage",
+      "status": "Status",
+      "errorMessage": "Error Message",
+      "createdAt": "Uploaded At"
+    },
+    "status": {
+      "pending": "Pending",
+      "parsing": "Parsing",
+      "chunking": "Chunking",
+      "embedding": "Embedding",
+      "completed": "Completed",
+      "error": "Error"
+    }
+  },
+  "chunk": {
+    "title": "Chunk Preview",
+    "edit": "Edit Chunk",
+    "delete": "Delete Chunk",
+    "field": {
+      "content": "Content",
+      "chunkIndex": "Index",
+      "charCount": "Characters",
+      "tokenCount": "Tokens"
+    }
+  },
+  "searchTest": {
+    "title": "Search Test",
+    "placeholder": "Enter a query to test retrieval...",
+    "search": "Search",
+    "noResults": "No relevant content found",
+    "score": "Score",
+    "source": "Source",
+    "page": "Page {page}"
+  },
+  "ragConfig": {
+    "title": "RAG Configuration",
+    "enabled": "Enable RAG",
+    "topK": "Retrieval Count",
+    "scoreThreshold": "Score Threshold",
+    "searchMode": "Search Mode",
+    "rewriteStrategy": "Query Rewrite",
+    "rerankerEnabled": "Enable Reranker",
+    "contextTokenRatio": "Context Token Ratio"
+  },
+  "reindex": {
+    "title": "Re-index",
+    "confirm": "Re-index all documents? This will reprocess all documents.",
+    "started": "Re-indexing started"
+  },
+  "quota": {
+    "exceeded": "Knowledge base quota reached",
+    "storageExceeded": "Insufficient storage space"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "help": {
+    "embeddingModel": "Model that converts text to vectors. Cannot be changed after creation — rebuild KB to switch models",
+    "chunkSize": "Target character count per chunk. Larger = more context but lower precision. Recommended: 512~1024",
+    "chunkOverlap": "Overlapping characters between adjacent chunks. Prevents semantic truncation. Recommended: 10%~20% of chunk size",
+    "chunkStrategy": "Recursive: splits by headings/paragraphs/sentences, best for most docs; Sentence: keeps stable sentence boundaries, best for FAQ/policies/short passages; Semantic: splits by structure and semantic boundaries, best for long text; Paragraph: splits by natural paragraphs, best for well-formatted docs",
+    "searchMode": "Hybrid combines vector semantic matching with keyword exact matching for best results. Pure vector for semantic search, pure keyword for exact term lookup",
+    "topK": "Number of most relevant chunks returned per retrieval. Higher = more comprehensive but may introduce noise",
+    "scoreThreshold": "Results scoring below this are filtered out. Higher = stricter, 0 = no filtering. Recommended: 0.3~0.7",
+    "visionModel": "Multimodal model for recognizing image content. Leave empty to auto-select the first available Vision model",
+    "extractImages": "When enabled, Vision model will recognize image content in uploaded PDFs and include it in the knowledge base index",
+    "uploadTypes": "Supported: PDF, Word (.docx), TXT, Markdown (.md), CSV, PPTX, Images (JPG/PNG/WebP). Max recommended file size: 20MB",
+    "statusDesc": "Pending → Parsing → Chunking → Embedding → Completed. Click retry if any step fails"
+  },
+  "readonlyHint": "This knowledge base is assigned by admin. You can view and search, but cannot edit documents.",
+  "deleteConfirm": "Delete knowledge base \"{name}\"? All documents and chunks will be permanently deleted."
+}

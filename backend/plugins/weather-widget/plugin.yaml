@@ -1,0 +1,175 @@
+name: weather-widget
+version: "1.0.0"
+display_name:
+  zh-CN: "天气组件"
+  en: "Weather Widget"
+description:
+  zh-CN: "天气插件：顶部导航天气组件 + 仪表板天气概览 + AI 技能包"
+  en: "Weather plugin: header weather widget + dashboard weather overview + AI skill pack"
+author: "NovusAI"
+icon: "icon.png"
+icon_color: "#0ea5e9"
+scope: admin_and_selected_tenants
+tags: ["weather", "widget", "example"]
+
+capabilities:
+  - http:outbound
+
+extensions:
+  permissions:
+    - code: weather
+      name:
+        zh-CN: "天气组件"
+        en: "Weather Widget"
+      scope: both
+      actions: ["view"]
+
+  skills:
+    - name: weather-realtime
+      type: toolkit
+      display_name:
+        zh-CN: "实时天气查询"
+        en: "Real-time Weather Query"
+      description:
+        zh-CN: "调用免 Key 的天气服务查询真实天气数据（当前天气 + 多日预报）"
+        en: "Query real weather data via no-key weather services (current + forecast)"
+      entry_point: "skills.weather_resolver"
+      executor_entry_point: "executors.weather_widget_executor.WeatherWidgetExecutor"
+
+  api:
+    tenant_routes:
+      - method: GET
+        path: "config"
+        handler: "api.handlers.get_config"
+        summary: "获取插件配置"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "current"
+        handler: "api.handlers.get_current_weather"
+        summary: "获取当前天气"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "forecast"
+        handler: "api.handlers.get_forecast"
+        summary: "获取天气预报"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "hourly"
+        handler: "api.handlers.get_hourly"
+        summary: "获取小时预报"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "air-quality"
+        handler: "api.handlers.get_air_quality"
+        summary: "获取空气质量"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "geocoding"
+        handler: "api.handlers.search_city"
+        summary: "城市搜索"
+        auth: required
+        permission: "weather:view"
+    admin_routes:
+      - method: GET
+        path: "config"
+        handler: "api.handlers.get_config"
+        summary: "获取插件配置（管理端）"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "current"
+        handler: "api.handlers.get_current_weather"
+        summary: "获取当前天气（管理端）"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "forecast"
+        handler: "api.handlers.get_forecast"
+        summary: "获取天气预报（管理端）"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "hourly"
+        handler: "api.handlers.get_hourly"
+        summary: "获取小时预报（管理端）"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "air-quality"
+        handler: "api.handlers.get_air_quality"
+        summary: "获取空气质量（管理端）"
+        auth: required
+        permission: "weather:view"
+      - method: GET
+        path: "geocoding"
+        handler: "api.handlers.search_city"
+        summary: "城市搜索（管理端）"
+        auth: required
+        permission: "weather:view"
+
+  frontend:
+    header_widgets:
+      - name: weather-widget
+        component: "WeatherHeaderWidget"
+        sort_order: 90
+    dashboard_widgets:
+      - name: weather-overview
+        component: "WeatherDashboardWidget"
+        title:
+          zh-CN: "天气概览"
+          en: "Weather Overview"
+        grid:
+          w: 4
+          h: 4
+        scope: both
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"
+
+config_schema:
+  type: object
+  required: ["default_city"]
+  properties:
+    default_city:
+      type: string
+      title: "默认城市 / Default City"
+      description: "天气组件启动时默认显示的城市 / Default city shown on widget startup"
+      minLength: 1
+      pattern: ".*\\S.*"
+      default: "Shanghai"
+    temperature_unit:
+      type: string
+      title: "温度单位 / Temperature Unit"
+      enum: ["celsius", "fahrenheit"]
+      default: "celsius"
+    forecast_days:
+      type: integer
+      title: "预报天数 / Forecast Days"
+      minimum: 1
+      maximum: 7
+      default: 3
+    cache_ttl:
+      type: integer
+      title: "缓存时间(秒) / Cache TTL"
+      minimum: 60
+      maximum: 3600
+      default: 600
+    auto_refresh:
+      type: boolean
+      title: "自动刷新 / Auto Refresh"
+      description: "是否自动定时刷新天气数据 / Whether to auto-refresh weather data periodically"
+      default: true
+
+dependencies:
+  python:
+    - "httpx>=0.26.0"
+  plugins: []
+
+pricing:
+  type: free

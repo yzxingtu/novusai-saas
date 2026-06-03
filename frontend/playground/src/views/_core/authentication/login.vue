@@ -32,6 +32,7 @@ const formSchema = computed((): VbenFormSchema[] => {
   return [
     {
       component: 'VbenSelect',
+      // 账号联动用户名密码（注释样例，已改用下方简化 props）/ Full componentProps sample (simplified below)
       // componentProps(_values, form) {
       //   return {
       //     'onUpdate:modelValue': (value: string) => {
@@ -110,11 +111,11 @@ const loginRef =
 
 async function onSubmit(params: Recordable<any>) {
   authStore.authLogin(params).catch(() => {
-    // 登陆失败，刷新验证码的演示
+    // 登陆失败，刷新验证码的演示 / On login failure, reset captcha (demo)
     const formApi = loginRef.value?.getFormApi();
-    // 重置验证码组件的值
+    // 重置验证码组件的值 / Clear captcha field value
     formApi?.setFieldValue('captcha', false, false);
-    // 使用表单API获取验证码组件实例，并调用其resume方法来重置验证码
+    // 使用表单API获取验证码组件实例，并调用其resume方法来重置验证码 / Call SliderCaptcha.resume via form API
     formApi
       ?.getFieldComponentRef<InstanceType<typeof SliderCaptcha>>('captcha')
       ?.resume();

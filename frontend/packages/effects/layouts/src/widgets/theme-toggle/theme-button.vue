@@ -40,9 +40,10 @@ const bindProps = computed(() => {
 });
 
 function toggleTheme(event: MouseEvent) {
+  const supportsViewTransition =
+    typeof document.startViewTransition === 'function';
   const isAppearanceTransition =
-    // @ts-expect-error
-    document.startViewTransition &&
+    supportsViewTransition &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!isAppearanceTransition || !event) {
     isDark.value = !isDark.value;
@@ -54,8 +55,7 @@ function toggleTheme(event: MouseEvent) {
     Math.max(x, innerWidth - x),
     Math.max(y, innerHeight - y),
   );
-  // @ts-ignore startViewTransition
-  const transition = document.startViewTransition(async () => {
+  const transition = document.startViewTransition!(async () => {
     isDark.value = !isDark.value;
     await nextTick();
   });

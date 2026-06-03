@@ -24,5 +24,9 @@
   "no": "No",
   "showSearchPanel": "Show search panel",
   "hideSearchPanel": "Hide search panel",
-  "resetPassword": "Reset Password"
+  "resetPassword": "Reset Password",
+  "primary": "Primary",
+  "createdAt": "Created At",
+  "domainFormatHint": "Only lowercase letters, numbers and hyphens are allowed",
+  "pleaseRetry": "Please try again later"
 }

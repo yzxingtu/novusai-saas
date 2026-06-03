@@ -7,18 +7,18 @@ import { isDarkTheme } from '../src/update-css-variables';
 describe('preferences', () => {
   let preferenceManager: PreferenceManager;
 
-  // 模拟 window.matchMedia 方法
+  // 模拟 window.matchMedia 方法 / Stub prefers-color-scheme media query
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query) => ({
       addEventListener: vi.fn(),
-      addListener: vi.fn(), // Deprecated
+      addListener: vi.fn(), // Deprecated / legacy API
       dispatchEvent: vi.fn(),
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
       removeEventListener: vi.fn(),
-      removeListener: vi.fn(), // Deprecated
+      removeListener: vi.fn(), // Deprecated / legacy API
     })),
   );
   beforeEach(() => {
@@ -75,21 +75,21 @@ describe('preferences', () => {
   });
 
   it('resets preferences to default', () => {
-    // 先更新一些偏好设置
+    // 先更新一些偏好设置 / Mutate before reset
     preferenceManager.updatePreferences({
       theme: {
         mode: 'light',
       },
     });
 
-    // 然后重置偏好设置
+    // 然后重置偏好设置 / resetPreferences → defaults
     preferenceManager.resetPreferences();
 
     expect(preferenceManager.getPreferences()).toEqual(defaultPreferences);
   });
 
   it('updates isMobile correctly', () => {
-    // 模拟移动端状态
+    // 模拟移动端状态 / Stub max-width breakpoint watcher
     vi.stubGlobal(
       'matchMedia',
       vi.fn().mockImplementation((query) => ({
@@ -144,7 +144,7 @@ describe('preferences', () => {
   });
 
   it('resets preferences to default correctly', () => {
-    // 先更新一些偏好设置
+    // 先更新一些偏好设置 / Mutate multiple slices
     preferenceManager.updatePreferences({
       app: { locale: 'en-US' },
       sidebar: { collapsed: true, width: 200 },
@@ -153,7 +153,7 @@ describe('preferences', () => {
       },
     });
 
-    // 然后重置偏好设置
+    // 然后重置偏好设置 / Full reset
     preferenceManager.resetPreferences();
 
     expect(preferenceManager.getPreferences()).toEqual(defaultPreferences);
@@ -185,7 +185,7 @@ describe('preferences', () => {
     const originalPreferences = preferenceManager.getPreferences();
 
     preferenceManager.updatePreferences({
-      app: { isMobile: 'true' as unknown as boolean }, // 错误类型
+      app: { isMobile: 'true' as unknown as boolean }, // 错误类型 / wrong type ignored
     });
 
     expect(preferenceManager.getPreferences()).toEqual(originalPreferences);
@@ -236,13 +236,13 @@ describe('isDarkTheme', () => {
   it('should return system preference for auto theme', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
       addEventListener: vi.fn(),
-      addListener: vi.fn(), // Deprecated
+      addListener: vi.fn(), // Deprecated / legacy API
       dispatchEvent: vi.fn(),
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
       removeEventListener: vi.fn(),
-      removeListener: vi.fn(), // Deprecated
+      removeListener: vi.fn(), // Deprecated / legacy API
     }));
 
     expect(isDarkTheme('auto')).toBe(true);

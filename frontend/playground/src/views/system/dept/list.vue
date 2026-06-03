@@ -119,7 +119,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       transform: false,
     },
   } as VxeTableGridOptions,
-});
+} as any);
 
 /**
  * 刷新表格

@@ -13,12 +13,13 @@ export async function run(options: RunOptions) {
     process.exit(1);
   }
   const { packages } = await getPackages();
+  // 已注释：按应用筛选（旧逻辑）/ legacy app filter (commented)
   // const appPkgs = await findApps(process.cwd(), packages);
   // const websitePkg = packages.find(
   //   (item) => item.packageJson.name === '@vben/website',
   // );
 
-  // 只显示有对应命令的包
+  // 只显示有对应命令的包 / only packages that define the script
   const selectPkgs = packages.filter((pkg) => {
     return (pkg?.packageJson as Record<string, any>)?.scripts?.[command];
   });
@@ -57,11 +58,11 @@ export async function run(options: RunOptions) {
  * @param packages
  */
 // async function findApps(root: string, packages: Package[]) {
-//   // apps内的
+//   // apps 目录且含 vite 配置 / apps/* with vite.config
 //   const appPackages = packages.filter((pkg) => {
 //     const viteConfigExists = fs.existsSync(join(pkg.dir, 'vite.config.mts'));
 //     return pkg.dir.startsWith(join(root, 'apps')) && viteConfigExists;
 //   });
 
-//   return appPackages;
+//   return appPackages; // 返回应用包列表 / return filtered list
 // }

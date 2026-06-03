@@ -1,0 +1,42 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 新建/编辑表单
+ * {{ display_name_en }} Create/Edit Form
+ */
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import { get{{ resource | pascal }}DetailApi } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import { useVbenForm } from '#/adapter/form';
+import { useCrudDrawer } from '#/composables';
+import { $t } from '#/locales';
+
+import { getFormDefaults, useFormSchema } from '../data';
+
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}Form' });
+
+const emits = defineEmits<{ success: [] }>();
+
+{% set field_names = [] %}
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id', 'parent_id'] %}
+{% set _ = field_names.append(f.name) %}
+{% endfor %}
+const [Form, formApi] = useVbenForm({
+  schema: useFormSchema(false),
+  showDefaultActions: false,
+});
+
+const { Drawer, isEdit } = useCrudDrawer<{{ resource | pascal }}Info>({
+  detailApi: (id) => get{{ resource | pascal }}DetailApi(id as number),
+  formApi,
+  schema: useFormSchema,
+  defaults: getFormDefaults,
+  onSuccess: () => emits('success'),
+  fields: [{% for fn in field_names %}'{{ fn }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+});
+</script>
+
+<template>
+  <Drawer :title="isEdit ? $t('{{ i18n_prefix | default("admin." + module + "." + resource) }}.edit') : $t('{{ i18n_prefix | default("admin." + module + "." + resource) }}.create')">
+    <Form />
+  </Drawer>
+</template>

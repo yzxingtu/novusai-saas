@@ -1,11 +1,14 @@
-// 平台管理端 API
+// Platform admin API / 平台管理端 API
 export * as adminApi from './admin';
 
-// 共享类型和工具
+// Public API (no auth required) / 公开 API（无需认证）
+export * as publicApi from './public';
+
+// Shared types and utilities / 共享类型和工具
 export * from './shared';
 
-// 租户后台 API
+// Tenant admin API / 企业后台 API
 export * as tenantApi from './tenant';
 
-// 租户用户端 API
+// Tenant user API / 企业用户端 API
 export * as userApi from './user';

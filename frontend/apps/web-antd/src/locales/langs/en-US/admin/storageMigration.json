@@ -1,0 +1,93 @@
+{
+  "impactAnalysis": {
+    "title": "Storage Switch Impact Analysis",
+    "totalFiles": "Total Files",
+    "totalSize": "Total Size",
+    "privateFiles": "Private Files",
+    "publicFiles": "Public Files",
+    "sourceDriver": "Source Driver",
+    "targetDriver": "Target Driver",
+    "driverNotAvailable": "Driver not available",
+    "noFiles": "No files on this driver, safe to switch"
+  },
+  "task": {
+    "title": "Migration Task",
+    "create": "Create Migration Task",
+    "created": "Migration task created, {count} files to migrate",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "rolling_back": "Rolling Back"
+    },
+    "progress": "Progress",
+    "migratedFiles": "Migrated",
+    "failedFiles": "Failed Files",
+    "skippedFiles": "Skipped Files",
+    "totalBytes": "Total Size",
+    "migratedBytes": "Migrated Size",
+    "concurrency": "Concurrency",
+    "scope": "Scope",
+    "scopeAll": "All files",
+    "scopeTenant": "Tenant {id} files",
+    "startedAt": "Started At",
+    "completedAt": "Completed At",
+    "activeListTitle": "Active Tasks",
+    "fileUnit": "files",
+    "failedCount": "{count} failed"
+  },
+  "common": {
+    "builtinDriver": "Built-in Driver",
+    "direction": "Migration Direction",
+    "selectSourceFirst": "Select source driver first"
+  },
+  "action": {
+    "start": "Start Migration",
+    "pause": "Pause",
+    "paused": "Migration paused",
+    "resume": "Resume",
+    "resumed": "Migration resumed",
+    "cancel": "Cancel",
+    "cancelled": "Migration cancelled",
+    "retry": "Retry Failed Files",
+    "retryStarted": "Retrying failed files",
+    "rollback": "Rollback",
+    "rollbackDone": "Migration rolled back",
+    "cleanup": "Cleanup Source Files",
+    "cleanupDone": "Deleted {count} source files",
+    "confirmCreate": "Are you sure you want to create a migration task and start migrating?",
+    "confirmCancel": "Are you sure you want to cancel this migration? Already migrated files will not be rolled back.",
+    "confirmRollback": "Are you sure you want to rollback? Migrated file DB records will be reverted to original driver.",
+    "confirmCleanup": "Are you sure you want to delete source files? This action is irreversible."
+  },
+  "switchWarning": {
+    "title": "Storage Switch Impact Warning",
+    "description": "Before switching storage drivers, please note the following impact:",
+    "privateWarning": "{count} private files will become inaccessible. Consider migrating first.",
+    "publicWarning": "{count} public files (old CDN links will still be accessible).",
+    "btnSwitch": "Switch Anyway",
+    "btnMigrate": "Migrate First"
+  },
+  "error": {
+    "selectDrivers": "Please select source and target drivers",
+    "sourceTargetSame": "Source and target drivers must be different",
+    "driverNotAvailable": "Storage driver is not available",
+    "noFilesToMigrate": "No files to migrate",
+    "taskNotFound": "Migration task not found",
+    "needTwoDrivers": "At least two storage drivers must be available. Please install and enable storage plugins first."
+  },
+  "history": {
+    "title": "Migration History",
+    "empty": "No migration records",
+    "totalCount": "Total {total} items"
+  },
+  "log": {
+    "title": "Migration Logs",
+    "filePath": "File Path",
+    "fileSize": "File Size",
+    "error": "Error Message"
+  }
+}

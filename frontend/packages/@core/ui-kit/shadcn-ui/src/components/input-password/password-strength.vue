@@ -23,24 +23,24 @@ const currentColor = computed(() => {
 });
 
 /**
- * Check the strength of a password
+ * 校验密码强度（0–5）/ Score password strength 0–5
  */
 function checkPasswordStrength(password: string) {
   let strength = 0;
 
-  // Check length
+  // 长度 / length
   if (password.length >= 8) strength++;
 
-  // Check for lowercase letters
+  // 小写 / lowercase
   if (/[a-z]/.test(password)) strength++;
 
-  // Check for uppercase letters
+  // 大写 / uppercase
   if (/[A-Z]/.test(password)) strength++;
 
-  // Check for numbers
+  // 数字 / digits
   if (/\d/.test(password)) strength++;
 
-  // Check for special characters
+  // 特殊字符 / special chars
   if (/[^\da-z]/i.test(password)) strength++;
 
   return strength;

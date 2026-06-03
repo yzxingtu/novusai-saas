@@ -1,232 +1,210 @@
 /**
- * 租户角色管理 API
- * 对接后端 /tenant/roles/* 接口
+ * Tenant permission role management API / 企业权限角色管理 API
+ * Backend: /tenant/permission-roles/*
  */
+import type { SelectOption, SelectResponse } from '#/types';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-// ============================================================
-// 类型定义
-// ============================================================
-
-/** 节点类型 */
-export type TenantRoleType = 'department' | 'position' | 'role';
-
-/** 创建角色请求 */
-export interface TenantRoleCreateRequest {
-  code?: string; // 后端生成
-  name: string;
-  description?: null | string;
-  is_active?: boolean;
-  sort_order?: number;
-  permission_ids?: number[];
-  parent_id?: null | number;
-  /** 节点类型: department/position/role，默认 role */
-  type?: TenantRoleType;
-  /** 是否允许添加成员，默认 true */
-  allow_members?: boolean;
-}
-
-/** 更新角色请求 */
-export interface TenantRoleUpdateRequest {
-  name?: null | string;
-  description?: null | string;
-  is_active?: boolean | null;
-  sort_order?: null | number;
-  permission_ids?: null | number[];
-  parent_id?: null | number;
-  /** 节点类型: department/position/role */
-  type?: null | TenantRoleType;
-  /** 是否允许添加成员 */
-  allow_members?: boolean | null;
-  /** 负责人 ID */
-  leader_id?: null | number;
-}
-
-/** 分配权限请求 */
-export interface TenantRolePermissionsRequest {
-  permission_ids: number[];
-}
-
-/** 权限基本信息 */
-export interface TenantPermissionBasicInfo {
+export interface TenantPermissionRoleInfoRaw {
   id: number;
+  tenant_id: number;
+  name: string;
   code: string;
+  description?: null | string;
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  permissions_count: number;
+  member_count: number;
+  created_at: string;
+  updated_at?: null | string;
+}
+
+export interface TenantPermissionRoleDetailRaw extends TenantPermissionRoleInfoRaw {
+  permission_ids: number[];
+  permission_codes: string[];
+}
+
+export interface TenantPermissionRoleInfo {
+  id: number;
+  tenantId: number;
+  name: string;
+  code: string;
+  description?: null | string;
+  isSystem: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  permissionsCount: number;
+  memberCount: number;
+  createdAt: string;
+  updatedAt?: null | string;
+}
+
+export interface TenantPermissionRoleSummary {
+  code: string;
+  id: number;
   name: string;
   type: string;
 }
 
-/** 负责人基本信息 */
-export interface TenantLeaderBasicInfo {
-  id: number;
-  username: string;
-  real_name?: string;
-  avatar?: string;
+export interface TenantPermissionRoleDetail extends TenantPermissionRoleInfo {
+  permissionIds: number[];
+  permissionCodes: string[];
+  permissions: TenantPermissionRoleSummary[];
 }
 
-/** 角色信息（后端原始格式 snake_case） */
-export interface TenantRoleInfoRaw {
-  id: number;
-  code: string;
+export interface TenantRoleCreateRequest {
   name: string;
-  description?: string;
-  is_active: boolean;
-  sort_order: number;
-  parent_id?: null | number;
-  permissions?: TenantPermissionBasicInfo[];
-  permission_ids?: number[]; // 角色详情返回的权限 ID 列表
-  permissions_count?: number;
-  children?: TenantRoleInfoRaw[];
-  created_at: string;
-  updated_at?: string;
-  // 组织架构扩展字段
-  type?: TenantRoleType;
-  level?: number;
-  has_children?: boolean;
-  allow_members?: boolean;
-  member_count?: number;
-  leader_id?: null | number;
-  leader?: null | TenantLeaderBasicInfo;
+  code?: null | string;
+  description?: null | string;
+  is_active?: boolean;
+  sort_order?: number;
+  permission_ids?: number[];
 }
 
-/** 角色信息（前端格式 camelCase） */
-export interface TenantRoleInfo {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  isActive: boolean;
-  sortOrder: number;
-  parentId?: null | number;
-  permissions?: TenantPermissionBasicInfo[];
-  permissionIds?: number[];
-  permissionsCount?: number;
-  children?: TenantRoleInfo[];
-  createdAt: string;
-  updatedAt?: string;
-  // 组织架构扩展字段
-  type?: TenantRoleType;
-  level?: number;
-  hasChildren?: boolean;
-  allowMembers?: boolean;
-  memberCount?: number;
-  leaderId?: null | number;
-  leader?: null | TenantLeaderBasicInfo;
+export interface TenantRoleUpdateRequest {
+  name?: null | string;
+  code?: null | string;
+  description?: null | string;
+  is_active?: boolean | null;
+  sort_order?: null | number;
+  permission_ids?: null | number[];
 }
 
-/** 移动角色请求 */
-export interface TenantRoleMoveRequest {
-  new_parent_id: null | number;
+export interface TenantRolePermissionsRequest {
+  permission_ids: number[];
 }
 
-// ============================================================
-// 转换函数
-// ============================================================
+export interface TenantPermissionRoleListResponse {
+  items: TenantPermissionRoleInfo[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
-/** 将后端 snake_case 转换为前端 camelCase */
-function transformRoleInfo(raw: TenantRoleInfoRaw): TenantRoleInfo {
+const API_PREFIX = '/tenant/permission-roles';
+
+function transformTenantPermissionRoleInfo(
+  raw: TenantPermissionRoleInfoRaw,
+): TenantPermissionRoleInfo {
   return {
     id: raw.id,
-    code: raw.code,
+    tenantId: raw.tenant_id,
     name: raw.name,
+    code: raw.code,
     description: raw.description,
+    isSystem: raw.is_system,
     isActive: raw.is_active,
     sortOrder: raw.sort_order,
-    parentId: raw.parent_id,
-    permissions: raw.permissions,
-    permissionIds: raw.permission_ids,
-    permissionsCount:
-      raw.permissions_count ??
-      raw.permission_ids?.length ??
-      (raw.permissions ? raw.permissions.length : 0),
-    children: raw.children?.map((item) => transformRoleInfo(item)),
+    permissionsCount: raw.permissions_count,
+    memberCount: raw.member_count,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
-    // 组织架构扩展字段
-    type: raw.type,
-    level: raw.level,
-    hasChildren: raw.has_children,
-    allowMembers: raw.allow_members,
-    memberCount: raw.member_count,
-    leaderId: raw.leader_id,
-    leader: raw.leader,
   };
 }
 
-// ============================================================
-// API 接口
-// ============================================================
-
-const API_PREFIX = '/tenant/roles';
-
-/**
- * 获取角色列表
- * GET /tenant/roles
- * 注意: 角色列表不分页，返回全部
- */
-export async function getTenantRoleListApi(
-  options?: ApiRequestOptions,
-): Promise<TenantRoleInfo[]> {
-  const response = await requestClient.get<TenantRoleInfoRaw[]>(
-    API_PREFIX,
-    options,
-  );
-  return response.map((item) => transformRoleInfo(item));
+function transformTenantPermissionRoleDetail(
+  raw: TenantPermissionRoleDetailRaw,
+): TenantPermissionRoleDetail {
+  return {
+    ...transformTenantPermissionRoleInfo(raw),
+    permissionIds: raw.permission_ids,
+    permissionCodes: raw.permission_codes,
+    permissions: raw.permission_ids.map((id, index) => ({
+      id,
+      code: raw.permission_codes[index] ?? String(id),
+      name: raw.permission_codes[index] ?? String(id),
+      type: 'operation',
+    })),
+  };
 }
 
-/**
- * 获取角色详情
- * GET /tenant/roles/{role_id}
- */
-export async function getTenantRoleDetailApi(
+export async function getTenantPermissionRoleListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<TenantPermissionRoleListResponse> {
+  const response = await requestClient.get<{
+    items: TenantPermissionRoleInfoRaw[];
+    page: number;
+    page_size: number;
+    total: number;
+  }>(API_PREFIX, { params, ...options });
+
+  return {
+    items: response.items.map((item) =>
+      transformTenantPermissionRoleInfo(item),
+    ),
+    total: response.total,
+    page: response.page,
+    pageSize: response.page_size,
+  };
+}
+
+export async function getTenantRoleListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<TenantPermissionRoleListResponse> {
+  return getTenantPermissionRoleListApi(params, options);
+}
+
+export async function getTenantPermissionRoleDetailApi(
   roleId: number,
   options?: ApiRequestOptions,
-): Promise<TenantRoleInfo> {
-  const raw = await requestClient.get<TenantRoleInfoRaw>(
+): Promise<TenantPermissionRoleDetail> {
+  const response = await requestClient.get<TenantPermissionRoleDetailRaw>(
     `${API_PREFIX}/${roleId}`,
     options,
   );
-  return transformRoleInfo(raw);
+  return transformTenantPermissionRoleDetail(response);
 }
 
-/**
- * 创建角色
- * POST /tenant/roles
- */
+export async function getTenantRoleDetailApi(
+  roleId: number,
+  options?: ApiRequestOptions,
+): Promise<TenantPermissionRoleDetail> {
+  return getTenantPermissionRoleDetailApi(roleId, options);
+}
+
 export async function createTenantRoleApi(
   data: TenantRoleCreateRequest,
   options?: ApiRequestOptions,
-): Promise<TenantRoleInfo> {
-  const raw = await requestClient.post<TenantRoleInfoRaw>(
+): Promise<TenantPermissionRoleDetail> {
+  const response = await requestClient.post<TenantPermissionRoleDetailRaw>(
     API_PREFIX,
     data,
     options,
   );
-  return transformRoleInfo(raw);
+  return transformTenantPermissionRoleDetail(response);
 }
 
-/**
- * 更新角色
- * PUT /tenant/roles/{role_id}
- */
 export async function updateTenantRoleApi(
   roleId: number,
   data: TenantRoleUpdateRequest,
   options?: ApiRequestOptions,
-): Promise<TenantRoleInfo> {
-  const raw = await requestClient.put<TenantRoleInfoRaw>(
+): Promise<TenantPermissionRoleDetail> {
+  const response = await requestClient.put<TenantPermissionRoleDetailRaw>(
     `${API_PREFIX}/${roleId}`,
     data,
     options,
   );
-  return transformRoleInfo(raw);
+  return transformTenantPermissionRoleDetail(response);
 }
 
-/**
- * 删除角色
- * DELETE /tenant/roles/{role_id}
- */
+export async function assignTenantRolePermissionsApi(
+  roleId: number,
+  data: TenantRolePermissionsRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantPermissionRoleDetail> {
+  const response = await requestClient.put<TenantPermissionRoleDetailRaw>(
+    `${API_PREFIX}/${roleId}/permissions`,
+    data,
+    options,
+  );
+  return transformTenantPermissionRoleDetail(response);
+}
+
 export async function deleteTenantRoleApi(
   roleId: number,
   options?: ApiRequestOptions,
@@ -234,66 +212,41 @@ export async function deleteTenantRoleApi(
   await requestClient.delete(`${API_PREFIX}/${roleId}`, options);
 }
 
-/**
- * 分配角色权限
- * PUT /tenant/roles/{role_id}/permissions
- */
-export async function assignTenantRolePermissionsApi(
-  roleId: number,
-  data: TenantRolePermissionsRequest,
+export async function getAllTenantPermissionRoleListApi(
   options?: ApiRequestOptions,
-): Promise<TenantRoleInfo> {
-  const raw = await requestClient.put<TenantRoleInfoRaw>(
-    `${API_PREFIX}/${roleId}/permissions`,
-    data,
-    options,
-  );
-  return transformRoleInfo(raw);
+): Promise<TenantPermissionRoleInfo[]> {
+  const pageSize = 100;
+  let page = 1;
+  const items: TenantPermissionRoleInfo[] = [];
+
+  while (true) {
+    const response = await getTenantPermissionRoleListApi(
+      {
+        'page[number]': page,
+        'page[size]': pageSize,
+      },
+      options,
+    );
+    items.push(...response.items);
+
+    if (items.length >= response.total || response.items.length < pageSize) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return items;
 }
 
-/**
- * 获取角色树
- * GET /tenant/roles/tree
- * 返回树形结构，包含层级关系
- */
-export async function getTenantRoleTreeApi(
+export async function getTenantRoleSelectApi(
+  _params?: Record<string, unknown>,
   options?: ApiRequestOptions,
-): Promise<TenantRoleInfo[]> {
-  const response = await requestClient.get<TenantRoleInfoRaw[]>(
-    `${API_PREFIX}/tree`,
-    options,
-  );
-  return response.map((item) => transformRoleInfo(item));
-}
-
-/**
- * 获取子角色
- * GET /tenant/roles/{role_id}/children
- */
-export async function getTenantRoleChildrenApi(
-  roleId: number,
-  options?: ApiRequestOptions,
-): Promise<TenantRoleInfo[]> {
-  const response = await requestClient.get<TenantRoleInfoRaw[]>(
-    `${API_PREFIX}/${roleId}/children`,
-    options,
-  );
-  return response.map((item) => transformRoleInfo(item));
-}
-
-/**
- * 移动角色
- * PUT /tenant/roles/{role_id}/move
- */
-export async function moveTenantRoleApi(
-  roleId: number,
-  data: TenantRoleMoveRequest,
-  options?: ApiRequestOptions,
-): Promise<TenantRoleInfo> {
-  const raw = await requestClient.put<TenantRoleInfoRaw>(
-    `${API_PREFIX}/${roleId}/move`,
-    data,
-    options,
-  );
-  return transformRoleInfo(raw);
+): Promise<SelectResponse> {
+  const roles = await getAllTenantPermissionRoleListApi(options);
+  const items: SelectOption[] = roles.map((role) => ({
+    label: role.name,
+    value: role.id,
+  }));
+  return { items };
 }

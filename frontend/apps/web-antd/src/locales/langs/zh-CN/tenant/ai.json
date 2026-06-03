@@ -1,0 +1,1042 @@
+{
+  "title": "AI 管理",
+  "config": {
+    "name": "可用模型"
+  },
+  "model": {
+    "title": "可用模型",
+    "pageDesc": "查看平台分配给当前企业的可用 AI 模型及其能力和定价。",
+    "name": "模型名称",
+    "code": "模型代码",
+    "type": "类型",
+    "providerName": "供应商",
+    "contextWindow": "上下文总预算（输入+输出）",
+    "inputPrice": "输入价格 ($/1K)",
+    "outputPrice": "输出价格 ($/1K)",
+    "functionCalling": "函数调用",
+    "vision": "视觉能力",
+    "streaming": "流式",
+    "isActive": "状态",
+    "placeholder": {
+      "searchName": "搜索模型名称",
+      "allTypes": "全部类型",
+      "allProviders": "全部供应商"
+    },
+    "type_options": {
+      "chat": "对话",
+      "embedding": "向量",
+      "image": "图像"
+    },
+    "capability": {
+      "functionCalling": "函数调用",
+      "vision": "视觉",
+      "streaming": "流式"
+    },
+    "tier": {
+      "fast": "快速型",
+      "standard": "标准型",
+      "premium": "高级型"
+    }
+  },
+  "usage": {
+    "title": "用量统计",
+    "name": "用量统计",
+    "pageDesc": "查看企业的 AI 调用量、Token 消耗和费用趋势图表。",
+    "summary": {
+      "totalTokens": "总 Tokens",
+      "totalCost": "总费用",
+      "totalCalls": "调用次数",
+      "successRate": "成功率"
+    },
+    "accessChannel": {
+      "title": "按访问渠道",
+      "subtitle": "本页统计已包含企业管理员与企业用户端调用，并按调用来源拆分展示",
+      "topChannelLabel": "当前占比最高渠道",
+      "calls": "调用次数",
+      "tokens": "Tokens",
+      "cost": "费用",
+      "admin_internal": "平台 / 内部",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业终端用户",
+      "unknown": "未标注渠道"
+    },
+    "metrics": {
+      "successCalls": "成功",
+      "failedCalls": "失败",
+      "inputTokens": "输入",
+      "outputTokens": "输出",
+      "avgCostPerCall": "单次均值",
+      "avgTokensPerCall": "单次均值 Tokens"
+    },
+    "snapshot": {
+      "title": "观察窗口与分布快照",
+      "days": "天",
+      "rangeDays": "统计跨度",
+      "coveredModels": "覆盖模型",
+      "coveredChannels": "覆盖渠道",
+      "topModel": "主力模型",
+      "busiestDay": "峰值日期",
+      "customRange": "自定义范围",
+      "platformScope": "平台管理端",
+      "tenantScope": "当前企业",
+      "empty": "暂无数据"
+    },
+    "list": {
+      "empty": "当前时间范围暂无统计数据"
+    },
+    "chart": {
+      "dailyTrend": "每日用量趋势",
+      "modelDistribution": "模型用量分布",
+      "tokens": "Tokens",
+      "cost": "费用 ($)",
+      "calls": "调用次数"
+    },
+    "dateRange": "日期范围",
+    "thisMonth": "本月",
+    "last7Days": "近7天",
+    "last30Days": "近30天",
+    "monitoring": {
+      "topModels": "热门模型",
+      "topAgents": "热门智能体",
+      "topUsers": "高频调用人",
+      "topTenants": "高频企业"
+    }
+  },
+  "callLog": {
+    "title": "调用日志",
+    "name": "调用日志",
+    "pageDesc": "查看企业内所有 AI 调用记录，包括状态、用量和错误详情。",
+    "requestType": "请求类型",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "totalTokens": "总 Tokens",
+    "cost": "费用",
+    "latency": "延迟 (ms)",
+    "status": "状态",
+    "agentName": "智能体",
+    "conversationId": "对话 ID",
+    "modelName": "模型",
+    "providerName": "供应商",
+    "tenantName": "企业",
+    "callerName": "调用人",
+    "traceId": "Trace ID",
+    "createdAt": "调用时间",
+    "errorMessage": "错误信息",
+    "requestData": "请求数据",
+    "responseData": "响应数据",
+    "viewDetail": "查看详情",
+    "detailTitle": "调用日志详情",
+    "placeholder": {
+      "allStatuses": "全部状态",
+      "allModels": "全部模型",
+      "searchAgentName": "搜索智能体名称",
+      "searchTrace": "搜索 Trace ID",
+      "searchConversation": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
+    },
+    "status_options": {
+      "success": "成功",
+      "failed": "失败",
+      "timeout": "超时"
+    },
+    "filter": {
+      "all": "全部",
+      "onlySuccess": "仅成功",
+      "onlyFailed": "仅失败"
+    }
+  },
+  "quota": {
+    "title": "配额管理",
+    "name": "配额管理",
+    "pageDesc": "设置模型 Token 用量配额。软限制仅告警，硬限制将拒绝超额请求。",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "period": "周期",
+    "limit": "配额限制",
+    "quotaType": "配额类型",
+    "warningThreshold": "预警阈值 (%)",
+    "description": "描述",
+    "isActive": "启用状态",
+    "globalQuota": "全局配额",
+    "create": "添加配额",
+    "confirmDelete": "确认删除此配额配置？",
+    "usage": "已使用",
+    "remaining": "剩余",
+    "response": "超限响应",
+    "exceeded": "已超额",
+    "warning": "接近上限",
+    "refresh": "刷新诊断",
+    "summary": {
+      "totalRules": "配额规则",
+      "activeRules": "启用中的配额规则",
+      "riskRules": "配额风险规则",
+      "rateLimitRules": "速率限制规则"
+    },
+    "helper": {
+      "hardLimit": "硬配额超限后会直接拒绝请求，返回 HTTP 429。",
+      "softLimit": "软配额超限不会拦截请求，但会继续累计用量并触发告警。",
+      "globalFallback": "全局配额仅在同周期没有模型专属配额时生效；模型专属规则优先。"
+    },
+    "runtimeStatus": {
+      "healthy": "正常",
+      "warning": "预警",
+      "exceeded": "超限",
+      "inactive": "未启用"
+    },
+    "scope": {
+      "global": "全局配额",
+      "model": "模型专属"
+    },
+    "section": {
+      "basic": "基本信息",
+      "config": "配额配置"
+    },
+    "period_options": {
+      "daily": "每日",
+      "monthly": "每月"
+    },
+    "type_options": {
+      "soft": "软限制",
+      "hard": "硬限制"
+    },
+    "placeholder": {
+      "allModels": "全部模型",
+      "allStatus": "全部状态",
+      "allPeriods": "全部周期",
+      "allTypes": "全部类型",
+      "selectModel": "选择模型（留空为全局配额）",
+      "selectPeriod": "请选择周期",
+      "selectType": "请选择配额类型",
+      "inputLimit": "Token 数量限制",
+      "inputThreshold": "如 80",
+      "inputDescription": "请输入描述"
+    },
+    "messages": {
+      "createSuccess": "配额创建成功",
+      "updateSuccess": "配额更新成功",
+      "deleteSuccess": "配额已删除"
+    }
+  },
+  "agent": {
+    "readonlyHint": "该智能体由管理端分配，基础配置仅可查看；但知识库页仍可停用管理端下发的知识库，并绑定本企业自己的知识库",
+    "title": "智能体管理",
+    "entityDescription": "管理 AI 智能体的配置和发布状态",
+    "pageDesc": "创建和管理智能体。配置模型、工具、知识库后发布即可使用，支持版本管理和回滚。",
+    "detail": {
+      "title": "智能体详情",
+      "overview": "概览",
+      "modelParams": "模型参数",
+      "chatConfig": "对话配置",
+      "skillBindings": "技能绑定",
+      "quota": "配额管理",
+      "routing": "智能路由",
+      "basicInfo": "基本信息",
+      "saveSuccess": "保存成功",
+      "chatConfigPromptHint": "变量参考",
+      "noQuotaLimit": "0 表示不限制",
+      "noSkills": "该技能包暂无技能",
+      "ragHint": "智能体级 RAG 配置会覆盖知识库上的旧检索参数；多知识库检索按知识库独立召回后再融合。",
+      "knowledgeBases": "知识库",
+      "kbWeight": "权重",
+      "kbEnabled": "启用",
+      "kbDocCount": "文档数",
+      "kbEmbeddingModel": "Embedding 模型",
+      "kbEmbeddingDimensions": "向量维度",
+      "kbChunkStrategy": "分块策略",
+      "kbCreatorTenant": "创建企业",
+      "kbOwnerPlatform": "平台",
+      "kbWeightFusionHint": "权重已参与多知识库融合排序，作为先验偏置使用，不会硬性覆盖相关性。",
+      "kbPlatformBadge": "平台",
+      "kbTenantOverlayHint": "你可以拒绝使用管理端下发的知识库，并为当前智能体追加仅本企业生效的知识库。",
+      "kbPlatformOptOut": "本企业不使用",
+      "uploadAvatar": "上传头像",
+      "removeAvatar": "删除头像",
+      "kbPlatformOptOutHint": "开启后，本企业对话不再检索该平台知识库；不影响管理端配置与其他企业。"
+    },
+    "kbPicker": {
+      "title": "选择知识库绑定",
+      "subtitle": "按知识库名称、描述和作用域筛选候选项，并一次性保存当前企业可编辑的知识库绑定集合。",
+      "searchPlaceholder": "搜索知识库名称、描述或 ID",
+      "scopeFilter": "按作用域筛选",
+      "refresh": "刷新列表",
+      "candidates": "可选知识库",
+      "selected": "已选知识库",
+      "scopes": "作用域",
+      "matches": "匹配结果",
+      "filtered": "已应用筛选",
+      "resultSummary": "当前共匹配 {count} 个知识库，覆盖 {scopes} 种作用域",
+      "candidateHint": "从左侧浏览候选知识库，点击整行即可勾选或取消勾选。当前共有 {count} 个匹配项。",
+      "selectedBadge": "已选中",
+      "selectionSummary": "{count} 个知识库 / {scopes} 种作用域",
+      "selectionHint": "从左侧候选区勾选知识库后，这里会保留选择，并在确认时整体替换当前企业可编辑的绑定集合。",
+      "detailEmptyHint": "这个智能体当前没有任何可编辑的知识库绑定。点击上方按钮后，可按作用域筛选候选知识库并统一保存。",
+      "replaceNotice": "确认保存时会整体替换当前企业可编辑的知识库绑定，请先在右侧确认本次要保留的知识库。",
+      "emptyCandidates": "没有匹配的知识库",
+      "emptySelected": "尚未选择知识库",
+      "remove": "移除",
+      "creatorLabel": "创建企业",
+      "platformOwner": "平台",
+      "ownerFallback": "企业 #{id}",
+      "manageBindings": "管理知识库绑定",
+      "selectedCount": "已选 {count} 项"
+    },
+    "memory": {
+      "title": "会话记忆",
+      "desc": "企业可对自有智能体关闭会话记忆，关闭后仅影响当前企业。",
+      "readonlyHint": "当前智能体不可修改记忆开关",
+      "platformDefault": "平台默认",
+      "adminSwitch": "管理端开关",
+      "tenantSwitch": "企业开关",
+      "effective": "最终生效",
+      "restoreDefault": "恢复默认",
+      "enabled": "开启",
+      "disabled": "关闭",
+      "saveSuccess": "记忆开关更新成功"
+    },
+    "routing": {
+      "description": "智能路由根据对话复杂度、附件类型和估算 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
+      "enableRouting": "启用智能路由",
+      "maxTier": "成本上限",
+      "maxTierHelp": "限制路由最高可使用的模型级别，超出后自动降级",
+      "visionModel": "Vision 专用模型",
+      "audioModel": "音频专用模型",
+      "videoModel": "视频专用模型",
+      "longContextModel": "长上下文模型",
+      "longContextThreshold": "长上下文触发阈值（预计输入 Token）",
+      "longContextThresholdHelp": "当预计输入 Token（历史消息 + 用户输入 + RAG 上下文，不含本次输出上限）超过此阈值时，自动切换到长上下文模型",
+      "autoSelect": "自动选择",
+      "noLimit": "不限制",
+      "statusEnabled": "智能路由已开启",
+      "statusDisabled": "未开启",
+      "visionModelHelp": "有图片附件时优先路由到此模型",
+      "audioModelHelp": "有音频附件时优先路由到此模型",
+      "videoModelHelp": "有视频附件时优先路由到此模型",
+      "longContextModelHelp": "Token 超过阈値时自动切换到此模型",
+      "tier": {
+        "fast": "快速型",
+        "standard": "标准型",
+        "premium": "高级型"
+      }
+    },
+    "system": "系统",
+    "name": "智能体名称",
+    "avatar": "头像",
+    "description": "描述",
+    "status": "状态",
+    "executionMode": "执行模式",
+    "targetAudience": "目标受众",
+    "publication": {
+      "title": "发布给企业终端用户",
+      "accessType": "用户端访问规则",
+      "accessAllUsers": "全部终端用户",
+      "accessByUserRoles": "按终端用户角色限制",
+      "accessSpecificUsers": "指定终端用户",
+      "placeholderUserRoles": "选择终端用户角色",
+      "placeholderSpecificUsers": "选择终端用户",
+      "orgNodeDisabledHint": "组织节点发布暂未开放，请勿在接口中选择该类型。",
+      "warnSelectUserRoles": "已开启发布且规则为「按终端用户角色」，请至少选择一个终端用户角色。",
+      "warnSelectUsers": "已开启发布且规则为「指定终端用户」，请至少选择一个用户。"
+    },
+    "audience_options": {
+      "all": "所有端",
+      "admin_tenant": "管理端+企业端"
+    },
+    "modelName": "关联模型",
+    "systemPrompt": "系统提示词",
+    "temperature": "温度",
+    "maxTokens": "单次回复最大输出 Token（仅输出）",
+    "topP": "Top P",
+    "welcomeMessage": "欢迎语",
+    "suggestedQuestions": "开场问题",
+    "toolBindings": "工具绑定 (JSON)",
+    "skillBindings": "技能绑定",
+    "skillPackageBindings": "技能包绑定",
+    "availablePackages": "可用技能包",
+    "packageUnavailable": "技能包 #{id} 已停用或不可用",
+    "skillCount": "技能包",
+    "hasWelcomeMessage": "已配置开场白",
+    "sharedPackageTag": "平台共享",
+    "createdAt": "创建时间",
+    "create": "创建智能体",
+    "wizard": {
+      "step1": "基本信息",
+      "step1Desc": "名称、模型、模式",
+      "step2": "生成设置",
+      "step2Desc": "参数、欢迎语、工具",
+      "step3": "知识与上下文",
+      "step3Desc": "知识库、RAG、变量",
+      "step4": "配额设置",
+      "step4Desc": "用量限制"
+    },
+    "publish": "发布",
+    "versionHistory": "版本历史",
+    "accessConfig": "访问权限配置",
+    "noDescription": "暂无描述",
+    "actions": {
+      "publish": "发布",
+      "versions": "版本历史",
+      "access": "访问权限"
+    },
+    "confirmDelete": "确认删除此智能体？",
+    "status_options": {
+      "draft": "草稿",
+      "published": "已发布",
+      "disabled": "已禁用"
+    },
+    "mode_options": {
+      "conversation": "对话",
+      "task": "任务",
+      "batch": "批处理",
+      "api": "API"
+    },
+    "placeholder": {
+      "searchName": "搜索智能体名称",
+      "allStatuses": "全部状态",
+      "allModes": "全部模式",
+      "allAudiences": "全部受众",
+      "inputName": "请输入智能体名称",
+      "selectModel": "请选择 AI 模型",
+      "selectMode": "请选择执行模式",
+      "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
+      "inputDescription": "请输入描述",
+      "inputTemperature": "0-2，值越高输出越随机",
+      "inputMaxTokens": "单次回复最大输出 Token 数（只限制输出）",
+      "inputTopP": "0-1，与 temperature 配合使用",
+      "inputWelcomeMessage": "用户在开始首轮对话前看到的欢迎语",
+      "inputSuggestedQuestions": "每行一个问题，也支持 JSON 数组格式",
+      "inputVariables": "JSON 数组，如: [{'{'}\"name\": \"var1\", \"label\": \"变量1\", \"type\": \"string\", \"required\": true{'}'}]",
+      "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]",
+      "selectSkills": "请选择要绑定的技能",
+      "selectSkillPackages": "请选择要绑定的技能包"
+    },
+    "help": {
+      "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
+      "maxTokens": "只限制单次回复的输出长度，不控制输入上下文上限。留空使用模型默认值，且不能超过所选模型的最大输出 Token。它和模型总上下文窗口不是一回事。1 个中文字约 2 个 Token",
+      "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
+      "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
+      "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个",
+      "toolBindings": "绑定智能体可调用的工具，每个元素包含 tool_id 字段",
+      "skillBindings": "选择智能体可使用的技能。技能包含知识库、HTTP 调用等能力",
+      "skillPackageBindings": "选择智能体可使用的技能包。每个技能包包含多个技能，智能体将获得包内所有技能",
+      "inputVariables": "定义用户在发起对话前需要填写的变量，可用于模板化提示词",
+      "contextMaxHistoryMessages": "带入模型的历史消息条数。越多上下文越丰富，但 Token 消耗越大；这不是模型总上下文窗口",
+      "contextMaxHistoryTokens": "只限制带入模型的历史消息 Token，不是模型输入上限。0 表示不单独限制，由消息条数控制",
+      "quotaConversationsPerDay": "该智能体每天允许的最大对话数，0 表示不限制",
+      "quotaTokensPerDay": "该智能体每天允许消耗的最大 Token 数，0 表示不限制",
+      "quotaTokensPerMonth": "该智能体每月允许消耗的最大 Token 数，0 表示不限制",
+      "quotaMaxTurns": "单次对话允许的最大来回轮次，超过后提示用户开启新对话",
+      "quotaMaxConcurrent": "该智能体允许同时进行的最大并发对话数",
+      "quotaUserConversationsPerDay": "每个用户每天与该智能体的最大对话数，0 表示不限制",
+      "ragTopK": "每次检索从知识库返回的最相关文档分块数量。数值越大，参考资料越多但可能引入噪音",
+      "ragScoreThreshold": "相似度得分低于此阈值的结果将被丢弃。值越高越严格，建议 0.3~0.7",
+      "ragSearchMode": "向量检索适合语义相似，关键词检索适合精确匹配，混合模式综合两者优势",
+      "ragRewriteStrategy": "对用户问题进行改写以提升检索效果。假设文档生成假想答案再检索，回退提问将问题泛化",
+      "ragContextTokenRatio": "知识库内容在总上下文中占的最大比例。如 0.3 表示最多使用 30% 的 Token 预算"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "单次回复最大输出 Token 不能超过所选模型上限 {limit}"
+    },
+    "inputVariables": {
+      "title": "输入变量",
+      "label": "变量定义 (JSON)",
+      "queryParamsPlaceholder": "JSON 格式的查询参数",
+      "placeholder": "JSON 数组格式，如: [{'{'}\"name\": \"topic\", \"label\": \"主题\", \"type\": \"text\", \"required\": true{'}'}]"
+    },
+    "contextConfig": {
+      "title": "历史消息上下文",
+      "maxHistoryMessages": "带入上下文的历史消息条数",
+      "maxHistoryTokens": "带入上下文的历史 Token 上限",
+      "longTermMemoryEnabled": "长期记忆（跨会话）",
+      "longTermMemoryHint": "开启后，将可持久化的洞察写入 MemoryRecord 并按需渐进召回；需同智能体会话记忆已启用。",
+      "placeholder": {
+        "maxHistoryMessages": "默认 20，0 使用系统默认",
+        "maxHistoryTokens": "0 表示只按消息条数截断，不单独限制 Token"
+      }
+    },
+    "knowledgeBase": {
+      "messages": {
+        "createSuccess": "知识库创建成功",
+        "updateSuccess": "知识库更新成功",
+        "deleteSuccess": "知识库已删除"
+      },
+      "title": "知识库 (RAG)",
+      "selectLabel": "关联知识库",
+      "selectPlaceholder": "请选择要关联的知识库",
+      "selectHelp": "选择智能体可检索的知识库，支持多选",
+      "ragEnabled": "启用 RAG 检索",
+      "ragEnabledHelp": "开启后，对话时自动检索关联知识库中的相关内容",
+      "topK": "检索数量 (Top-K)",
+      "topKPlaceholder": "每次检索返回的分块数量",
+      "scoreThreshold": "相似度阈值",
+      "scoreThresholdPlaceholder": "0-1，低于此分数的结果将被过滤",
+      "searchMode": "检索模式",
+      "searchModePlaceholder": "请选择检索模式",
+      "searchModeOptions": {
+        "vector": "向量检索",
+        "keyword": "关键词检索",
+        "hybrid": "混合检索"
+      },
+      "rewriteStrategy": "查询改写策略",
+      "rewritePlaceholder": "请选择改写策略",
+      "rewriteOptions": {
+        "none": "不改写",
+        "multi": "多查询改写",
+        "hyde": "假设性文档嵌入"
+      },
+      "rerankerEnabled": "启用重排序",
+      "rerankerEnabledHelp": "开启后使用 Reranker 对结果二次排序，提升准确度",
+      "contextTokenRatio": "上下文 Token 比例",
+      "contextTokenRatioPlaceholder": "0-1，知识库内容占上下文的最大比例"
+    },
+    "quotaConfig": {
+      "title": "配额设置",
+      "conversationsPerDay": "每日对话上限",
+      "tokensPerDay": "每日 Token 上限",
+      "tokensPerMonth": "每月 Token 上限",
+      "maxTurnsPerConversation": "单次对话最大轮次",
+      "maxConcurrent": "最大并发数",
+      "userConversationsPerDay": "用户每日对话上限",
+      "placeholder": {
+        "conversationsPerDay": "0 表示不限制",
+        "tokensPerDay": "0 表示不限制",
+        "tokensPerMonth": "0 表示不限制",
+        "maxTurnsPerConversation": "默认 50",
+        "maxConcurrent": "默认 10",
+        "userConversationsPerDay": "0 表示不限制"
+      }
+    },
+    "messages": {
+      "createSuccess": "智能体创建成功",
+      "updateSuccess": "智能体更新成功",
+      "deleteSuccess": "智能体已删除",
+      "publishSuccess": "智能体发布成功",
+      "rollbackSuccess": "已回滚到版本 {version}",
+      "rollbackConfirm": "确认回滚到版本 {version}？当前草稿配置将被覆盖。"
+    },
+    "version": {
+      "title": "版本历史",
+      "version": "版本",
+      "changeLog": "变更说明",
+      "createdBy": "发布人",
+      "createdAt": "发布时间",
+      "current": "当前版本",
+      "rollback": "回滚",
+      "diff": "版本对比",
+      "detail": "版本详情",
+      "noVersions": "暂无发布版本",
+      "publishTitle": "发布智能体",
+      "publishDesc": "发布将冻结当前配置为新版本",
+      "changeLogPlaceholder": "请输入本次变更说明（可选）",
+      "diffTitle": "版本对比: v{v1} ↔ v{v2}",
+      "field": "字段",
+      "oldValue": "旧值",
+      "newValue": "新值",
+      "noDiff": "两个版本配置完全相同",
+      "selectVersion": "选择对比版本"
+    },
+    "access": {
+      "title": "访问权限",
+      "visibility": "可见性",
+      "accessType": "访问类型",
+      "orgNodes": "组织节点",
+      "users": "指定用户",
+      "visibility_options": {
+        "public": "公开",
+        "private": "私有"
+      },
+      "access_type_options": {
+        "all_users": "所有用户",
+        "org_node": "指定组织节点",
+        "specific_users": "指定用户",
+        "api_only": "仅 API"
+      },
+      "tenantRoleAccess": "企业管理员角色权限",
+      "userRoleAccess": "用户端角色权限",
+      "placeholder": {
+        "selectOrgNodes": "请选择组织节点",
+        "inputUserIds": "输入用户 ID，多个用英文逗号分隔",
+        "selectTenantRoles": "请选择企业管理员角色",
+        "selectUserRoles": "请选择用户角色"
+      },
+      "messages": {
+        "updateSuccess": "访问权限更新成功",
+        "specificRolesRequired": "已选择「指定企业管理员角色」，请在树形选择中至少勾选一个角色，或改回「全部可用」。"
+      },
+      "hint": {
+        "twoLayers": "此处分为两层独立配置：① 企业后台（管理员入口）谁能看到该智能体；② 是否向企业终端用户开放及按何种规则开放。网络请求会分别调用「访问权限」与「发布」两个接口，请勿混淆。",
+        "tenantAdminLayer": "对应接口 PUT …/access 的 tenant_role_ids：限制本企业「后台管理员」中哪些角色可在企业端使用此智能体。与下方「终端用户」无关。",
+        "endUserLayer": "对应接口 PUT …/publication：控制登录用户端（非企业后台）的终端用户是否可见、按角色或名单限制。此处选择的「终端用户角色」不会写入 tenant_role_ids。",
+        "public": "所有企业用户均可使用此智能体",
+        "private": "仅授权用户可使用此智能体",
+        "roleOnly": "通过角色控制哪些用户可以使用此智能体。选择「全部可用」则不限制角色。",
+        "all_users": "企业内所有登录用户可访问",
+        "org_node": "仅指定组织节点下的用户可访问",
+        "specific_users": "仅指定用户可访问",
+        "api_only": "仅通过 API 调用可访问，前端用户不可见"
+      }
+    }
+  },
+  "conversation": {
+    "title": "对话标题",
+    "conversationTitle": "对话标题",
+    "pageDesc": "查看智能体对话记录与调用详情。",
+    "pageTitle": "对话管理",
+    "name": "对话管理",
+    "agentName": "智能体",
+    "conversationId": "对话 ID",
+    "providerName": "供应商",
+    "modelName": "模型",
+    "tenantName": "企业",
+    "user": "用户",
+    "status": "状态",
+    "totalCalls": "总调用数",
+    "tokenCount": "Token 数量",
+    "cost": "费用",
+    "createdAt": "创建时间",
+    "lastCallAt": "调用时间",
+    "messageCount": "消息数",
+    "messageList": "消息列表",
+    "tabMessages": "消息流程",
+    "tabModelCalls": "模型调用",
+    "modelCallsEmpty": "暂无关联的模型调用记录",
+    "thinkingBlock": "思考过程",
+    "ragRefs": "知识库引用",
+    "toolCalls": "工具调用",
+    "toolOk": "成功",
+    "toolFailed": "失败",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "耗时",
+    "untitled": "未命名对话",
+    "viewDetail": "查看详情",
+    "detailTitle": "对话详情",
+    "runtimeDiagnostics": "运行时诊断",
+    "diagnosticsEmpty": "暂无运行时诊断记录",
+    "diagnosticNotes": "停损说明",
+    "executionPath": "执行路径",
+    "failureKind": "失败归因",
+    "budgetStatus": "预算状态",
+    "budgetExitReason": "预算退出原因",
+    "partialExitReason": "部分返回原因",
+    "intentPlan": "意图计划",
+    "candidateTools": "候选工具",
+    "providerEvents": "供应商事件",
+    "retryEvents": "重试事件",
+    "requiredCapabilities": "所需能力",
+    "allowedTools": "允许工具",
+    "selectedTools": "已选工具",
+    "completedTools": "已完成工具",
+    "unfinishedReason": "未完成原因",
+    "executionPathOptions": {
+      "fast": "快速路径",
+      "normal": "标准路径",
+      "deep": "深度路径"
+    },
+    "failureKindOptions": {
+      "none": "无",
+      "provider_failure": "供应商失败",
+      "tool_failure": "工具失败",
+      "orchestration_failure": "编排失败",
+      "budget_exit": "预算退出",
+      "server_interrupt": "服务中断",
+      "no_answer_quality_evidence": "缺少可作答证据"
+    },
+    "budgetStatusOptions": {
+      "ok": "正常",
+      "within_budget": "预算内",
+      "budget_exit": "预算退出",
+      "exceeded": "已超限"
+    },
+    "actorType": {
+      "platform_admin": "平台管理员",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
+      "admin": "管理员",
+      "user": "用户",
+      "unknown": "未标注身份"
+    },
+    "placeholder": {
+      "searchTitle": "搜索对话标题",
+      "allStatuses": "全部状态",
+      "searchConversationId": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
+    },
+    "status_options": {
+      "active": "活跃",
+      "archived": "已归档",
+      "closed": "已关闭"
+    },
+    "messages": {
+      "archiveSuccess": "对话已归档",
+      "exportSuccess": "导出成功",
+      "deleteSuccess": "对话已删除"
+    }
+  },
+  "chat": {
+    "title": "AI 对话",
+    "pageDesc": "与智能体对话。左侧选择智能体，可开始新对话或继续历史对话。",
+    "selectAgent": "选择智能体",
+    "noAgents": "暂无可用智能体",
+    "newConversation": "新对话",
+    "history": "历史对话",
+    "noHistory": "暂无历史对话",
+    "inputPlaceholder": "输入消息...",
+    "send": "发送",
+    "sending": "发送中...",
+    "thinking": "思考中...",
+    "deleteConversation": "删除对话",
+    "confirmDelete": "确认删除此对话？删除后不可恢复。",
+    "welcomeTitle": "开始对话",
+    "welcomeDesc": "选择左侧智能体，开始一段新的对话",
+    "stopGeneration": "停止生成",
+    "copySuccess": "已复制",
+    "ragSources": "引用来源",
+    "ragSourceCount": "{count} 个来源",
+    "toolSuccess": "完成",
+    "toolFailed": "失败",
+    "toolRunning": "执行中...",
+    "optimizingTools": "已优化工具选择：{total} 个工具中筛选了 {selected} 个",
+    "generating": "正在生成回复...",
+    "addAttachment": "添加附件",
+    "uploadFailed": "文件上传失败",
+    "file": "文件"
+  },
+  "data": {
+    "rowCount": "共 {count} 行",
+    "queryTime": "耗时 {ms}ms",
+    "tableView": "表格",
+    "chartView": "图表",
+    "sqlView": "SQL",
+    "noChartData": "数据不足，无法生成图表"
+  },
+  "executionDecision": {
+    "title": "执行决策",
+    "name": "执行决策",
+    "pageDesc": "查看企业 AI 对话中的授权与确认决策记录。",
+    "detailTitle": "执行决策详情",
+    "id": "ID",
+    "createdAt": "创建时间",
+    "decisionType": "决策类型",
+    "status": "状态",
+    "subjectType": "主体类型",
+    "decisionScope": "决策范围",
+    "toolName": "工具名称",
+    "actionName": "动作名称",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "风险等级",
+    "conversationId": "对话",
+    "operatorId": "操作者",
+    "autoApproved": "是否自动批准",
+    "correlationKey": "关联键",
+    "reason": "原因",
+    "evidence": "证据",
+    "viewDetail": "查看详情",
+    "noDetailData": "暂无详情数据",
+    "typeOptions": {
+      "consent": "授权",
+      "confirmation": "确认"
+    },
+    "statusOptions": {
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "autoApproved": "自动批准",
+      "pending": "待处理",
+      "expired": "已过期"
+    },
+    "placeholder": {
+      "searchTool": "搜索工具名称",
+      "allTypes": "全部类型",
+      "allStatuses": "全部状态"
+    }
+  },
+  "action": {
+    "confirmTitle": "操作确认",
+    "confirmWarning": "AI 智能体请求执行以下操作，请确认后继续",
+    "name": "操作名称",
+    "description": "操作描述",
+    "level": "安全等级",
+    "params": "操作参数",
+    "countdown": "将在 {seconds} 秒后自动取消",
+    "reject": "拒绝",
+    "confirmExecute": "确认执行"
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "pageDesc": "设置模型调用的速率限制。RPM 限制每分钟请求数，TPM 限制每分钟 Token 数。",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "rpmLimit": "RPM 限制",
+    "tpmLimit": "TPM 限制",
+    "description": "描述",
+    "isActive": "启用状态",
+    "create": "添加速率限制",
+    "confirmDelete": "确认删除此速率限制配置？",
+    "rpmUnit": "次/分钟",
+    "tpmUnit": "Token/分钟",
+    "noLimit": "不限制",
+    "configured": "当前配置",
+    "effective": "生效值",
+    "modelDefault": "模型默认",
+    "inheritance": "留空字段会继承模型默认限速；企业配置优先于模型默认。",
+    "sourceLabel": "生效来源",
+    "source": {
+      "tenant": "企业规则",
+      "model": "模型默认",
+      "none": "未设置"
+    },
+    "helper": {
+      "inherit": "留空的 RPM / TPM 会自动继承模型默认值，页面展示的是最终生效结果。",
+      "disable": "停用速率限制后，当前模型会回退到模型默认限速或不限制。"
+    },
+    "placeholder": {
+      "selectModel": "请选择模型",
+      "inputRpm": "每分钟请求数（留空不限制）",
+      "inputTpm": "每分钟 Token 数（留空不限制）",
+      "inputDescription": "请输入描述"
+    },
+    "messages": {
+      "createSuccess": "速率限制创建成功",
+      "updateSuccess": "速率限制更新成功",
+      "deleteSuccess": "速率限制已删除"
+    }
+  },
+  "skillPackage": {
+    "title": "技能包目录",
+    "pageDesc": "查看当前企业可见的技能包目录。技能包负责归组、来源标识与可读展示；运行时真实授权仍由智能体直接技能授予决定。",
+    "runtimeTruthHint": "此处是只读目录入口。技能包负责来源与归组展示；智能体运行时真正获得能力的是直接 Skill 授予，而不是包级自动绑定。",
+    "system": "系统",
+    "name": "技能包名称",
+    "description": "描述",
+    "isRecommended": "推荐",
+    "skillCount": "技能数",
+    "isActive": "启用状态",
+    "packageRole": "包角色",
+    "sourceSummary": "来源摘要",
+    "runtimeBinding": "运行时授权",
+    "sourcePlugin": "来源插件",
+    "roleOptions": {
+      "platform_system": "平台系统",
+      "platform_catalog": "平台目录",
+      "tenant_owned": "企业自有",
+      "plugin_managed": "插件托管"
+    },
+    "runtimeBindingOptions": {
+      "direct_agent_skill_grant": "直接技能授予"
+    },
+    "sourceSummaryOptions": {
+      "platform_system": "平台系统",
+      "platform_catalog": "平台目录"
+    },
+    "sourceSummaryValue": {
+      "plugin": "插件：{plugin}",
+      "tenant": "企业 #{tenantId}"
+    },
+    "placeholder": {
+      "searchName": "搜索技能包名称"
+    },
+    "detail": {
+      "title": "技能包详情",
+      "overview": "概览",
+      "basicInfo": "基本信息",
+      "skills": "包内技能",
+      "empty": "暂无技能",
+      "noDescription": "暂无描述",
+      "updatedAt": "更新时间",
+      "sourcePlugin": "来源插件",
+      "skillName": "技能名称",
+      "skillType": "技能类型",
+      "skillTimeout": "超时时间",
+      "skillStatus": "启用状态",
+      "skillDescription": "技能描述",
+      "backToList": "返回目录",
+      "tools": "工具定义",
+      "noTools": "暂无工具定义",
+      "toolParams": "参数",
+      "envVars": "环境变量",
+      "configured": "已配置",
+      "runtimeTruthHint": "这个目录页展示的是包的来源、结构和解析结果；运行时真正控制智能体能力的是直接 Skill 授予。"
+    },
+    "valves": {
+      "required": "必填",
+      "title": "环境变量配置"
+    }
+  },
+  "skill": {
+    "title": "技能管理",
+    "pageDesc": "创建和管理技能。技能是智能体的能力单元，可绑定到智能体以扩展其功能。",
+    "system": "系统",
+    "name": "技能名称",
+    "type": "类型",
+    "scope": "作用域",
+    "description": "描述",
+    "config": "配置 (JSON)",
+    "inputSchema": "输入 Schema (JSON)",
+    "timeout": "超时 (秒)",
+    "isActive": "启用状态",
+    "sortOrder": "排序",
+    "createdAt": "创建时间",
+    "create": "添加技能",
+    "testBtn": "测试",
+    "testFailed": "测试请求失败，请稍后重试",
+    "scopeTenant": "企业",
+    "scopeAdmin": "平台",
+    "type_options": {
+      "toolkit": "Toolkit 工具包",
+      "knowledge_base": "知识库",
+      "builtin": "内置",
+      "http": "HTTP 请求",
+      "email": "邮件发送",
+      "code_execution": "代码执行"
+    },
+    "typeDesc": {
+      "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
+      "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
+      "builtin": "内置工具：系统预定义的基础能力，如图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
+      "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {variable} 模板语法；Headers 中可配置认证信息。",
+      "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
+      "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。"
+    },
+    "httpConfig": {
+      "title": "HTTP 请求配置",
+      "url": "请求 URL",
+      "urlPlaceholder": "https://api.example.com/v1/data",
+      "urlHelp": "支持模板变量（如 variable），LLM 会自动填充",
+      "method": "请求方法",
+      "headers": "请求头",
+      "headersPlaceholder": "JSON 格式的请求头",
+      "bodyTemplate": "请求体模板",
+      "bodyTemplatePlaceholder": "JSON 格式的请求体",
+      "bodyTemplateHelp": "使用双花括号变量名作为占位符，LLM 将自动提取为工具参数",
+      "queryParams": "查询参数",
+      "queryParamsPlaceholder": "JSON 格式的查询参数",
+      "authType": "认证方式",
+      "authTypeOptions": {
+        "none": "无认证",
+        "bearer": "Bearer Token",
+        "api_key": "API Key",
+        "basic": "Basic Auth"
+      },
+      "authToken": "Token",
+      "authTokenPlaceholder": "Bearer Token 值",
+      "authKeyName": "Key 名称",
+      "authKeyNamePlaceholder": "如 X-API-Key",
+      "authKeyValue": "Key 值",
+      "authUsername": "用户名",
+      "authPassword": "密码",
+      "responsePath": "响应提取路径",
+      "responsePathPlaceholder": "$.data.result（JSONPath 格式，留空返回全部）",
+      "responsePathHelp": "使用 JSONPath 语法提取响应中的特定字段"
+    },
+    "emailConfig": {
+      "title": "邮件发送配置",
+      "subjectPrefix": "主题前缀",
+      "subjectPrefixPlaceholder": "如 [NovusAI]",
+      "subjectPrefixHelp": "自动添加到每封邮件主题的前缀",
+      "allowedDomains": "允许的收件域名",
+      "allowedDomainsPlaceholder": "如 example.com（逗号分隔，留空不限制）",
+      "allowedDomainsHelp": "限制只能发送到指定域名的邮箱，留空则不限制",
+      "maxRecipients": "最大收件人数",
+      "maxRecipientsHelp": "每封邮件允许的最大收件人数量（含抄送）",
+      "requireConfirmation": "发送前需确认",
+      "requireConfirmationHelp": "启用后，AI 发送邮件前会先让用户确认内容",
+      "allowCc": "允许抄送",
+      "smtpHint": "邮件技能依赖平台 SMTP 配置，请联系管理员确保已配置邮件服务"
+    },
+    "codeExecutionConfig": {
+      "title": "代码执行配置",
+      "language": "编程语言",
+      "languageOptions": {
+        "python": "Python"
+      },
+      "memoryLimitMb": "内存限制 (MB)",
+      "memoryLimitHelp": "代码执行的最大内存使用量",
+      "allowedModules": "允许的模块",
+      "allowedModulesPlaceholder": "逗号分隔，如 math,json,datetime,re",
+      "allowedModulesHelp": "允许代码中 import 的 Python 模块白名单",
+      "sandboxHint": "代码在安全沙箱中执行，禁止文件操作、网络请求和系统调用"
+    },
+    "knowledgeBaseConfig": {
+      "title": "知识库配置",
+      "selectKb": "关联知识库",
+      "selectKbPlaceholder": "请选择要关联的知识库",
+      "selectKbHelp": "选择该技能可访问的知识库，可多选",
+      "ragEnabled": "启用 RAG",
+      "topK": "检索数量 (Top K)",
+      "scoreThreshold": "得分阈值",
+      "searchMode": "检索模式",
+      "rewriteStrategy": "查询改写策略",
+      "rerankerEnabled": "启用重排序",
+      "contextTokenRatio": "上下文 Token 比例",
+      "searchModeOptions": {
+        "vector": "向量检索",
+        "keyword": "关键词检索",
+        "hybrid": "混合检索"
+      },
+      "rewriteOptions": {
+        "none": "不改写",
+        "multi": "多查询改写",
+        "hyde": "假设性文档嵌入"
+      }
+    },
+    "builtinTools": {
+      "title": "内置工具",
+      "hint": "内置工具由系统定义，不可编辑。工具列表显示在下方。",
+      "toolList": "工具列表"
+    },
+    "pluginTools": {
+      "toolList": "插件工具",
+      "managedBy": "此技能由插件「{plugin}」管理，工具定义在插件代码中，不可在此编辑。"
+    },
+    "toolkitEditor": {
+      "title": "Toolkit 编辑器",
+      "sourceCode": "源码",
+      "preview": "解析预览",
+      "tools": "工具方法",
+      "valves": "Valves 配置",
+      "noTools": "未检测到工具方法",
+      "noValves": "未定义 Valves 配置",
+      "parameters": "参数",
+      "required": "必填",
+      "optional": "可选",
+      "async": "异步",
+      "type": "类型",
+      "default": "默认值",
+      "errors": "解析错误",
+      "parsing": "解析中...",
+      "templateBlank": "空白模板",
+      "templateExample": "示例模板",
+      "uploadFile": "上传文件",
+      "properties": "属性",
+      "requiredFields": "必填字段",
+      "onlyPyFiles": "仅支持 .py 文件",
+      "networkError": "网络请求失败"
+    },
+    "placeholder": {
+      "searchName": "搜索技能名称",
+      "allTypes": "全部类型",
+      "inputName": "请输入技能名称",
+      "selectType": "请选择技能类型",
+      "inputDescription": "请输入技能描述",
+      "inputTimeout": "超时秒数 (1-300)",
+      "inputConfig": "技能配置，JSON 格式",
+      "inputSchema": "JSON Schema 格式"
+    },
+    "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
+    "help": {
+      "type": "Toolkit: 自定义 Python 工具；知识库: RAG 文档问答；内置: 系统预定义工具",
+      "config": "技能运行时的配置信息。不同类型有不同的配置结构",
+      "inputSchema": "定义技能接收的参数结构（OpenAI Function Calling 格式）",
+      "timeout": "技能执行的最大等待时间，超时后自动终止"
+    },
+    "messages": {
+      "testSuccess": "测试通过",
+      "testFailed": "测试请求失败，请稍后重试",
+      "createSuccess": "技能创建成功",
+      "updateSuccess": "技能更新成功",
+      "deleteSuccess": "技能已删除"
+    }
+  }
+}

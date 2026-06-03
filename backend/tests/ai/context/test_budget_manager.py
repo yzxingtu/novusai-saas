@@ -1,0 +1,30 @@
+"""中文: AI 测试模块分类标记。
+
+EN: AI test module classification marker.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
+
+import pytest
+
+from app.ai.context.budget_manager import (
+    get_budget_limit,
+    truncate_to_budget,
+)
+from app.ai.utils.token_estimator import estimate_tokens
+
+
+def test_get_budget_limit_raises_for_unknown_budget_key() -> None:
+    with pytest.raises(KeyError):
+        get_budget_limit("missing-budget")
+
+
+def test_truncate_to_budget_uses_named_budget_limit() -> None:
+    content = " ".join(["context"] * 600)
+
+    trimmed = truncate_to_budget(content, "capability_manifest")
+
+    assert trimmed
+    assert trimmed.endswith("\n...")
+    assert estimate_tokens(trimmed) <= get_budget_limit("capability_manifest")

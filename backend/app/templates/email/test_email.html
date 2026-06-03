@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.test_email.title }}{% endblock %}
+
+{% block header_title %}{{ t.test_email.title }}{% endblock %}
+
+{% block content %}
+<div class="success-box">
+  {{ t.test_email.body }}
+</div>
+<p>{{ t.test_email.detail }}</p>
+{% endblock %}

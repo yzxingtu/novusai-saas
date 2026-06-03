@@ -1,0 +1,192 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 详情页（整页模式）
+ * {{ display_name_en }} Detail Page
+ */
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import { get{{ resource | pascal }}DetailApi } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import { Page } from '@vben/common-ui';
+import { formatDate } from '#/utils/common';
+import { Descriptions, Empty, Image, Spin } from 'ant-design-vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { $t } from '#/locales';
+import { IconifyIcon } from '@vben/icons';
+
+defineOptions({ name: '{{ resource | pascal }}DetailPage' });
+
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set _detail = detail or {} %}
+{% set _detail_groups = _detail.get('groups') or [] %}
+{% set _sel = (model or {}).get('selectable') %}
+{% set _name_field = _detail.get('name_field') or (_sel.get('label') if _sel is mapping else None) or 'name' %}
+{% set _list_path = list_path | default((module | replace('_', '-')) + '/' + (resource | replace('_', '-')) + 's') %}
+{% set _scope_base = '/admin' if (api_scope | default('admin')) == 'admin' else '/tenant' %}
+
+const route = useRoute();
+const router = useRouter();
+const id = computed(() => Number(route.params.id));
+const backPath = '{{ _scope_base }}/{{ _list_path }}';
+
+const loading = ref(false);
+const resource = ref<{{ resource | pascal }}Info | null>(null);
+
+const nameField = '{{ _name_field | camel }}';
+const pageTitle = computed(() =>
+  resource.value
+    ? `${$t('{{ i18n_pre }}.detail')}: ${(resource.value as Record<string, unknown>)[nameField] ?? resource.value.id}`
+    : $t('{{ i18n_pre }}.detail'),
+);
+
+async function loadDetail() {
+  if (!id.value) return;
+  loading.value = true;
+  try {
+    resource.value = await get{{ resource | pascal }}DetailApi(id.value);
+  } catch {
+    resource.value = null;
+    router.replace(backPath);
+  } finally {
+    loading.value = false;
+  }
+}
+
+function goBack() {
+  router.push(backPath);
+}
+
+watch(id, () => {
+  if (id.value) loadDetail();
+}, { immediate: false });
+
+onMounted(() => {
+  loadDetail();
+});
+</script>
+
+<template>
+  <Page auto-content-height>
+    <Spin :spinning="loading">
+      <div v-if="!loading && !resource" class="py-20">
+        <Empty />
+      </div>
+
+      <div v-if="resource" class="flex flex-col gap-4">
+        <!-- Hero Header: 返回按钮 + 标题 -->
+        <div class="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
+          <div class="relative p-6">
+            <div class="flex items-center justify-between">
+              <button
+                class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                @click="goBack"
+              >
+                <IconifyIcon icon="lucide:chevron-left" class="size-4" />
+                {{ "{{ $t('common.back') }}" }}
+              </button>
+            </div>
+            <div class="mt-4">
+              <h1 class="text-xl font-bold text-foreground">{{ "{{ pageTitle }}" }}</h1>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分组 Descriptions -->
+        <div class="rounded-xl border bg-card">
+{% if _detail_groups %}
+{% for grp in _detail_groups %}
+{% set grp_fields = grp.get('fields') or [] %}
+{% set grp_title = grp.get('title_zh') or grp.get('title_en') or ('Group ' + (loop.index | string)) %}
+          <div class="border-border border-b p-5 last:border-b-0">
+            <div class="text-muted-foreground mb-3 text-sm font-medium">{{ grp_title }}</div>
+            <Descriptions v-if="resource" :column="1" bordered size="small" class="mb-0">
+{% for fn in grp_fields %}
+{% set f = fields | selectattr('name', 'equalto', fn) | first %}
+{% if f and not f.get('divider') %}
+{% set ftype = f.type | default('') %}
+              <Descriptions.Item :label="$t('{{ i18n_pre }}.{{ f.name | camel }}')">
+        {% if 'Boolean' in ftype %}
+        <template v-if="resource.{{ f.name | camel }}">{{ "{{ $t('shared.common.enabled') }}" }}</template>
+        <template v-else>{{ "{{ $t('shared.common.disabled') }}" }}</template>
+        {% elif 'DateTime' in ftype or 'Date' in ftype %}
+        {{ "{{ resource." + (f.name | camel) + " ? formatDate(resource." + (f.name | camel) + ") : '-' }}" }}
+        {% elif ('Images' in ftype) or ((f.form | default({})).get('component') == 'ImageUpload' and f.get('multiple')) %}
+        <template v-if="Array.isArray(resource.{{ f.name | camel }}) && resource.{{ f.name | camel }}.length">
+          <Image v-for="(url, i) in resource.{{ f.name | camel }}" :key="i" :src="typeof url === 'string' ? url : (url?.url ?? url)" :preview="true" style="margin-right: 8px; max-height: 80px;" />
+        </template>
+        <span v-else>-</span>
+        {% elif ('ImageUpload' in ftype or 'Image' in ftype) or ('Images' not in ftype and (f.form | default({})).get('component') == 'ImageUpload') %}
+        <Image v-if="resource.{{ f.name | camel }}" :src="typeof resource.{{ f.name | camel }} === 'string' ? resource.{{ f.name | camel }} : (resource.{{ f.name | camel }}?.url ?? '-')" :preview="true" style="max-height: 120px;" />
+        <span v-else>-</span>
+        {% elif ('Files' in ftype) or ((f.form | default({})).get('component') == 'FilePicker' and f.get('multiple')) %}
+        <template v-if="Array.isArray(resource.{{ f.name | camel }}) && resource.{{ f.name | camel }}.length">
+          <a v-for="(fObj, i) in resource.{{ f.name | camel }}" :key="i" :href="typeof fObj === 'string' ? fObj : (fObj?.url ?? fObj)" target="_blank" style="display: block;">{{ "{{ (typeof fObj === 'object' && fObj?.name) || fObj?.url || i + 1 }}" }}</a>
+        </template>
+        <span v-else>-</span>
+        {% elif 'File' in ftype or 'FilePicker' in ftype %}
+        <a v-if="resource.{{ f.name | camel }}" :href="typeof resource.{{ f.name | camel }} === 'string' ? resource.{{ f.name | camel }} : (resource.{{ f.name | camel }}?.url ?? '#')" target="_blank">{{ "{{ (resource." + (f.name | camel) + " && typeof resource." + (f.name | camel) + " === 'object' && resource." + (f.name | camel) + ".name) || (resource." + (f.name | camel) + ") }}" }}</a>
+        <span v-else>-</span>
+        {% else %}
+        {{ "{{ (resource as any)." + (f.name | camel) + " ?? '-' }}" }}
+        {% endif %}
+              </Descriptions.Item>
+{% endif %}
+{% endfor %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set _fk = r.foreign_key | default(r.target | model_to_fk) %}
+{% if _fk in grp_fields %}
+{% set rel_name = (r.name | default(_fk | replace('_id', ''))) | camel + 'Name' %}
+              <Descriptions.Item :label="$t('{{ i18n_pre }}.{{ rel_name }}')">
+                {{ "{{ (resource as any)." + rel_name + " ?? '-' }}" }}
+              </Descriptions.Item>
+{% endif %}
+{% endfor %}
+            </Descriptions>
+          </div>
+{% endfor %}
+{% else %}
+          <div class="p-5">
+            <Descriptions v-if="resource" :column="1" bordered size="small">
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set ftype = f.type | default('') %}
+              <Descriptions.Item :label="$t('{{ i18n_pre }}.{{ f.name | camel }}')">
+        {% if 'Boolean' in ftype %}
+        <template v-if="resource.{{ f.name | camel }}">{{ "{{ $t('shared.common.enabled') }}" }}</template>
+        <template v-else>{{ "{{ $t('shared.common.disabled') }}" }}</template>
+        {% elif 'DateTime' in ftype or 'Date' in ftype %}
+        {{ "{{ resource." + (f.name | camel) + " ? formatDate(resource." + (f.name | camel) + ") : '-' }}" }}
+        {% elif 'Images' in ftype or (f.form | default({})).get('component') == 'ImageUpload' and f.get('multiple') %}
+        <template v-if="Array.isArray(resource.{{ f.name | camel }}) && resource.{{ f.name | camel }}.length">
+          <Image v-for="(url, i) in resource.{{ f.name | camel }}" :key="i" :src="typeof url === 'string' ? url : (url?.url ?? url)" :preview="true" style="margin-right: 8px; max-height: 80px;" />
+        </template>
+        <span v-else>-</span>
+        {% elif 'ImageUpload' in ftype or 'Image' in ftype or ('Images' not in ftype and (f.form | default({})).get('component') == 'ImageUpload') %}
+        <Image v-if="resource.{{ f.name | camel }}" :src="typeof resource.{{ f.name | camel }} === 'string' ? resource.{{ f.name | camel }} : (resource.{{ f.name | camel }}?.url ?? '-')" :preview="true" style="max-height: 120px;" />
+        <span v-else>-</span>
+        {% elif 'Files' in ftype or (f.form | default({})).get('component') == 'FilePicker' and f.get('multiple') %}
+        <template v-if="Array.isArray(resource.{{ f.name | camel }}) && resource.{{ f.name | camel }}.length">
+          <a v-for="(fObj, i) in resource.{{ f.name | camel }}" :key="i" :href="typeof fObj === 'string' ? fObj : (fObj?.url ?? fObj)" target="_blank" style="display: block;">{{ "{{ (typeof fObj === 'object' && fObj?.name) || fObj?.url || i + 1 }}" }}</a>
+        </template>
+        <span v-else>-</span>
+        {% elif 'File' in ftype or 'FilePicker' in ftype %}
+        <a v-if="resource.{{ f.name | camel }}" :href="typeof resource.{{ f.name | camel }} === 'string' ? resource.{{ f.name | camel }} : (resource.{{ f.name | camel }}?.url ?? '#')" target="_blank">{{ "{{ (resource." + (f.name | camel) + " && typeof resource." + (f.name | camel) + " === 'object' && resource." + (f.name | camel) + ".name) || (resource." + (f.name | camel) + ") }}" }}</a>
+        <span v-else>-</span>
+        {% else %}
+        {{ "{{ (resource as any)." + (f.name | camel) + " ?? '-' }}" }}
+        {% endif %}
+              </Descriptions.Item>
+{% endfor %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) | camel + 'Name' %}
+              <Descriptions.Item :label="$t('{{ i18n_pre }}.{{ rel_name }}')">
+                {{ "{{ (resource as any)." + rel_name + " ?? '-' }}" }}
+              </Descriptions.Item>
+{% endfor %}
+            </Descriptions>
+          </div>
+{% endif %}
+        </div>
+      </div>
+    </Spin>
+  </Page>
+</template>

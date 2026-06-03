@@ -1,1 +1,1 @@
-export { default as ApiSelect } from './api-select.vue';
+export { default as ApiSelect } from './ApiSelect.vue';

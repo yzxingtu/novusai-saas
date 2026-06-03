@@ -1,0 +1,50 @@
+# 最简 CRUD 预设 / Simple CRUD Preset
+# 5-6 个基础字段，单端 Admin
+module: system
+resource: category
+display_name: 分类管理
+display_name_en: Category Management
+
+model:
+  base_class: BaseModel
+
+fields:
+  - name: name
+    type: String(100)
+    required: true
+    filterable: true
+    sortable: true
+    comment: 分类名称
+  - name: code
+    type: String(50)
+    required: true
+    unique: true
+    filterable: true
+    comment: 分类编码
+  - name: description
+    type: Text
+    nullable: true
+    comment: 描述
+  - name: is_active
+    type: Boolean
+    default: true
+    filterable: true
+    toggle_api: true
+  - name: sort_order
+    type: Integer
+    default: 0
+    sortable: true
+
+endpoints:
+  - scope: admin
+    data_mode: independent
+    route_prefix: /categories
+    permission:
+      scope: admin_only
+      parent_resource: system_config
+      menu:
+        icon: lucide:folder
+        path: /system/categories
+        component: system/category/index
+        parent: system_mgmt
+        sort_order: 40

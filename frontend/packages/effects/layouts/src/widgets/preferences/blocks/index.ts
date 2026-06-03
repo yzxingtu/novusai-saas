@@ -1,5 +1,6 @@
 export { default as Block } from './block.vue';
 export { default as Animation } from './general/animation.vue';
+
 export { default as General } from './general/general.vue';
 export { default as Breadcrumb } from './layout/breadcrumb.vue';
 export { default as Content } from './layout/content.vue';
@@ -18,3 +19,5 @@ export { default as ColorMode } from './theme/color-mode.vue';
 export { default as FontSize } from './theme/font-size.vue';
 export { default as Radius } from './theme/radius.vue';
 export { default as Theme } from './theme/theme.vue';
+export type { SegmentedItem } from '@vben-core/shadcn-ui';
+export { VbenSegmented } from '@vben-core/shadcn-ui';

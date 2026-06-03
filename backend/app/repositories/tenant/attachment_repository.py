@@ -1,10 +1,11 @@
 """
-附件仓储
+附件仓储 / Attachment Repository
 
-提供附件数据访问能力（租户隔离）
+提供附件数据访问能力（企业隔离）
+Provides attachment data access (tenant-isolated).
 """
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.core.base_repository import TenantRepository
 from app.models.tenant.attachment import Attachment
@@ -12,7 +13,7 @@ from app.models.tenant.attachment import Attachment
 
 class AttachmentRepository(TenantRepository[Attachment]):
     """
-    附件仓储
+    附件仓储 / Attachment repository (tenant-scoped).
     """
 
     model = Attachment
@@ -56,40 +57,53 @@ class AttachmentRepository(TenantRepository[Attachment]):
         },
     }
 
-    async def get_by_hash(self, file_hash: str) -> Attachment | None:
+    async def get_by_hash(
+        self,
+        file_hash: str,
+        driver: str | None = None,
+        visibility: str | None = None,
+    ) -> Attachment | None:
         """
-        根据哈希获取附件
+        根据哈希获取附件 / Get attachment by hash.
+
+        Args:
+            file_hash: 文件哈希
+            driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
+            visibility: 附件可见性，传入时仅匹配同可见性的记录（防止 public/private 误复用）
         """
-        result = await self.db.execute(
-            select(self.model).where(
-                self.model.tenant_id == self.tenant_id,
-                self.model.hash == file_hash,
-                self.model.is_deleted == False,
-            )
+        query = select(self.model).where(
+            self.model.tenant_id == self.tenant_id,
+            self.model.hash == file_hash,
+            self.model.is_deleted.is_(False),
         )
+        if driver is not None:
+            query = query.where(self.model.driver == driver)
+        if visibility is not None:
+            query = query.where(self.model.visibility == visibility)
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def get_by_path(self, path: str) -> Attachment | None:
         """
-        根据存储路径获取附件
+        根据存储路径获取附件 / Get attachment by storage path.
         """
         result = await self.db.execute(
             select(self.model).where(
                 self.model.tenant_id == self.tenant_id,
                 self.model.path == path,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
 
     async def sum_size(self) -> int:
         """
-        统计租户附件总占用大小
+        统计企业附件总占用大小 / Sum tenant attachment total size.
         """
         result = await self.db.execute(
             select(func.coalesce(func.sum(self.model.size), 0)).where(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)

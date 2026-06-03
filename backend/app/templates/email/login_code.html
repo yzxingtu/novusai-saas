@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.login_code.title }}{% endblock %}
+
+{% block header_title %}{{ t.login_code.title }}{% endblock %}
+
+{% block content %}
+<p>{{ t.common.greeting }}{{ " " + user_name if user_name else "" }},</p>
+
+<p>{{ t.login_code.body }}</p>
+
+<div class="btn-center">
+  <span style="display:inline-block;padding:16px 32px;background:#f0f4ff;border:2px solid #6366f1;border-radius:8px;font-size:24px;font-weight:600;letter-spacing:6px;font-family:'SF Mono',Monaco,Consolas,monospace;">{{ code }}</span>
+</div>
+
+<div class="alert-box">
+  {{ t.login_code.expire_notice.format(expire_minutes=expire_minutes) }}
+</div>
+
+<p style="color: #6b7280; font-size: 13px;">
+  {{ t.login_code.ignore_notice }}
+</p>
+{% endblock %}

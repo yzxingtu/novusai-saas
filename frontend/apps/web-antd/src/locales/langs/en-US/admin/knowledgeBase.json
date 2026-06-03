@@ -1,0 +1,138 @@
+{
+  "title": "Knowledge Base Management",
+  "name": "Knowledge Base Name",
+  "pageDesc": "Manage all knowledge bases. Create global, tenant-specific, or admin-only knowledge bases. View documents, chunks, and storage.",
+  "ai": {
+    "entityDescription": "Manage AI knowledge base configuration, documents, and vector indexes.",
+    "structuredSearchDescription": "Search knowledge bases by keyword and optional scope filter.",
+    "paramKeyword": "Search keyword.",
+    "paramScope": "Resource scope filter: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants.",
+    "searchApplied": "Searched: {detail}",
+    "filtersCleared": "Filters cleared",
+    "openCreateForm": "Open the create knowledge base form"
+  },
+  "create": "Create Knowledge Base",
+  "stats": {
+    "totalKnowledgeBases": "Total Knowledge Bases",
+    "totalDocuments": "Total Documents",
+    "totalChunks": "Total Chunks",
+    "totalStorage": "Total Storage"
+  },
+  "field": {
+    "tenantName": "Tenant",
+    "name": "Knowledge Base Name",
+    "description": "Description",
+    "scope": "Scope",
+    "visibility": "Visibility",
+    "tenantId": "Tenant",
+    "tenantIdPlaceholder": "Select tenant",
+    "assignedTenantIds": "Assigned Tenants",
+    "assignedTenantIdsPlaceholder": "Select tenants that can access",
+    "embeddingModel": "Embedding Model",
+    "visionModel": "Vision Model",
+    "visionModelAuto": "Auto (first available Vision model)",
+    "extractImages": "Extract Image Content",
+    "documentCount": "Documents",
+    "totalChunks": "Chunks",
+    "totalSizeBytes": "Storage Size",
+    "status": "Status",
+    "createdAt": "Created At",
+    "chunkSize": "Chunk Size",
+    "chunkOverlap": "Chunk Overlap",
+    "topK": "Top K",
+    "scoreThreshold": "Score Threshold",
+    "searchMode": "Search Mode"
+  },
+  "scope": {
+    "tenant": "Tenant",
+    "global": "Global",
+    "admin": "Admin"
+  },
+  "visibility": {
+    "private": "Admin Only",
+    "all_tenants": "All Tenants",
+    "assigned": "Assigned Tenants"
+  },
+  "searchMode": {
+    "hybrid": "Hybrid",
+    "vector": "Vector",
+    "keyword": "Keyword"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "emptyList": "No knowledge bases yet. Click the button below to create one.",
+  "emptyDocuments": "No documents yet. Upload files to start building the knowledge base.",
+  "emptyChunks": "No chunks found",
+  "noDescription": "No description",
+  "detail": "Knowledge Base Detail",
+  "forceDelete": "Force Delete",
+  "forceDeleteConfirm": "Force delete this knowledge base? This action cannot be undone.",
+  "document": {
+    "title": "Documents",
+    "upload": "Upload Document",
+    "uploadHint": "Supports PDF, DOCX, TXT, MD, CSV, XLSX, PPTX, Images (JPG/PNG/WebP) formats",
+    "delete": "Delete Document",
+    "retry": "Retry",
+    "viewChunks": "View Chunks",
+    "field": {
+      "fileName": "File Name",
+      "fileType": "Type",
+      "fileSize": "Size",
+      "chunkCount": "Chunks",
+      "status": "Status",
+      "createdAt": "Created At"
+    },
+    "status": {
+      "pending": "Pending",
+      "parsing": "Parsing",
+      "chunking": "Chunking",
+      "embedding": "Embedding",
+      "completed": "Completed",
+      "error": "Failed"
+    }
+  },
+  "searchTest": {
+    "title": "Search Test",
+    "placeholder": "Enter query text for retrieval test...",
+    "search": "Search",
+    "noResults": "No results found",
+    "score": "Score",
+    "source": "Source"
+  },
+  "reindex": {
+    "title": "Re-vectorize",
+    "confirm": "This will delete existing chunks and re-process all documents. Continue?",
+    "started": "Re-vectorization started"
+  },
+  "textInput": {
+    "addButton": "Paste Text",
+    "title": "Direct Text Input",
+    "docTitle": "Document Title",
+    "docTitlePlaceholder": "Enter document title",
+    "content": "Text Content",
+    "contentPlaceholder": "Paste or enter text content...",
+    "requiredHint": "Title and content are required"
+  },
+  "qa": {
+    "addButton": "Add Q&A Pair",
+    "title": "Add Q&A Pair",
+    "question": "Question",
+    "questionPlaceholder": "Enter the question",
+    "answer": "Answer",
+    "answerPlaceholder": "Enter the answer",
+    "requiredHint": "Question and answer are required"
+  },
+  "help": {
+    "scope": "Determines usage scope: Tenant = specific tenant only, Global = admin + all tenants, Admin = admin only",
+    "visibility": "Controls visibility of admin knowledge bases to tenants",
+    "embeddingModel": "Model for converting text to vectors. Cannot be changed after creation — rebuild KB to switch",
+    "visionModel": "Multimodal model for extracting chart/figure content from PDFs and images. Leave empty to auto-select the first available Vision model",
+    "extractImages": "When enabled, Vision model will automatically recognize image content in uploaded PDFs and include it in the knowledge base index",
+    "chunkSize": "Target characters per chunk. Larger = more context but lower precision. Recommended: 512~1024",
+    "chunkOverlap": "Overlapping characters between chunks. Prevents semantic truncation. Recommended: 10%~20% of chunk size",
+    "topK": "Number of most relevant chunks returned per retrieval. Higher = more comprehensive but may add noise",
+    "scoreThreshold": "Results below this score are filtered. Higher = stricter, 0 = no filtering. Recommended: 0.3~0.7"
+  }
+}

@@ -1,6 +1,6 @@
 /**
- * vxe-table 内置渲染器
- * 包含：CellImage, CellLink, CellTag, CellSwitch, CellOperation, DragHandle
+ * vxe-table built-in renderers: CellImage, CellLink, CellTag, CellSwitch, CellOperation, DragHandle
+ * vxe-table 内置渲染器：包含 CellImage, CellLink, CellTag, CellSwitch, CellOperation, DragHandle
  */
 import type { Recordable } from '@vben/types';
 
@@ -25,20 +25,20 @@ import { $t } from '#/locales';
 import { checkPermission } from '#/utils/access';
 
 /**
- * 注册所有内置渲染器
+ * Register all built-in renderers / 注册所有内置渲染器
  */
 export function registerRenderers(vxeUI: any) {
-  // 解决热更新时可能会出错的问题
+  // Fix potential HMR errors / 解决热更新时可能会出错的问题
   vxeUI.renderer.forEach((_item: any, key: string) => {
     if (key.startsWith('Cell') || key === 'DragHandle') {
       vxeUI.renderer.delete(key);
     }
   });
 
-  // 拖拽手柄渲染器
+  // Drag handle renderer / 拖拽手柄渲染器
   vxeUI.renderer.add('DragHandle', {
     renderTableDefault() {
-      // 用 div 包裹确保 .drag-handle 类在可点击元素上
+      // Wrap with div to ensure .drag-handle class is on clickable element / 用 div 包裹确保 .drag-handle 类在可点击元素上
       return h(
         'div',
         {
@@ -55,7 +55,7 @@ export function registerRenderers(vxeUI: any) {
     },
   });
 
-  // 图片渲染器
+  // Image renderer / 图片渲染器
   vxeUI.renderer.add('CellImage', {
     renderTableDefault(renderOpts: any, params: any) {
       const { props } = renderOpts;
@@ -64,7 +64,7 @@ export function registerRenderers(vxeUI: any) {
     },
   });
 
-  // 链接渲染器
+  // Link renderer / 链接渲染器
   vxeUI.renderer.add('CellLink', {
     renderTableDefault(renderOpts: any) {
       const { props } = renderOpts;
@@ -76,7 +76,7 @@ export function registerRenderers(vxeUI: any) {
     },
   });
 
-  // Tag 渲染器
+  // Tag renderer / Tag 渲染器
   vxeUI.renderer.add('CellTag', {
     renderTableDefault({ options, props }: any, { column, row }: any) {
       const value = get(row, column.field);
@@ -96,7 +96,7 @@ export function registerRenderers(vxeUI: any) {
     },
   });
 
-  // Switch 渲染器
+  // Switch renderer / Switch 渲染器
   vxeUI.renderer.add('CellSwitch', {
     renderTableDefault({ attrs, props }: any, { column, row }: any) {
       const loadingKey = `__loading_${column.field}`;
@@ -126,7 +126,7 @@ export function registerRenderers(vxeUI: any) {
     },
   });
 
-  // 操作按钮渲染器（带权限控制）
+  // Operation button renderer (with permission control) / 操作按钮渲染器（带权限控制）
   vxeUI.renderer.add('CellOperation', {
     renderTableDefault({ attrs, options }: any, { column, row }: any) {
       let align = 'end';
@@ -145,7 +145,7 @@ export function registerRenderers(vxeUI: any) {
         }
       }
 
-      // 标准 CRUD 操作与权限动作的映射
+      // Standard CRUD operation to permission action mapping / 标准 CRUD 操作与权限动作的映射
       const crudActionMap: Record<string, string> = {
         edit: 'update',
         delete: 'delete',
@@ -154,12 +154,16 @@ export function registerRenderers(vxeUI: any) {
         detail: 'read',
       };
 
-      // 预设操作配置
+      // Preset operation config / 预设操作配置
       const presets: Recordable<Recordable<any>> = {
         delete: {
           danger: true,
           text: $t('common.delete'),
           icon: 'lucide:trash-2',
+        },
+        detail: {
+          text: $t('common.detail'),
+          icon: 'lucide:eye',
         },
         edit: {
           text: $t('common.edit'),
@@ -171,12 +175,12 @@ export function registerRenderers(vxeUI: any) {
         },
       };
 
-      // 获取当前用户的权限码
+      // Get current user's permission codes / 获取当前用户的权限码
       const accessStore = useAccessStore();
       const userCodes = accessStore.accessCodes;
       const resource = attrs?.resource as string | undefined;
 
-      // 计算操作按钮的实际权限码
+      // Calculate actual permission codes for operation buttons / 计算操作按钮的实际权限码
       function getAccessCodes(opt: Recordable<any>): string[] | undefined {
         if (opt.accessCodes) {
           return opt.accessCodes;
@@ -210,18 +214,21 @@ export function registerRenderers(vxeUI: any) {
         .filter((opt: any) => opt.show !== false)
         .filter((opt: any) => checkPermission(getAccessCodes(opt), userCodes));
 
-      // 渲染图标按钮（带 Tooltip）
+      // Render icon button (with Tooltip) / 渲染图标按钮（带 Tooltip）
       function renderIconBtn(opt: Recordable<any>, listen = true) {
+        const isDisabled = !!opt.disabled;
         const iconBtn = h(
           Button,
           {
             type: 'text',
             size: 'small',
             danger: opt.danger,
+            disabled: isDisabled,
             class: 'action-icon-btn',
-            onClick: listen
-              ? () => attrs?.onClick?.({ code: opt.code, row })
-              : undefined,
+            onClick:
+              listen && !isDisabled
+                ? () => attrs?.onClick?.({ code: opt.code, row })
+                : undefined,
           },
           {
             default: () =>
@@ -232,10 +239,15 @@ export function registerRenderers(vxeUI: any) {
           },
         );
 
+        // Disabled buttons do not fire mouse events; wrap so Tooltip still works / 禁用态需包裹以显示提示
+        const trigger = isDisabled
+          ? h('span', { class: 'inline-flex' }, [iconBtn])
+          : iconBtn;
+
         return h(
           Tooltip,
           { title: opt.text, placement: 'top' },
-          { default: () => iconBtn },
+          { default: () => trigger },
         );
       }
 

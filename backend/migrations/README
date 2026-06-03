@@ -1,6 +1,11 @@
-Generic single-database configuration with an async dbapi.
-
 # Alembic 迁移指南
+
+本仓库使用主应用迁移分支加插件迁移分支的组合模式。
+
+- 主应用 revision 位于 `backend/migrations/versions/`
+- 插件 revision 位于 `backend/plugins/*/backend/migrations/versions/`
+- `alembic heads` 同时看到主链 head 与插件 head 属于预期行为
+- 启动流程和 Python API 会把插件 `version_locations` 一并注入，所以日常升级命令应以 `heads` 为准
 
 ## 创建新迁移
 
@@ -9,27 +14,32 @@ cd backend
 alembic revision --autogenerate -m "描述你的更改"
 ```
 
+创建后请立即人工清理 autogenerate 噪音，并核对 `.cursor/rules/alembic-migration-authoring.md`。
+
 ## 运行迁移
 
 ```bash
-# 升级到最新版本
-alembic upgrade head
+# 升级到所有当前 head（主链 + 已纳入 version_locations 的插件分支）
+alembic upgrade heads
 
-# 升级到指定版本
+# 升级到指定 revision
 alembic upgrade <revision>
 
 # 回滚一个版本
 alembic downgrade -1
 
-# 回滚到指定版本
+# 回滚到指定 revision
 alembic downgrade <revision>
 ```
 
-## 查看迁移历史
+## 查看迁移状态
 
 ```bash
-# 查看当前版本
+# 查看当前版本盖章
 alembic current
+
+# 查看全部 head
+alembic heads
 
 # 查看迁移历史
 alembic history
@@ -37,6 +47,7 @@ alembic history
 
 ## 注意事项
 
-1. 自动迁移功能已集成到应用启动流程中
-2. 每次启动时会自动运行 `alembic upgrade head`
-3. 新增模型后需要手动生成迁移文件
+1. 自动迁移功能已集成到应用启动流程中，默认执行 `alembic upgrade heads`
+2. 插件迁移目录属于正式 migration graph 输入，不要把多 head 误判为坏图
+3. `backend/migrations/versions/` 与插件 `versions/` 目录应只保留真实 revision 脚本，不放 `__init__.py`、占位 `.gitkeep` 等杂项
+4. 新增模型后需要手动生成迁移文件，并在空库上验证 `upgrade heads` 可一次通过

@@ -1,5 +1,11 @@
 /**
+ * HTTP request module
  * HTTP 请求模块
+ *
+ * Unified export of request client, interceptors, error codes, etc.
+ * External modules only need to import from here.
+ * 统一导出请求客户端、拦截器、错误码等。
+ * 外部模块只需从此导入。
  *
  * @module utils/request
  *
@@ -19,18 +25,32 @@
  *
  * // 文件上传
  * await requestClient.upload('/api/upload', { file }, {}, (progress) => {
- *   console.log(`上传进度: ${progress.percent}%`);
+ *   // 上传进度: ${progress.percent}%
  * });
  *
  * // SSE 流式请求
  * await requestClient.postSSE('/api/chat', { message }, {
- *   onMessage: (msg) => console.log(msg),
- *   onEnd: () => console.log('结束'),
+ *   onMessage: (msg) => {},
+ *   onEnd: () => {},
  * });
  * ```
  */
 
-// 错误码导出
+export { isDevErrorMode } from './app-env';
+
+export {
+  formatAppErrorMessage,
+  isAppErrorInfo,
+  normalizeHttpError,
+  normalizeSseEventError,
+  normalizeSseTransportError,
+  toErrorWithAppError,
+} from './app-error';
+
+export type { AppErrorInfo, AppErrorSource } from './app-error';
+
+export { getEndpointByUrl } from './endpoint';
+// Error codes / 错误码导出
 export {
   AUTH_ERROR_CODES,
   ErrorCode,
@@ -38,11 +58,9 @@ export {
   isClientError,
   isServerError,
 } from './error-codes';
-
-// 请求实例导出
+// 请求实例导出 / export configured request clients
 export { baseRequestClient, requestClient } from './instance';
-
-// 拦截器导出
+// Interceptor creation functions / 拦截器创建函数导出
 export {
   createAuthInterceptor,
   createBusinessErrorInterceptor,
@@ -50,16 +68,14 @@ export {
   createRequestInterceptor,
   createResponseDataInterceptor,
   createSuccessMessageInterceptor,
-  getEndpointByPath,
-  getEndpointByUrl,
 } from './interceptors';
 
 export type { AuthHandler, MessageHandler, TokenGetter } from './interceptors';
 
-// 请求客户端导出
+// Request client instances / 请求客户端实例导出
 export { RequestClient } from './request-client';
 
-// 类型导出
+// Types / 类型导出
 export type {
   ApiEndpoint,
   ApiRequestOptions,

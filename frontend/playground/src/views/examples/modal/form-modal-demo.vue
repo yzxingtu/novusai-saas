@@ -54,7 +54,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onConfirm: async () => {
     await formApi.validateAndSubmitForm();
-    // modalApi.close();
+    // modalApi.close(); / 演示可在此关闭 / demo: close here if needed
   },
   onOpenChange(isOpen: boolean) {
     if (isOpen) {

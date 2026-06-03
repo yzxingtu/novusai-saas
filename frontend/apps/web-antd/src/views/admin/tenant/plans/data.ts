@@ -1,4 +1,5 @@
 /**
+ * Plan management - table columns & form config
  * 套餐管理 - 表格列和表单配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -18,13 +19,14 @@ import {
 } from '#/adapter/form';
 import { checkboxColumn, dragColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 
-// ... (保留类型定义和辅助函数)
+// ... (keep type definitions and helper functions) / (保留类型定义和辅助函数)
 
-// ... (保留 useColumns)
+// ... (keep useColumns) / (保留 useColumns)
 
 /**
- * 获取计费周期选项
+ * Get billing cycle options / 获取计费周期选项
  */
 export function getBillingCycleOptions(): {
   label: string;
@@ -51,11 +53,15 @@ export function getBillingCycleOptions(): {
       label: $t('admin.tenant.plan.billingCycleOptions.one_time'),
       value: 'one_time',
     },
+    {
+      label: $t('admin.tenant.plan.billingCycleOptions.custom'),
+      value: 'custom',
+    },
   ];
 }
 
 /**
- * 获取计费周期显示文本
+ * Get billing cycle display text / 获取计费周期显示文本
  */
 export function getBillingCycleText(cycle: adminApi.BillingCycle): string {
   const key = `admin.tenant.plan.billingCycleOptions.${cycle}`;
@@ -63,7 +69,7 @@ export function getBillingCycleText(cycle: adminApi.BillingCycle): string {
 }
 
 /**
- * 格式化价格显示
+ * Format price display / 格式化价格显示
  */
 export function formatPrice(
   price?: null | number | string,
@@ -81,16 +87,20 @@ export function formatPrice(
 }
 
 /**
- * 表格列定义
+ * Table column definitions / 表格列定义
  */
 export function useColumns<T = adminApi.TenantPlanInfo>(
   onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
+  const { hasAccessByCodes } = useAccess();
+  const canToggleStatus =
+    !!onStatusChange && hasAccessByCodes(['tenant_plan:update']);
+
   return [
-    // 复选框列
+    // Checkbox column / 复选框列
     checkboxColumn,
-    // 拖拽排序列
+    // Drag sort column / 拖拽排序列
     dragColumn,
     {
       field: 'name',
@@ -104,6 +114,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
       field: 'code',
       title: $t('admin.tenant.plan.code'),
       minWidth: 140,
+      align: 'center',
       slots: {
         default: 'code_cell',
       },
@@ -111,10 +122,28 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
     {
       field: 'price',
       title: $t('admin.tenant.plan.price'),
-      width: 160,
+      width: 140,
       align: 'center',
       slots: {
         default: 'price_cell',
+      },
+    },
+    {
+      field: 'quota',
+      title: $t('admin.tenant.plan.quota'),
+      minWidth: 180,
+      align: 'center',
+      slots: {
+        default: 'quota_cell',
+      },
+    },
+    {
+      field: 'features',
+      title: $t('admin.tenant.plan.features'),
+      minWidth: 180,
+      align: 'center',
+      slots: {
+        default: 'features_cell',
       },
     },
     {
@@ -129,11 +158,11 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
     {
       cellRender: {
         attrs: {
-          beforeChange: onStatusChange,
+          beforeChange: canToggleStatus ? onStatusChange : undefined,
           checkedValue: true,
           unCheckedValue: false,
         },
-        name: onStatusChange ? 'CellSwitch' : 'CellTag',
+        name: canToggleStatus ? 'CellSwitch' : 'CellTag',
         options: [
           { color: 'success', label: $t('admin.common.enabled'), value: true },
           { color: 'error', label: $t('admin.common.disabled'), value: false },
@@ -148,6 +177,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
       field: 'createdAt',
       title: $t('admin.common.createdAt'),
       width: 130,
+      align: 'center',
       slots: {
         default: 'createdAt_cell',
       },
@@ -182,7 +212,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
 }
 
 /**
- * 搜索表单 Schema
+ * Search form Schema / 搜索表单 Schema
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
@@ -201,11 +231,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
 }
 
 /**
- * 新建/编辑表单 Schema
+ * Create/edit form Schema / 新建/编辑表单 Schema
  */
 export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // 基本信息
+    // Basic info / 基本信息
     inputField('name', $t('admin.tenant.plan.name'), {
       required: true,
       maxLength: 100,
@@ -234,7 +264,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       defaultValue: true,
     }),
 
-    // 配额设置
+    // Quota settings / 配额设置
     dividerField('_quota_divider', $t('admin.tenant.plan.quota')),
     numberField(
       'quota.storage_limit_gb',
@@ -281,7 +311,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       },
     ),
 
-    // 特性标记
+    // Feature flags / 特性标记
     dividerField('_features_divider', $t('admin.tenant.plan.features')),
     switchField('features.ai_enabled', $t('admin.tenant.plan.aiEnabled')),
     switchField(
@@ -293,11 +323,18 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       'features.priority_support',
       $t('admin.tenant.plan.prioritySupport'),
     ),
+    switchField(
+      'features.storage_billing_enabled',
+      $t('admin.tenant.plan.storageBillingEnabled'),
+      {
+        help: $t('admin.tenant.plan.storageBillingHelp'),
+      },
+    ),
   ];
 }
 
 /**
- * 表单默认值
+ * Form default values / 表单默认值
  */
 export function getFormDefaults(): Record<string, any> {
   return {
@@ -312,6 +349,7 @@ export function getFormDefaults(): Record<string, any> {
       advanced_analytics: false,
       white_label: false,
       priority_support: false,
+      storage_billing_enabled: false,
     },
   };
 }

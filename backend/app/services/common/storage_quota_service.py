@@ -1,12 +1,13 @@
 """
-存储配额服务
+存储配额服务 / Storage Quota Service
 
-提供租户存储配额的统一计算逻辑，供平台端和租户端共用
+提供企业存储配额的统一计算逻辑，供平台端和企业端共用
+Provides unified tenant storage quota calculation logic, shared by platform and tenant endpoints.
 """
 
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,112 +17,122 @@ from app.models.tenant.tenant import Tenant
 
 class StorageQuotaService:
     """
-    存储配额服务
-    
+    存储配额服务 / Storage quota service.
+
     提供存储配额查询和检查的统一实现
     """
-    
+
     def __init__(self, db: AsyncSession):
         """
-        初始化服务
-        
+        初始化服务 / Initialize service.
+
         Args:
             db: 异步数据库会话
         """
         self.db = db
-    
+
     async def get_tenant_storage_stats(self, tenant_id: int) -> dict[str, Any]:
         """
-        获取单个租户的存储统计信息
-        
+        获取单个企业的存储统计信息 / Get tenant storage statistics.
+
         Args:
-            tenant_id: 租户 ID
-        
+            tenant_id: 企业 ID
+
         Returns:
             存储统计信息
         """
-        # 查询附件统计
+        # 查询附件统计 / Query attachment stats
         result = await self.db.execute(
             select(
                 func.coalesce(func.sum(Attachment.size), 0).label("used_bytes"),
                 func.count(Attachment.id).label("file_count"),
             ).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         row = result.one()
         used_bytes = int(row.used_bytes)
         file_count = int(row.file_count)
-        
-        # 获取租户配额限制
+
+        # 获取企业配额限制 / Fetch tenant quota limit
         tenant = await self._get_tenant_with_plan(tenant_id)
+        plan_available = self._tenant_has_active_plan(tenant)
         limit_gb = 0
         max_file_size_mb = 0
-        if tenant:
+        if plan_available and tenant:
             limit_gb = tenant.get_quota_value("storage_limit_gb", 0)
             max_file_size_mb = tenant.get_quota_value("max_file_size_mb", 0)
-        
+
         return self._build_stats_response(
             used_bytes=used_bytes,
             file_count=file_count,
             limit_gb=limit_gb,
             max_file_size_mb=max_file_size_mb,
+            plan_available=plan_available,
         )
-    
+
     async def get_tenant_storage_stats_batch(
         self, tenant_ids: list[int]
     ) -> dict[int, dict[str, Any]]:
         """
-        批量获取租户存储统计信息
-        
+        批量获取企业存储统计信息 / Batch get tenant storage statistics.
+
         Args:
-            tenant_ids: 租户 ID 列表
-        
+            tenant_ids: 企业 ID 列表
+
         Returns:
-            租户 ID 到存储统计的映射
+            企业 ID 到存储统计的映射
         """
         if not tenant_ids:
             return {}
-        
-        # 批量查询附件统计
+
+        # 批量查询附件统计 / Batch query attachment stats
         result = await self.db.execute(
             select(
                 Attachment.tenant_id,
                 func.coalesce(func.sum(Attachment.size), 0).label("used_bytes"),
                 func.count(Attachment.id).label("file_count"),
-            ).where(
+            )
+            .where(
                 Attachment.tenant_id.in_(tenant_ids),
-                Attachment.is_deleted == False,
-            ).group_by(Attachment.tenant_id)
+                Attachment.is_deleted.is_(False),
+            )
+            .group_by(Attachment.tenant_id)
         )
         rows = result.all()
-        
-        # 构建统计映射
+
+        # 构建统计映射 / Build stats map
         stats_map: dict[int, dict[str, int]] = {}
         for row in rows:
             stats_map[row.tenant_id] = {
                 "used_bytes": int(row.used_bytes),
                 "file_count": int(row.file_count),
             }
-        
-        # 批量获取租户配额信息
+
+        # 批量获取企业配额信息 / Batch fetch tenant quota info
         tenants = await self._get_tenants_with_plan(tenant_ids)
-        
+
         result_map: dict[int, dict[str, Any]] = {}
         for tenant in tenants:
             stats = stats_map.get(tenant.id, {"used_bytes": 0, "file_count": 0})
-            limit_gb = tenant.get_quota_value("storage_limit_gb", 0)
-            max_file_size_mb = tenant.get_quota_value("max_file_size_mb", 0)
-            
+            plan_available = self._tenant_has_active_plan(tenant)
+            limit_gb = (
+                tenant.get_quota_value("storage_limit_gb", 0) if plan_available else 0
+            )
+            max_file_size_mb = (
+                tenant.get_quota_value("max_file_size_mb", 0) if plan_available else 0
+            )
+
             result_map[tenant.id] = self._build_stats_response(
                 used_bytes=stats["used_bytes"],
                 file_count=stats["file_count"],
                 limit_gb=limit_gb,
                 max_file_size_mb=max_file_size_mb,
+                plan_available=plan_available,
             )
-        
-        # 确保所有请求的租户都有统计数据（默认值）
+
+        # 确保所有请求的企业都有统计数据（默认值） / Ensure every requested tenant has stats (defaults)
         for tid in tenant_ids:
             if tid not in result_map:
                 result_map[tid] = self._build_stats_response(
@@ -129,110 +140,134 @@ class StorageQuotaService:
                     file_count=0,
                     limit_gb=0,
                     max_file_size_mb=0,
+                    plan_available=False,
                 )
-        
+
         return result_map
-    
+
     async def get_used_bytes(self, tenant_id: int) -> int:
         """
-        获取租户已使用的存储空间
-        
+        获取企业已使用的存储空间 / Get tenant used storage bytes.
+
         Args:
-            tenant_id: 租户 ID
-        
+            tenant_id: 企业 ID
+
         Returns:
             已使用字节数
         """
         result = await self.db.execute(
             select(func.coalesce(func.sum(Attachment.size), 0)).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)
-    
+
     async def get_file_count(self, tenant_id: int) -> int:
         """
-        获取租户附件总数
-        
+        获取企业附件总数 / Get tenant attachment count.
+
         Args:
-            tenant_id: 租户 ID
-        
+            tenant_id: 企业 ID
+
         Returns:
             附件数量
         """
         result = await self.db.execute(
             select(func.count(Attachment.id)).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)
-    
+
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取租户信息（含套餐关联）
-        
+        获取企业信息（含套餐关联）/ Get tenant with plan.
+
         Args:
-            tenant_id: 租户 ID
-        
+            tenant_id: 企业 ID
+
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         result = await self.db.execute(
             select(Tenant)
             .options(selectinload(Tenant.tenant_plan))
             .where(
                 Tenant.id == tenant_id,
-                Tenant.is_deleted == False,
+                Tenant.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
-    
+
     async def _get_tenants_with_plan(self, tenant_ids: list[int]) -> list[Tenant]:
         """
-        批量获取租户信息（含套餐关联）
-        
+        批量获取企业信息（含套餐关联）/ Batch get tenants with plan.
+
         Args:
-            tenant_ids: 租户 ID 列表
-        
+            tenant_ids: 企业 ID 列表
+
         Returns:
-            租户列表
+            企业列表
         """
         result = await self.db.execute(
             select(Tenant)
             .options(selectinload(Tenant.tenant_plan))
             .where(
                 Tenant.id.in_(tenant_ids),
-                Tenant.is_deleted == False,
+                Tenant.is_deleted.is_(False),
             )
         )
         return list(result.scalars().all())
-    
+
+    @staticmethod
+    def _tenant_has_active_plan(tenant: Tenant | None) -> bool:
+        """检查企业是否拥有有效套餐 / Check whether tenant has an active plan."""
+        if tenant is None:
+            return False
+        has_active_plan = getattr(tenant, "has_active_plan", None)
+        if isinstance(has_active_plan, bool):
+            return has_active_plan
+        if not bool(getattr(tenant, "is_active", True)):
+            return False
+        if bool(getattr(tenant, "is_deleted", False)):
+            return False
+        plan = getattr(tenant, "tenant_plan", None)
+        return (
+            getattr(tenant, "plan_id", None) is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
+        )
+
     def _build_stats_response(
         self,
         used_bytes: int,
         file_count: int,
         limit_gb: int,
         max_file_size_mb: int = 0,
+        plan_available: bool = True,
     ) -> dict[str, Any]:
         """
-        构建统计响应数据
-        
+        构建统计响应数据 / Build stats response.
+
         Args:
             used_bytes: 已使用字节数
             file_count: 文件数量
             limit_gb: 限制（GB）
             max_file_size_mb: 单文件大小限制（MB）
-        
+            plan_available: 套餐是否可用
+
         Returns:
             统计响应字典
         """
         limit_bytes = limit_gb * 1024 * 1024 * 1024 if limit_gb > 0 else 0
-        unlimited = limit_gb == 0
-        usage_percent = round(used_bytes / limit_bytes * 100, 2) if limit_bytes > 0 else 0.0
+        unlimited = plan_available and limit_gb == 0
+        usage_percent = (
+            round(used_bytes / limit_bytes * 100, 2) if limit_bytes > 0 else 0.0
+        )
         remaining_bytes = max(0, limit_bytes - used_bytes) if limit_bytes > 0 else 0
-        
+
         return {
             "used_bytes": used_bytes,
             "limit_bytes": limit_bytes,
@@ -241,6 +276,7 @@ class StorageQuotaService:
             "usage_percent": usage_percent,
             "file_count": file_count,
             "max_file_size_mb": max_file_size_mb,
+            "plan_available": plan_available,
             "unlimited": unlimited,
         }
 

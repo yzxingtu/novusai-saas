@@ -1,25 +1,299 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+/**
+ * User Auth Layout — 暖彩花园风 / Warm Garden Style
+ *
+ * 暖米色底 + 3 个暖色块漂浮 + 白卡片顶部彩条
+ * Warm beige + 3 warm blobs + white card with top gradient accent
+ */
+import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 
-import { AuthPageLayout } from '@vben/layouts';
-import { preferences } from '@vben/preferences';
+import { IconifyIcon } from '@vben/icons';
+import { LanguageToggle, ThemeToggle } from '@vben/layouts';
+import { preferences, usePreferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
+import { usePublicConfigStore } from '#/store';
+import { resolveCopyrightDisplay } from '#/utils/public-branding';
 
-const appName = computed(() => preferences.app.name);
-const logo = computed(() => preferences.logo.source);
-const logoDark = computed(() => preferences.logo.sourceDark);
+const publicConfigStore = usePublicConfigStore();
+const { isDark } = usePreferences();
+const route = useRoute();
+
+/** 隐私政策 / 服务条款等法律文档页：加宽容器 + 顶栏，不复用窄登录表单卡片 */
+const isLegalDocumentPage = computed(
+  () => route.meta.authDocumentPage === true,
+);
+
+onMounted(async () => {
+  await publicConfigStore.detectDomainType().catch(() => {});
+  if (publicConfigStore.isDomainTenantDomain) {
+    await publicConfigStore.loadTenantConfig();
+    return;
+  }
+  await publicConfigStore.loadPlatformConfig();
+});
+
+const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
+
+const siteLogo = computed(() => {
+  if (isTenantDomain.value) {
+    return publicConfigStore.tenantBrand?.logo || preferences.logo.source || '';
+  }
+  return preferences.logo.source || '';
+});
+
+const siteName = computed(() => {
+  if (isTenantDomain.value) {
+    return (
+      publicConfigStore.tenantBrand?.siteName ||
+      preferences.app.name ||
+      'NovusAI'
+    );
+  }
+  return preferences.app.name || 'NovusAI';
+});
+
+const footerBranding = computed(() =>
+  resolveCopyrightDisplay(preferences.copyright),
+);
 </script>
 
 <template>
-  <AuthPageLayout
-    :app-name="appName"
-    :logo="logo"
-    :logo-dark="logoDark"
-    :page-description="$t('authentication.pageDesc')"
-    :page-title="$t('authentication.pageTitle')"
+  <div
+    :class="[
+      isDark ? 'dark' : '',
+      isLegalDocumentPage
+        ? 'items-start justify-center py-6 sm:py-10'
+        : 'items-center justify-center py-8',
+    ]"
+    class="user-auth-root relative flex min-h-screen overflow-y-auto px-4"
   >
-    <!-- 自定义工具栏 -->
-    <!-- <template #toolbar></template> -->
-  </AuthPageLayout>
+    <!-- Toolbar -->
+    <div
+      class="absolute right-4 top-4 z-20 flex items-center gap-1 rounded-full bg-accent/80 px-2 py-1 backdrop-blur"
+    >
+      <LanguageToggle v-if="preferences.widget.languageToggle" />
+      <ThemeToggle v-if="preferences.widget.themeToggle" />
+    </div>
+
+    <!-- 3 warm blobs / 3 个大暖色块 -->
+    <div class="user-blob user-blob-1 pointer-events-none fixed"></div>
+    <div class="user-blob user-blob-2 pointer-events-none fixed"></div>
+    <div class="user-blob user-blob-3 pointer-events-none fixed"></div>
+
+    <!-- Card with top accent bar / 带顶部彩条的卡片 -->
+    <div
+      class="user-auth-card relative z-10 flex min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)]"
+      :class="[
+        isLegalDocumentPage
+          ? 'legal-doc-shell max-w-[min(100%,52rem)] px-5 pb-10 pt-5 sm:px-8 sm:pb-12 sm:pt-6 lg:max-w-[56rem]'
+          : 'max-w-[420px] px-8 py-10 sm:px-10',
+      ]"
+    >
+      <!-- Top gradient accent / 顶部 4px 彩条 -->
+      <div
+        class="user-card-accent absolute left-0 right-0 top-0 h-1 shrink-0"
+      ></div>
+
+      <!-- Branding：登录等窄表单 / 法律页顶栏 -->
+      <div v-if="!isLegalDocumentPage" class="mb-8 flex flex-col items-center">
+        <img
+          v-if="siteLogo"
+          :src="siteLogo"
+          :alt="siteName"
+          class="mb-3 size-12 rounded-xl object-contain"
+        />
+        <div
+          v-else
+          class="mb-3 flex size-12 items-center justify-center rounded-xl bg-primary/10"
+        >
+          <IconifyIcon icon="lucide:zap" class="size-6 text-primary" />
+        </div>
+        <span class="text-lg font-bold text-foreground">{{ siteName }}</span>
+      </div>
+
+      <header
+        v-else
+        class="legal-doc-header mb-6 flex shrink-0 items-center gap-3 border-b border-black/[0.06] pb-4 dark:border-border"
+      >
+        <img
+          v-if="siteLogo"
+          :src="siteLogo"
+          :alt="siteName"
+          class="size-10 shrink-0 rounded-lg object-contain"
+        />
+        <div
+          v-else
+          class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+        >
+          <IconifyIcon icon="lucide:scale" class="size-5 text-primary" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-base font-semibold text-foreground">
+            {{ siteName }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('user.auth.legalDocumentSubtitle') }}
+          </div>
+        </div>
+      </header>
+
+      <!-- Page content -->
+      <div
+        :class="isLegalDocumentPage ? 'min-h-0 flex-1' : ''"
+        class="flex flex-col"
+      >
+        <RouterView />
+      </div>
+    </div>
+
+    <!-- Copyright -->
+    <div
+      v-if="footerBranding.visible"
+      class="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground"
+    >
+      {{ footerBranding.companyName }}
+      <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.user-auth-root {
+  background-color: #fff8f0;
+}
+
+.dark .user-auth-root {
+  background-color: hsl(var(--background));
+}
+
+.user-blob {
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.user-blob-1 {
+  top: -10%;
+  right: 10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(
+    circle,
+    rgb(251 146 60 / 25%) 0%,
+    transparent 70%
+  );
+  animation: float-a 16s ease-in-out infinite;
+}
+
+.dark .user-blob-1 {
+  background: radial-gradient(
+    circle,
+    rgb(251 146 60 / 12%) 0%,
+    transparent 70%
+  );
+}
+
+.user-blob-2 {
+  top: 20%;
+  left: -5%;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(
+    circle,
+    rgb(167 139 250 / 20%) 0%,
+    transparent 70%
+  );
+  animation: float-b 20s ease-in-out infinite;
+}
+
+.dark .user-blob-2 {
+  background: radial-gradient(
+    circle,
+    rgb(167 139 250 / 10%) 0%,
+    transparent 70%
+  );
+}
+
+.user-blob-3 {
+  right: 30%;
+  bottom: -5%;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(
+    circle,
+    rgb(251 191 36 / 15%) 0%,
+    transparent 70%
+  );
+  animation: float-c 14s ease-in-out infinite;
+}
+
+.dark .user-blob-3 {
+  background: radial-gradient(circle, rgb(251 191 36 / 8%) 0%, transparent 70%);
+}
+
+@keyframes float-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(40px, -50px) scale(1.08);
+  }
+}
+
+@keyframes float-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(-60px, 30px) scale(1.05);
+  }
+}
+
+@keyframes float-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(30px, -40px) scale(1.06);
+  }
+}
+
+.user-card-accent {
+  background: linear-gradient(90deg, #f97316, #ec4899, #8b5cf6);
+}
+
+.dark .user-card-accent {
+  opacity: 0.9;
+}
+
+.user-auth-card {
+  animation: card-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.dark .user-auth-card {
+  background: hsl(var(--card) / 95%);
+  border-color: hsl(var(--border) / 50%);
+  box-shadow:
+    0 20px 60px rgb(0 0 0 / 15%),
+    0 1px 3px rgb(0 0 0 / 8%);
+}
+
+@keyframes card-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+</style>

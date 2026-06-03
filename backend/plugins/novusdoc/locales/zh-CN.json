@@ -1,0 +1,137 @@
+{
+  "plugin": {
+    "novusdoc": {
+      "name": "文档管理",
+      "description": "轻量文档管理，支持文件夹、标签、搜索和导出",
+      "doc": {
+        "title": "标题",
+        "untitled": "无标题文档",
+        "newDoc": "新建文档",
+        "editDoc": "编辑文档",
+        "deleteDoc": "删除文档",
+        "deleteConfirm": "确定删除此文档？",
+        "saved": "已保存",
+        "saving": "保存中...",
+        "autoSave": "自动保存",
+        "wordCount": "字数",
+        "export": "导出",
+        "exportHTML": "导出 HTML",
+        "exportMarkdown": "导出 Markdown",
+        "exportPDF": "导出 PDF"
+      },
+      "ai": {
+        "menuTitle": "AI 写作",
+        "menuHint": "选择文字或将光标放在插入点后可使用 AI 写作。",
+        "continue": "续写",
+        "insert": "新增内容",
+        "rewrite": "改写",
+        "optimize": "优化表达",
+        "format": "增加格式",
+        "expand": "扩写",
+        "proofread": "校对",
+        "summarize": "摘要",
+        "translate": "翻译",
+        "custom": "自定义提示词…",
+        "more": "更多 AI 内容",
+        "agentInactive": "文档写作助手已停用，请到「功能分配」启用 system.ai_writing。",
+        "requiresSelection": "请先选中需要处理的文字",
+        "agentUnavailable": "已绑定的文档写作助手不可用，请检查 system.ai_writing 对应智能体的发布状态。",
+        "close": "关闭",
+        "connecting": "正在连接文档写作助手…",
+        "copy": "复制",
+        "copied": "已复制 AI 结果。",
+        "copyFailed": "复制失败，请手动复制。",
+        "customPromptPlaceholder": "请输入自定义提示词。",
+        "discard": "丢弃",
+        "apply": "应用",
+        "applyMode": {
+          "insert": "将插入到光标处",
+          "insertAfterSelection": "将插入到选区后",
+          "replace": "将替换原选区"
+        },
+        "processing": "AI 正在处理...",
+        "cancel": "取消",
+        "applying": "正在应用 AI 结果...",
+        "applied": "AI 结果已应用并将自动保存",
+        "emptyResult": "AI 未返回可应用内容",
+        "emptyCustomPrompt": "请输入自定义提示词。",
+        "instructions": {
+          "base": "请只基于以下显式富文本选区与上下文处理内容。",
+          "custom": "请按自定义提示词处理当前选区或光标上下文。",
+          "format": "请将选区整理成更清晰的标题、列表、引用或结构化格式。",
+          "insert": "请根据选区和上下文新增一段可插入到选区后的内容。",
+          "more": "请围绕选区提供摘要、扩写、缩短、校对、翻译、生成大纲或调整语气等更多写作建议。"
+        },
+        "languageInstruction": "请使用{language}输出，除非用户在指令中明确指定其他语言。",
+        "languageAuto": "语言跟随原文",
+        "languageOutput": "输出：{language}",
+        "languages": {
+          "english": "英文",
+          "japanese": "日文",
+          "korean": "韩文",
+          "simplifiedChinese": "中文"
+        },
+        "inlineChatComposerPlaceholder": "继续追问、让它改短、列大纲或给替代表达…",
+        "inlineChatContext": "基于当前选区",
+        "inlineChatDefaultPrompt": "请围绕当前选区给出可直接用于写作的建议。",
+        "inlineChatEmptyPrompt": "请输入要继续追问的内容。",
+        "inlineChatInsert": "插入正文",
+        "inlineChatSend": "发送",
+        "inlineChatTitle": "AI 对话",
+        "agentMissing": "未分配 AI 写作智能体，请到 AI 功能分配中绑定 system.ai_writing",
+        "error": "AI 写作失败，请稍后重试",
+        "notEditable": "当前文档不可编辑，无法使用 AI 写作",
+        "noPermission": "当前账号无法使用 AI 写作。",
+        "previewHint": "检查结果后再应用到正文。",
+        "previewLoading": "正在生成 AI 预览…",
+        "previewPlaceholder": "AI 结果会显示在这里，也可以在应用前编辑。",
+        "previewTitle": "AI 预览",
+        "regenerate": "重新生成",
+        "retry": "重试",
+        "selectionDrifted": "正文或选区已变化，请重新选择后再应用。",
+        "sourceUnsupported": "源码模式下暂不支持 AI 写作，请切回所见即所得。",
+        "stop": "停止",
+        "stopped": "已停止生成，可应用或编辑当前结果。",
+        "chatStopped": "已停止回复。",
+        "streamError": "AI 生成失败，请重试。",
+        "unsupported": "当前编辑器版本不支持选区 AI，请刷新页面后重试",
+        "selected": "已选中 {count} 字"
+      },
+      "folder": {
+        "title": "文件夹",
+        "newFolder": "新建文件夹",
+        "allDocs": "所有文档",
+        "rename": "重命名",
+        "delete": "删除文件夹"
+      },
+      "tag": {
+        "title": "标签",
+        "newTag": "新建标签",
+        "manage": "管理标签"
+      },
+      "search": {
+        "placeholder": "搜索文档...",
+        "noResults": "未找到文档"
+      },
+      "status": {
+        "draft": "草稿",
+        "published": "已发布"
+      },
+      "op": {
+        "refresh": "刷新文档列表",
+        "search": "搜索文档",
+        "clearSearch": "清除搜索",
+        "selectFolder": "选择文件夹",
+        "getContent": "获取文档内容",
+        "save": "保存文档",
+        "toggleStatus": "切换发布状态",
+        "updateTitle": "更新标题",
+        "export": "导出文档",
+        "savedSuccess": "文档「{title}」已保存",
+        "statusChangedTo": "状态已切换为 {status}",
+        "titleUpdatedTo": "标题已更新为「{title}」",
+        "exportInitiatedIn": "已发起 {format} 格式导出"
+      }
+    }
+  }
+}

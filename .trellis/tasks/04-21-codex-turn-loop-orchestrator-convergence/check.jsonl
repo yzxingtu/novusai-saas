@@ -1,0 +1,6 @@
+{"file": "backend/tests/ai/engine/test_structured_orchestration_runtime.py", "reason": "Verify unified turn-loop behavior across runtime execution paths"}
+{"file": "backend/tests/ai/engine/test_stream_runtime_contract.py", "reason": "Verify stream runtime contract stays aligned with canonical turn record"}
+{"file": "backend/tests/ai/engine/test_protocol_turn_session.py", "reason": "Verify protocol turn session remains the single owner of turn state"}
+{"file": "backend/tests/services/test_conversation_engine_prepare_execution.py", "reason": "Verify prepare-execution diagnostics still match runtime turn truth after convergence"}
+{"file": "backend/tests/services/test_agent_chat_stream_error.py", "reason": "Verify stream completion/error persistence still works after removing compat probes and forcing the canonical conversation stream contract"}
+{"file": "backend/tests/services/test_agent_chat_service_memory_scene.py", "reason": "Verify non-stream chat still primes memory/trust state correctly after command entrypoints stop importing compat dispatcher/quota/stats re-exports"}

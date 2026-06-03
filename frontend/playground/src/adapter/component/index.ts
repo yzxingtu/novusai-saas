@@ -99,9 +99,9 @@ const withDefaultPlaceholder = <T extends Component>(
         props?.placeholder ||
         attrs?.placeholder ||
         $t(`ui.placeholder.${type}`);
-      // 透传组件暴露的方法
+      // 透传组件暴露的方法 / Forward exposed methods from inner ref
       const innerRef = ref();
-      // const publicApi: Recordable<any> = {};
+      // const publicApi: Recordable<any> = {}; / 旧样例保留
       expose(
         new Proxy(
           {},
@@ -111,14 +111,14 @@ const withDefaultPlaceholder = <T extends Component>(
           },
         ),
       );
-      // const instance = getCurrentInstance();
-      // instance?.proxy?.$nextTick(() => {
-      //   for (const key in innerRef.value) {
-      //     if (typeof innerRef.value[key] === 'function') {
-      //       publicApi[key] = innerRef.value[key];
-      //     }
-      //   }
-      // });
+      // const instance = getCurrentInstance(); / 旧样例保留
+      // instance?.proxy?.$nextTick(() => { / 旧样例保留
+      //   for (const key in innerRef.value) { / 旧样例保留
+      //     if (typeof innerRef.value[key] === 'function') { / 旧样例保留
+      //       publicApi[key] = innerRef.value[key]; / 旧样例保留
+      //     } / 旧样例保留
+      //   } / 旧样例保留
+      // }); / 旧样例保留
       return () =>
         h(
           component,
@@ -130,7 +130,7 @@ const withDefaultPlaceholder = <T extends Component>(
 };
 
 const withPreviewUpload = () => {
-  // 创建默认的上传按钮插槽
+  // 创建默认的上传按钮插槽 / Default upload button slot
   const createDefaultSlotsWithUpload = (
     listType: string,
     placeholder: string,
@@ -158,13 +158,13 @@ const withPreviewUpload = () => {
       }
     }
   };
-  // 构建预览图片组
+  // 构建预览图片组 / Build image preview group
   const previewImage = async (
     file: UploadFile,
     visible: Ref<boolean>,
     fileList: Ref<UploadProps['fileList']>,
   ) => {
-    // 检查是否为图片文件的辅助函数
+    // 检查是否为图片文件的辅助函数 / isImage helper
     const isImageFile = (file: UploadFile): boolean => {
       const imageExtensions = new Set([
         'bmp',
@@ -185,7 +185,7 @@ const withPreviewUpload = () => {
       return file.type.startsWith('image/');
     };
 
-    // 如果当前文件不是图片，直接打开
+    // 如果当前文件不是图片，直接打开 / Non-image: open URL
     if (!isImageFile(file)) {
       if (file.url) {
         window.open(file.url, '_blank');
@@ -197,7 +197,7 @@ const withPreviewUpload = () => {
       return;
     }
 
-    // 对于图片文件，继续使用预览组
+    // 对于图片文件，继续使用预览组 / Images: preview group
     const [ImageComponent, PreviewGroupComponent] = await Promise.all([
       Image,
       PreviewGroup,
@@ -211,12 +211,12 @@ const withPreviewUpload = () => {
         reader.addEventListener('error', (error) => reject(error));
       });
     };
-    // 从fileList中过滤出所有图片文件
+    // 从 fileList 中过滤出所有图片文件 / Filter images from fileList
     const imageFiles = (unref(fileList) || []).filter((element) =>
       isImageFile(element),
     );
 
-    // 为所有没有预览地址的图片生成预览
+    // 为所有没有预览地址的图片生成预览 / Generate preview for missing URLs
     for (const imgFile of imageFiles) {
       if (!imgFile.url && !imgFile.preview && imgFile.originFileObj) {
         imgFile.preview = (await getBase64(imgFile.originFileObj)) as string;
@@ -225,7 +225,7 @@ const withPreviewUpload = () => {
     const container: HTMLElement | null = document.createElement('div');
     document.body.append(container);
 
-    // 用于追踪组件是否已卸载
+    // 用于追踪组件是否已卸载 / Track unmounted state
     let isUnmounted = false;
 
     const PreviewWrapper = {
@@ -238,12 +238,12 @@ const withPreviewUpload = () => {
               class: 'hidden',
               preview: {
                 visible: visible.value,
-                // 设置初始显示的图片索引
+                // 设置初始显示的图片索引 / Initial preview index
                 current: imageFiles.findIndex((f) => f.uid === file.uid),
                 onVisibleChange: (value: boolean) => {
                   visible.value = value;
                   if (!value) {
-                    // 延迟清理，确保动画完成
+                    // 延迟清理，确保动画完成 / Delay teardown for animation
                     setTimeout(() => {
                       if (!isUnmounted && container) {
                         isUnmounted = true;
@@ -256,7 +256,7 @@ const withPreviewUpload = () => {
               },
             },
             () =>
-              // 渲染所有图片文件
+              // 渲染所有图片文件 / Render all images
               imageFiles.map((imgFile) =>
                 h(ImageComponent, {
                   key: imgFile.uid,
@@ -314,18 +314,18 @@ const withPreviewUpload = () => {
       const renderUploadButton = (): any => {
         const isDisabled = attrs.disabled;
 
-        // 如果禁用，不渲染上传按钮
+        // 如果禁用，不渲染上传按钮 / Skip upload when disabled
         if (isDisabled) {
           return null;
         }
 
-        // 否则渲染默认上传按钮
+        // 否则渲染默认上传按钮 / Else default upload UI
         return isEmpty(slots)
           ? createDefaultSlotsWithUpload(listType, placeholder)
           : slots;
       };
 
-      // 可以监听到表单API设置的值
+      // 可以监听到表单 API 设置的值 / Sync fileList from v-model
       watch(
         () => attrs.modelValue,
         (res) => {
@@ -350,7 +350,7 @@ const withPreviewUpload = () => {
   });
 };
 
-// 这里需要自行根据业务组件库进行适配，需要用到的组件都需要在这里类型说明
+// 这里需要自行根据业务组件库进行适配，需要用到的组件都需要在这里类型说明 / Adapt to your UI lib; declare types here
 export type ComponentType =
   | 'ApiCascader'
   | 'ApiSelect'
@@ -383,9 +383,8 @@ export type ComponentType =
 
 async function initComponentAdapter() {
   const components: Partial<Record<ComponentType, Component>> = {
-    // 如果你的组件体积比较大，可以使用异步加载
-    // Button: () =>
-    // import('xxx').then((res) => res.Button),
+    // 如果你的组件体积比较大，可以使用异步加载 / Async import for large components
+    // Button: () => import('xxx').then((res) => res.Button), / 注释示例 / commented example
 
     ApiCascader: withDefaultPlaceholder(ApiComponent, 'select', {
       component: Cascader,
@@ -413,7 +412,7 @@ async function initComponentAdapter() {
     Checkbox,
     CheckboxGroup,
     DatePicker,
-    // 自定义默认按钮
+    // 自定义默认按钮 / Custom default button
     DefaultButton: (props, { attrs, slots }) => {
       return h(Button, { ...props, attrs, type: 'default' }, slots);
     },
@@ -427,7 +426,7 @@ async function initComponentAdapter() {
     InputNumber: withDefaultPlaceholder(InputNumber, 'input'),
     InputPassword: withDefaultPlaceholder(InputPassword, 'input'),
     Mentions: withDefaultPlaceholder(Mentions, 'input'),
-    // 自定义主要按钮
+    // 自定义主要按钮 / Custom primary button
     PrimaryButton: (props, { attrs, slots }) => {
       return h(Button, { ...props, attrs, type: 'primary' }, slots);
     },
@@ -444,12 +443,12 @@ async function initComponentAdapter() {
     Upload: withPreviewUpload(),
   };
 
-  // 将组件注册到全局共享状态中
+  // 将组件注册到全局共享状态中 / Register components globally
   globalShareState.setComponents(components);
 
-  // 定义全局共享状态中的消息提示
+  // 定义全局共享状态中的消息提示 / Define global message hooks
   globalShareState.defineMessage({
-    // 复制成功消息提示
+    // 复制成功消息提示 / Copy success toast
     copyPreferencesSuccess: (title, content) => {
       notification.success({
         description: content,

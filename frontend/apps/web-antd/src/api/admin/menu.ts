@@ -1,6 +1,6 @@
 /**
- * 平台管理端菜单 API
- * 对接后端 /admin/permissions/menus 接口
+ * Platform admin menu API / 平台管理端菜单 API
+ * Backend: /admin/permissions/menus
  */
 import type { RouteRecordStringComponent } from '@vben/types';
 
@@ -16,17 +16,19 @@ import {
   transformMenuData,
 } from '../shared/menu-transformer';
 
-/** 菜单和权限码的返回结果 */
+/** Menus and permission codes result / 菜单和权限码的返回结果 */
 export interface MenusWithPermissions {
   menus: RouteRecordStringComponent[];
   permissions: string[];
 }
 
 /**
+ * Get current admin menus (with permission codes)
  * 获取当前管理员菜单列表（含权限码）
- * 根据角色权限过滤，用于前端动态渲染菜单
- * 自动处理后端 snake_case 到前端 camelCase 的转换
- * @returns 菜单列表和权限码
+ *
+ * Filtered by role permissions, used for frontend dynamic menu rendering.
+ * Auto-converts backend snake_case to frontend camelCase.
+ * @returns Menus and permission codes / 菜单列表和权限码
  */
 export async function getAdminMenusWithPermissionsApi(
   options?: ApiRequestOptions,
@@ -36,24 +38,13 @@ export async function getAdminMenusWithPermissionsApi(
     options,
   );
 
-  // 提取权限码
+  // Extract permission codes / 提取权限码
   const permissions = extractPermissionsFromMenus(rawMenus);
 
-  // 转换菜单格式
+  // Transform menu format / 转换菜单格式
   const menus = needsTransform(rawMenus)
     ? transformMenuData(rawMenus, 'admin')
     : (rawMenus as unknown as RouteRecordStringComponent[]);
 
   return { menus, permissions };
-}
-
-/**
- * 获取当前管理员菜单列表
- * @deprecated 请使用 getAdminMenusWithPermissionsApi 以同时获取权限码
- */
-export async function getAdminMenusApi(
-  options?: ApiRequestOptions,
-): Promise<RouteRecordStringComponent[]> {
-  const { menus } = await getAdminMenusWithPermissionsApi(options);
-  return menus;
 }

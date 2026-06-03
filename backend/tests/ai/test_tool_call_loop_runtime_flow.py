@@ -1,0 +1,121 @@
+"""中文: AI 测试模块分类标记。
+
+EN: AI test module classification marker.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from app.ai.engine.base import BaseEngine
+from app.ai.engine.types import ExecutionRequest, ExecutionResult
+from app.ai.tools.types import ToolDefinition, ToolResult
+from app.ai.types import ChatMessage, ChatResponse
+
+
+class _DummyEngine(BaseEngine):
+    async def execute(self, _agent, _request) -> ExecutionResult:  # noqa: ANN001
+        return ExecutionResult(success=True)
+
+
+@pytest.mark.asyncio
+async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() -> None:
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        return_value=ToolResult(
+            tool_call_id="tc-weather",
+            name="get_current_weather",
+            success=True,
+            output='{"city":"北京","temperature":25}',
+        )
+    )
+
+    engine = _DummyEngine(
+        db=MagicMock(),
+        gateway=MagicMock(),
+        sandbox=sandbox,
+    )
+
+    llm_messages_seen: list[ChatMessage] = []
+    llm_call_count = 0
+    initial_total_tokens = 3
+    initial_output_tokens = 2
+    followup_total_tokens = 7
+    followup_output_tokens = 5
+
+    async def _fake_call_llm(**kwargs):  # noqa: ANN003
+        nonlocal llm_call_count
+        llm_call_count += 1
+        llm_messages_seen[:] = list(kwargs["messages"])
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="北京当前 25C，晴。"),
+            total_tokens=followup_total_tokens,
+            output_tokens=followup_output_tokens,
+        )
+
+    engine._call_llm = AsyncMock(side_effect=_fake_call_llm)  # type: ignore[method-assign]
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        conversation_id=584,
+        messages=[ChatMessage(role="user", content="今天北京天气怎么样？")],
+        interaction_updates=[
+            {
+                "kind": "pending_consent",
+                "tool_name": "get_current_weather",
+                "rejected": False,
+            }
+        ],
+    )
+    messages = [
+        ChatMessage(role="user", content="今天北京天气怎么样？"),
+    ]
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        total_tokens=initial_total_tokens,
+        output_tokens=initial_output_tokens,
+        tool_calls=[
+            {
+                "id": "tc-weather",
+                "type": "function",
+                "function": {
+                    "name": "get_current_weather",
+                    "arguments": '{"city":"北京"}',
+                },
+            },
+        ],
+    )
+
+    (
+        final_response,
+        tool_results,
+        total_tokens,
+        _completion_tokens,
+    ) = await engine._handle_tool_calls(
+        agent=SimpleNamespace(id=1),
+        messages=messages,
+        response=response,
+        tools=[ToolDefinition(name="get_current_weather", description="weather")],
+        all_tools=[ToolDefinition(name="get_current_weather", description="weather")],
+        request=request,
+        tool_consent_modes={"get_current_weather": "ask"},
+    )
+
+    assert final_response is not None
+    assert final_response.message.content == "北京当前 25C，晴。"
+    assert total_tokens == (
+        initial_total_tokens + llm_call_count * followup_total_tokens
+    )
+    assert len(tool_results) == 1
+    assert tool_results[0].name == "get_current_weather"
+    sandbox.execute.assert_awaited_once()
+    assert llm_messages_seen[-1].role == "tool"
+    assert _completion_tokens == (
+        initial_output_tokens + llm_call_count * followup_output_tokens
+    )
+    assert "25" in (llm_messages_seen[-1].content or "")

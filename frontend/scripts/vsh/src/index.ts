@@ -9,7 +9,7 @@ import { defineCodeWorkspaceCommand } from './code-workspace';
 import { defineLintCommand } from './lint';
 import { definePubLintCommand } from './publint';
 
-// 命令描述
+// 命令描述 / CLI command blurbs
 const COMMAND_DESCRIPTIONS = {
   'check-circular': 'Check for circular dependencies',
   'check-dep': 'Check for unused dependencies',
@@ -25,14 +25,14 @@ async function main(): Promise<void> {
   try {
     const vsh = cac('vsh');
 
-    // Register commands
+    // Register commands / 注册子命令
     defineLintCommand(vsh);
     definePubLintCommand(vsh);
     defineCodeWorkspaceCommand(vsh);
     defineCheckCircularCommand(vsh);
     defineDepcheckCommand(vsh);
 
-    // Handle invalid commands
+    // Handle invalid commands / 处理非法命令
     vsh.on('command:*', ([cmd]) => {
       consola.error(
         colors.red(`Invalid command: ${cmd}`),
@@ -46,12 +46,12 @@ async function main(): Promise<void> {
       process.exit(1);
     });
 
-    // Set up CLI
+    // Set up CLI / 配置 CLI 元数据
     vsh.usage('vsh <command> [options]');
     vsh.help();
     vsh.version(version);
 
-    // Parse arguments
+    // Parse arguments / 解析参数
     vsh.parse();
   } catch (error) {
     consola.error(
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the CLI
+// Run the CLI / 启动 CLI
 main().catch((error) => {
   consola.error(
     colors.red('Failed to start CLI:'),

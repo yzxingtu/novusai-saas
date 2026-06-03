@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 /**
+ * Operation log list page
  * 操作日志列表页面
  */
 import type { adminApi } from '#/api';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -22,34 +24,38 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
+  createOperationLogIdentityModel,
   getMethodColor,
   getStatusColor,
   useColumns,
   useGridFormSchema,
 } from './data';
-import DetailDrawer from './modules/detail.vue';
+import DetailDrawer from './modules/LogDetail.vue';
+
+defineOptions({ name: 'SystemOperationLogList' });
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
-// 详情抽屉
+// Detail drawer / 详情抽屉
 const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
   connectedComponent: DetailDrawer,
 });
 
-// 选中的行
+// Selected rows / 选中的行
 const selectedRows = ref<OperationLogInfo[]>([]);
 
 /**
- * 查看详情
+ * View detail / 查看详情
  */
 function onViewDetail(row: OperationLogInfo) {
   detailDrawerApi.setData({ id: row.id, mode: 'view' }).open();
 }
 
 /**
- * 批量删除
+ * Batch delete / 批量删除
  */
 async function onBatchDelete() {
   if (selectedRows.value.length === 0) return;
@@ -61,11 +67,11 @@ async function onBatchDelete() {
     selectedRows.value = [];
     onRefresh();
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 
-// CRUD 页面（只读列表，不需要表单组件）
+// CRUD page (read-only list, no form component needed) / CRUD 页面（只读列表，不需要表单组件）
 const { Grid, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
     list: admin.getOperationLogListApi,
@@ -82,10 +88,23 @@ const { Grid, onRefresh } = useCrudPage<OperationLogInfo>({
 });
 
 /**
- * 监听选中变化
+ * Listen to selection change / 监听选中变化
  */
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
+}
+
+const identityContextLabel = computed(() =>
+  $t('admin.system.operationLog.title'),
+);
+
+function buildOperationLogMeta(row: OperationLogInfo): IdentityDetailMeta {
+  return {
+    username: row.username,
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+    userType: row.userType,
+  };
 }
 </script>
 
@@ -96,19 +115,39 @@ function onSelectionChange(rows: OperationLogInfo[]) {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid @selection-change="onSelectionChange">
-        <!-- 用户名列 -->
+        <!-- 用户名列（含头像） -->
         <template #username_cell="{ row }">
-          <span class="font-medium">{{ row.username }}</span>
+          <IdentityTrigger
+            :avatar-size="30"
+            :model="
+              createOperationLogIdentityModel({
+                avatar: row.avatar,
+                displayName: row.displayName,
+                id: row.userId ?? row.id,
+                isActive: row.isActive,
+                isLeader: row.isLeader,
+                isOwner: row.isOwner,
+                nickname: row.nickname,
+                orgNodeName: row.orgNodeName,
+                roleName: row.roleName,
+                userType: row.userType,
+                username: row.username,
+              })
+            "
+            :meta="buildOperationLogMeta(row)"
+            :context="identityContextLabel"
+            :show-status-badge="false"
+          />
         </template>
 
         <!-- 模块列 -->
         <template #module_cell="{ row }">
-          <Tag color="blue">{{ row.module }}</Tag>
+          <Tag color="blue">{{ row.moduleLabel || row.module || '-' }}</Tag>
         </template>
 
         <!-- 操作类型列 -->
         <template #action_cell="{ row }">
-          <Tag color="purple">{{ row.action }}</Tag>
+          <Tag color="purple">{{ row.actionLabel || row.action || '-' }}</Tag>
         </template>
 
         <!-- 请求方法列 -->
@@ -165,8 +204,8 @@ function onSelectionChange(rows: OperationLogInfo[]) {
           </Tooltip>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
+        <!-- 左侧工具栏：批量删除 -->
+        <template #toolbar-actions>
           <Popconfirm
             v-if="selectedRows.length > 0"
             :title="
@@ -179,13 +218,9 @@ function onSelectionChange(rows: OperationLogInfo[]) {
             :ok-button-props="{ danger: true }"
             @confirm="onBatchDelete"
           >
-            <Button
-              v-access:code="['operation_log:delete']"
-              danger
-              class="mr-2"
-            >
+            <Button v-access:code="['operation_log:delete']" danger>
               <template #icon>
-                <IconifyIcon icon="lucide:trash-2" />
+                <IconifyIcon icon="lucide:trash-2" class="size-4" />
               </template>
               {{ $t('admin.system.operationLog.batchDelete') }} ({{
                 selectedRows.length

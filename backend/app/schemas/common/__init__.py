@@ -1,13 +1,15 @@
 """
-公共 Schema 模块
+公共 Schema 模块 / Common Schema Module
 
 导出三端共用的 Schema
+Exports schemas shared across all endpoints.
 """
 
 from app.schemas.common.auth import (
-    TokenResponse,
-    RefreshTokenRequest,
+    DevBootstrapRequest,
     ImpersonateTokenRequest,
+    RefreshTokenRequest,
+    TokenResponse,
 )
 from app.schemas.common.captcha import (
     CaptchaChallengeRequest,
@@ -16,9 +18,11 @@ from app.schemas.common.captcha import (
     CaptchaVerifyResponse,
 )
 from app.schemas.common.permission import (
+    MenuAIResponse,
+    MenuMetaResponse,
+    MenuResponse,
     PermissionResponse,
     PermissionTreeResponse,
-    MenuResponse,
 )
 from app.schemas.common.query import (
     FilterOp,
@@ -37,6 +41,7 @@ from app.schemas.common.sort import (
 __all__ = [
     "TokenResponse",
     "RefreshTokenRequest",
+    "DevBootstrapRequest",
     "ImpersonateTokenRequest",
     "CaptchaChallengeRequest",
     "CaptchaChallengeResponse",
@@ -44,6 +49,8 @@ __all__ = [
     "CaptchaVerifyResponse",
     "PermissionResponse",
     "PermissionTreeResponse",
+    "MenuAIResponse",
+    "MenuMetaResponse",
     "MenuResponse",
     "FilterOp",
     "FilterRule",

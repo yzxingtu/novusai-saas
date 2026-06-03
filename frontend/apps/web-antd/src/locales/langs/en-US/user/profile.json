@@ -1,0 +1,37 @@
+{
+  "title": "Profile",
+  "edit": "Edit Profile",
+  "editDisabled": "Profile editing has been disabled by the administrator",
+  "avatar": "Avatar",
+  "username": "Username",
+  "nickname": "Nickname",
+  "email": "Email",
+  "phone": "Phone",
+  "gender": "Gender",
+  "genderUnknown": "Not specified",
+  "genderMale": "Male",
+  "genderFemale": "Female",
+  "security": "Security",
+  "changePassword": "Change Password",
+  "changePasswordDesc": "Change your password regularly to keep your account secure",
+  "oldPassword": "Current Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
+  "messages": {
+    "updateSuccess": "Profile updated successfully",
+    "changePasswordSuccess": "Password changed successfully",
+    "passwordMismatch": "Passwords do not match",
+    "avatarUpdated": "Avatar updated successfully",
+    "avatarFailed": "Failed to update avatar",
+    "avatarTypeError": "Only image files are allowed",
+    "avatarSizeError": "Image size must be less than 2MB"
+  },
+  "placeholder": {
+    "inputNickname": "Please enter nickname",
+    "inputEmail": "Please enter email",
+    "inputPhone": "Please enter phone",
+    "inputOldPassword": "Please enter current password",
+    "inputNewPassword": "Please enter new password",
+    "inputConfirmPassword": "Please confirm new password"
+  }
+}

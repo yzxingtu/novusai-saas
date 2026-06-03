@@ -6,7 +6,6 @@ import path, { relative } from 'node:path';
 
 import { findMonorepoRoot } from '@vben/node-utils';
 
-import { NodePackageImporter } from 'sass';
 import { defineConfig, loadEnv, mergeConfig } from 'vite';
 
 import { defaultImportmapOptions, getDefaultPwaOptions } from '../options';
@@ -29,7 +28,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       archiverPluginOptions: {},
       compress: false,
       compressTypes: ['brotli', 'gzip'],
-      devtools: true,
+      devtools: false,
       env,
       extraAppConfig: true,
       html: true,
@@ -40,8 +39,6 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       isBuild,
       license: true,
       mode,
-      nitroMock: !isBuild,
-      nitroMockOptions: {},
       print: !isBuild,
       printInfoMap: {
         'Novusai Saas Docs': 'https://doc.vben.pro',
@@ -71,7 +68,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       esbuild: {
         drop: isBuild
           ? [
-              // 'console',
+              // 'console', / 生产可移除 console（已注释）/ strip console (off)
               'debugger',
             ]
           : [],
@@ -82,7 +79,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
         host: true,
         port,
         warmup: {
-          // 预热文件
+          // 预热文件 / dev warmup targets
           clientFiles: [
             './index.html',
             './src/bootstrap.ts',
@@ -114,8 +111,7 @@ function createCssOptions(injectGlobalScss = true): CSSOptions {
               }
               return content;
             },
-            // api: 'modern',
-            importers: [new NodePackageImporter()],
+            // api: 'modern', / Sass modern API（已注释）/ modern compiler API
           },
         }
       : {},

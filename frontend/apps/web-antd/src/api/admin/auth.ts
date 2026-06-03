@@ -1,9 +1,11 @@
 /**
- * 平台管理端认证 API
- * 对接后端 /admin/auth/* 接口
+ * Platform admin authentication API / 平台管理端认证 API
+ * Backend: /admin/auth/*
  */
 import type {
   AdminUserInfo,
+  AIAvailabilityInfo,
+  AIAvailabilityRawFields,
   ChangePasswordParams,
   LoginParams,
   LoginResult,
@@ -14,25 +16,44 @@ import type {
 
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { useAccessStore } from '@vben/stores';
-
+import { TokenStorage } from '#/store/shared/token-storage';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
-// Logout 使用 baseRequestClient 避免 401 时循环调用
+// Logout uses baseRequestClient to avoid circular calls on 401 / Logout 使用 baseRequestClient 避免 401 时循环调用
 
 const API_PREFIX = '/admin/auth';
 
 /**
- * 管理员登录
- * 后端返回 snake_case，转换为 camelCase
+ * Admin login / 管理员登录
+ * Backend returns snake_case, converted to camelCase
  */
 export async function adminLoginApi(
   data: LoginParams,
   options?: ApiRequestOptions,
 ): Promise<LoginResult> {
+  // Build request body, convert to snake_case / 构建请求体，转换为 snake_case
+  const requestBody: Record<string, unknown> = {
+    password: data.password,
+    username: data.username,
+  };
+
+  // Add captcha params if present / 添加验证码参数（如果有）
+  if (data.captchaChallengeId) {
+    requestBody.captcha_challenge_id = data.captchaChallengeId;
+  }
+  if (data.captchaSolution) {
+    requestBody.captcha_solution = data.captchaSolution;
+  }
+  if (data.captchaProviderCode) {
+    requestBody.captcha_provider_code = data.captchaProviderCode;
+  }
+  if (data.captchaType) {
+    requestBody.captcha_type = data.captchaType;
+  }
+
   const response = await requestClient.post<LoginResultRaw>(
     `${API_PREFIX}/login`,
-    data,
+    requestBody,
     options,
   );
   return {
@@ -42,46 +63,45 @@ export async function adminLoginApi(
 }
 
 /**
- * 刷新 Token
- * 后端返回 snake_case，转换为 camelCase
+ * Refresh token / 刷新 Token
+ * Backend returns snake_case, converted to camelCase
  */
 export async function adminRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
-  const response = await baseRequestClient.post<{
-    data: RefreshTokenResultRaw;
-  }>(`${API_PREFIX}/refresh`, {
-    refresh_token: refreshToken,
-  });
-  const raw = (response as any).data;
+  const response = await baseRequestClient.post<RefreshTokenResultRaw>(
+    `${API_PREFIX}/refresh`,
+    {
+      refresh_token: refreshToken,
+    },
+  );
   return {
-    accessToken: raw.access_token,
-    refreshToken: raw.refresh_token,
+    accessToken: response.access_token,
+    refreshToken: response.refresh_token,
   };
 }
 
 /**
- * 管理员登出
- * 使用 baseRequestClient 避免 401 时触发循环调用
+ * Admin logout / 管理员登出
+ * Uses baseRequestClient to avoid circular calls on 401
  */
 export async function adminLogoutApi() {
   try {
-    const accessStore = useAccessStore();
-    const token = accessStore?.accessToken;
+    const token = TokenStorage.getToken('admin');
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     return await baseRequestClient.post(`${API_PREFIX}/logout`, undefined, {
       headers,
     });
   } catch {
-    // 登出失败不影响主流程
+    // Logout failure doesn't affect main flow / 登出失败不影响主流程
   }
 }
 
 /**
- * 后端返回的管理员信息原始格式
+ * Raw admin user info format from backend / 后端返回的管理员信息原始格式
  */
-interface AdminUserInfoRaw {
+interface AdminUserInfoRaw extends AIAvailabilityRawFields {
   id: number;
   username: string;
   email?: string;
@@ -93,13 +113,31 @@ interface AdminUserInfoRaw {
   role_id?: number;
   last_login_at?: string;
   created_at?: string;
-  /** 权限码列表 */
+  /** Permission code list / 权限码列表 */
   permissions?: string[];
 }
 
+function mapAdminAIAvailability(
+  raw: AIAvailabilityRawFields,
+): AIAvailabilityInfo {
+  const accountAIEnabled = raw.ai_enabled ?? true;
+  const tenantPlanAIEnabled = true;
+  const aiChatEnabled =
+    raw.effective_ai_enabled ??
+    raw.ai_chat_enabled ??
+    (accountAIEnabled && tenantPlanAIEnabled);
+
+  return {
+    accountAIEnabled,
+    aiChatEnabled,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? undefined,
+    tenantPlanAIEnabled,
+  };
+}
+
 /**
- * 获取当前管理员信息
- * 将后端 snake_case 转换为前端 camelCase
+ * Get current admin info / 获取当前管理员信息
+ * Converts backend snake_case to frontend camelCase
  */
 export async function getAdminInfoApi(
   options?: ApiRequestOptions,
@@ -114,15 +152,16 @@ export async function getAdminInfoApi(
     realName: raw.nickname || raw.username,
     email: raw.email,
     avatar: raw.avatar,
+    ...mapAdminAIAvailability(raw),
     isSuperAdmin: raw.is_super,
     roles: raw.is_super ? ['super_admin'] : [],
-    // 超级管理员拥有所有权限，普通管理员使用后端返回的权限码
+    // Super admin has all permissions; regular admin uses backend permission codes / 超级管理员拥有所有权限，普通管理员使用后端返回的权限码
     permissions: raw.is_super ? ['*'] : raw.permissions || [],
   };
 }
 
 /**
- * 修改密码
+ * Change password / 修改密码
  */
 export async function adminChangePasswordApi(
   data: ChangePasswordParams,
@@ -137,4 +176,23 @@ export async function adminChangePasswordApi(
     },
     options,
   );
+}
+
+/** Update profile params / 修改个人信息参数 */
+export interface UpdateAdminProfileParams {
+  nickname?: null | string;
+  avatar?: null | string;
+  email?: null | string;
+  phone?: null | string;
+}
+
+/**
+ * Update current admin profile / 修改当前管理员个人信息
+ * PUT /admin/auth/profile
+ */
+export async function updateAdminProfileApi(
+  data: UpdateAdminProfileParams,
+  options?: ApiRequestOptions,
+) {
+  return requestClient.put(`${API_PREFIX}/profile`, data, options);
 }

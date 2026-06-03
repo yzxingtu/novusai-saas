@@ -1,0 +1,137 @@
+{
+  "plugin": {
+    "novusdoc": {
+      "name": "Documents",
+      "description": "Lightweight document manager with folders, tags, search and export",
+      "doc": {
+        "title": "Title",
+        "untitled": "Untitled Document",
+        "newDoc": "New Document",
+        "editDoc": "Edit Document",
+        "deleteDoc": "Delete Document",
+        "deleteConfirm": "Are you sure you want to delete this document?",
+        "saved": "Saved",
+        "saving": "Saving...",
+        "autoSave": "Auto-save",
+        "wordCount": "Words",
+        "export": "Export",
+        "exportHTML": "Export HTML",
+        "exportMarkdown": "Export Markdown",
+        "exportPDF": "Export PDF"
+      },
+      "ai": {
+        "menuTitle": "AI Writing",
+        "menuHint": "Select text or place the cursor where you want to use AI writing.",
+        "continue": "Continue",
+        "insert": "Insert content",
+        "rewrite": "Rewrite",
+        "optimize": "Optimize",
+        "format": "Add formatting",
+        "expand": "Expand",
+        "proofread": "Proofread",
+        "summarize": "Summarize",
+        "translate": "Translate",
+        "custom": "Custom prompt...",
+        "more": "More AI",
+        "agentInactive": "The document writing assistant is disabled. Enable system.ai_writing in Feature Assignment.",
+        "requiresSelection": "Select text before using this action",
+        "agentUnavailable": "The assigned document writing assistant is unavailable. Check the published agent bound to system.ai_writing.",
+        "close": "Close",
+        "connecting": "Connecting to the document writing assistant...",
+        "copy": "Copy",
+        "copied": "AI result copied.",
+        "copyFailed": "Copy failed. Please copy manually.",
+        "customPromptPlaceholder": "Enter a custom instruction.",
+        "discard": "Discard",
+        "apply": "Apply",
+        "applyMode": {
+          "insert": "Will insert at the cursor",
+          "insertAfterSelection": "Will insert after the selection",
+          "replace": "Will replace the selection"
+        },
+        "processing": "AI is working...",
+        "cancel": "Cancel",
+        "applying": "Applying AI result...",
+        "applied": "AI result applied and will be auto-saved",
+        "emptyResult": "AI did not return applicable content",
+        "emptyCustomPrompt": "Enter a custom instruction.",
+        "instructions": {
+          "base": "Use only the explicit rich-text selection and context below.",
+          "custom": "Follow the custom instruction for the current selection or cursor context.",
+          "format": "Restructure the selection into clearer headings, lists, quotes, or sections.",
+          "insert": "Create new content that can be inserted after the selection or at the cursor.",
+          "more": "Provide more writing help for the selection: summarize, expand, shorten, proofread, translate, outline, or adjust tone."
+        },
+        "languageInstruction": "Respond in {language} unless the user explicitly asks for another language.",
+        "languageAuto": "Follow source language",
+        "languageOutput": "Output: {language}",
+        "languages": {
+          "english": "English",
+          "japanese": "Japanese",
+          "korean": "Korean",
+          "simplifiedChinese": "Chinese"
+        },
+        "inlineChatComposerPlaceholder": "Ask a follow-up, shorten it, outline it, or request alternatives...",
+        "inlineChatContext": "Based on the current selection",
+        "inlineChatDefaultPrompt": "Give writing suggestions that can be used directly for the current selection.",
+        "inlineChatEmptyPrompt": "Enter a follow-up question.",
+        "inlineChatInsert": "Insert into document",
+        "inlineChatSend": "Send",
+        "inlineChatTitle": "AI Chat",
+        "agentMissing": "No AI writing agent is assigned. Bind system.ai_writing in AI Feature Assignment.",
+        "error": "AI writing failed. Please try again later.",
+        "notEditable": "This document is not editable, so AI writing is unavailable.",
+        "noPermission": "AI writing is unavailable for this account.",
+        "previewHint": "Review the result before applying it to the document.",
+        "previewLoading": "Generating AI preview...",
+        "previewPlaceholder": "AI results appear here. You can edit before applying.",
+        "previewTitle": "AI Preview",
+        "regenerate": "Regenerate",
+        "retry": "Retry",
+        "selectionDrifted": "The document or selection changed. Select the text again before applying.",
+        "sourceUnsupported": "AI writing is unavailable in source mode. Switch back to WYSIWYG mode.",
+        "stop": "Stop",
+        "stopped": "Generation stopped. You can apply or edit the current result.",
+        "chatStopped": "Reply stopped.",
+        "streamError": "AI generation failed. Please retry.",
+        "unsupported": "This editor version does not support selection AI. Refresh and try again.",
+        "selected": "{count} characters selected"
+      },
+      "folder": {
+        "title": "Folders",
+        "newFolder": "New Folder",
+        "allDocs": "All Documents",
+        "rename": "Rename",
+        "delete": "Delete Folder"
+      },
+      "tag": {
+        "title": "Tags",
+        "newTag": "New Tag",
+        "manage": "Manage Tags"
+      },
+      "search": {
+        "placeholder": "Search documents...",
+        "noResults": "No documents found"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published"
+      },
+      "op": {
+        "refresh": "Refresh document list",
+        "search": "Search documents",
+        "clearSearch": "Clear search",
+        "selectFolder": "Select folder",
+        "getContent": "Get document content",
+        "save": "Save document",
+        "toggleStatus": "Toggle publish status",
+        "updateTitle": "Update title",
+        "export": "Export document",
+        "savedSuccess": "Document \"{title}\" saved",
+        "statusChangedTo": "Status changed to {status}",
+        "titleUpdatedTo": "Title updated to \"{title}\"",
+        "exportInitiatedIn": "Export initiated in {format} format"
+      }
+    }
+  }
+}

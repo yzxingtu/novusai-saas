@@ -6,7 +6,10 @@ import { computed } from 'vue';
 import { cn } from '@vben-core/shared/utils';
 
 import { ChevronDown } from 'lucide-vue-next';
-import { SelectScrollDownButton, useForwardProps } from 'reka-ui';
+import {
+  SelectScrollDownButton as RekaSelectScrollDownButton,
+  useForwardProps,
+} from 'reka-ui';
 
 const props = defineProps<SelectScrollDownButtonProps & { class?: any }>();
 
@@ -20,7 +23,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
-  <SelectScrollDownButton
+  <RekaSelectScrollDownButton
     v-bind="forwardedProps"
     :class="
       cn('flex cursor-default items-center justify-center py-1', props.class)
@@ -29,5 +32,5 @@ const forwardedProps = useForwardProps(delegatedProps);
     <slot>
       <ChevronDown class="h-4 w-4" />
     </slot>
-  </SelectScrollDownButton>
+  </RekaSelectScrollDownButton>
 </template>

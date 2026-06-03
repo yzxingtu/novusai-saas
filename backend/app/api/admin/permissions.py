@@ -1,44 +1,46 @@
 """
-平台管理员权限 API
+平台管理员权限 API / Platform Permission API
 
 提供平台端权限树、菜单等接口
+Provides platform permission tree, menu endpoints.
 """
 
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     auth_only,
+    permission_resource,
 )
 from app.rbac.services import PermissionService
 
 
 @permission_resource(
     resource="permission",
-    name="menu.admin.permission",  # i18n key
+    name="menu.admin.permission",  # i18n key / 菜单 i18n 键名
     scope=PermissionScope.ADMIN,
-    # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点
+    parent_resource="platform_mgmt",
+    # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点 / No menu param = no menu permission registered, API endpoints only
 )
 class AdminPermissionController(GlobalController):
     """
-    平台权限控制器
-    
-    提供权限树、菜单树等查询接口
+    平台权限控制器 / Platform Permission Controller
+
+    提供权限树、菜单树等查询接口 / Provides permission tree, menu tree query endpoints
     """
-    
+
     prefix = "/permissions"
-    tags = ["平台权限管理"]
-    
+    tags = ["Permission Management (Platform)"]
+
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
-        
-        @router.get("", summary="获取权限树")
+
+        @router.get("", summary="获取权限树 / Get Permission Tree")
         @auth_only
         async def get_permission_tree(
             request: Request,
@@ -46,19 +48,19 @@ class AdminPermissionController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取平台端权限（树形结构）
-            
-            用于角色权限配置页面。
-            
-            层级权限控制：
-            - 超级管理员：返回所有权限
-            - 普通管理员：返回自己拥有的权限（含继承）
+            获取平台端权限（树形结构） / Get platform permissions (tree structure)
+
+            用于角色权限配置页面 / Used for role permission configuration page.
+
+            层级权限控制 / Hierarchical permission control:
+            - 超级管理员：返回所有权限 / Super admin: returns all permissions
+            - 普通管理员：返回自己拥有的权限（含继承） / Regular admin: returns own permissions (including inherited)
             """
             perm_service = PermissionService(db)
             tree = await perm_service.get_admin_permission_tree(current_admin)
             return success(data=tree, message=_("common.success"))
-        
-        @router.get("/menus", summary="获取当前用户菜单")
+
+        @router.get("/menus", summary="获取当前用户菜单 / Get Current User Menus")
         @auth_only
         async def get_current_user_menus(
             request: Request,
@@ -66,22 +68,22 @@ class AdminPermissionController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取当前管理员的菜单列表
-            
-            根据角色权限过滤，用于前端动态渲染菜单
-            
-            菜单可见性规则：
-            - 用户明确拥有的菜单权限（menu:xxx）
-            - 用户拥有任意操作权限时，自动显示操作权限的父级菜单及其所有祖先菜单
-            
-            响应中每个菜单节点包含 permissions 字段，列出该菜单下用户拥有的操作权限码
+            获取当前管理员的菜单列表 / Get current admin's menu list
+
+            根据角色权限过滤，用于前端动态渲染菜单 / Filtered by role permissions, used for frontend dynamic menu rendering
+
+            菜单可见性规则 / Menu visibility rules:
+            - 用户明确拥有的菜单权限（menu:xxx） / Explicitly owned menu permissions
+            - 用户拥有任意操作权限时，自动显示操作权限的父级菜单及其所有祖先菜单 / When user has any action permission, parent menus and ancestors are auto-shown
+
+            响应中每个菜单节点包含 permissions 字段，列出该菜单下用户拥有的操作权限码 / Each menu node in response contains permissions field listing user's action permission codes under it
             """
             perm_service = PermissionService(db)
             menus = await perm_service.get_admin_menus(current_admin)
             return success(data=menus, message=_("common.success"))
-        
 
-# 导出路由器
+
+# 导出路由器 / Export router
 router = AdminPermissionController.get_router()
 
 __all__ = ["router", "AdminPermissionController"]

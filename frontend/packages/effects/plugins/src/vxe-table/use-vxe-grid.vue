@@ -19,6 +19,7 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  ref,
   toRaw,
   useSlots,
   useTemplateRef,
@@ -71,17 +72,88 @@ const {
   gridClass,
   gridEvents,
   formOptions,
+  searchPanelAnimation,
   tableTitle,
   tableTitleHelp,
   showSearchForm,
   separator,
 } = usePriorityValues(props, state);
 
+const SEARCH_PANEL_TRANSITION_MS = 240;
+const SEARCH_PANEL_CONTENT_TRANSITION_MS = 220;
+const SEARCH_PANEL_EASING = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+const SEARCH_PANEL_CONTENT_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const isSearchPanelAnimating = ref(false);
+const isSearchPanelMounted = ref(showSearchForm.value !== false);
+const isSearchPanelContentVisible = ref(showSearchForm.value !== false);
+let searchPanelTransitionTimer: null | ReturnType<typeof setTimeout> = null;
+let searchPanelTransitionToken = 0;
+
+function clearSearchPanelTransitionTimer() {
+  if (searchPanelTransitionTimer) {
+    clearTimeout(searchPanelTransitionTimer);
+    searchPanelTransitionTimer = null;
+  }
+}
+
+async function recalculateGridLayout() {
+  await nextTick();
+  gridRef.value?.recalculate?.();
+}
+const shouldAnimateSearchPanel = computed(
+  () => searchPanelAnimation.value === true,
+);
+const isSearchPanelCollapsed = computed(() => showSearchForm.value === false);
+const searchPanelShellStyle = computed(() => {
+  if (!formOptions.value) {
+    return undefined;
+  }
+
+  if (!shouldAnimateSearchPanel.value) {
+    return {
+      display: isSearchPanelMounted.value ? 'block' : 'none',
+    };
+  }
+
+  return {
+    display: 'grid',
+    gridTemplateRows: isSearchPanelCollapsed.value ? '0fr' : '1fr',
+    transition: `grid-template-rows ${SEARCH_PANEL_TRANSITION_MS}ms ${SEARCH_PANEL_EASING}`,
+  };
+});
+const searchPanelBodyClass = computed(() => {
+  let compactPaddingClass = 'pb-0';
+  if (isCompactForm.value) {
+    compactPaddingClass = isSeparator.value ? 'pb-8' : 'pb-4';
+  } else if (isSeparator.value) {
+    compactPaddingClass = 'pb-4';
+  }
+
+  const isVisible = shouldAnimateSearchPanel.value
+    ? !isSearchPanelCollapsed.value
+    : isSearchPanelContentVisible.value;
+
+  return cn(
+    'vxe-grid-search-panel relative min-h-0 rounded py-3',
+    shouldAnimateSearchPanel.value ? 'is-legacy-motion' : 'is-modern-motion',
+    isVisible ? 'is-visible' : 'is-hidden',
+    compactPaddingClass,
+  );
+});
+const searchPanelBodyStyle = computed(() => {
+  return shouldAnimateSearchPanel.value
+    ? undefined
+    : {
+        '--vxe-search-panel-motion-duration': `${SEARCH_PANEL_CONTENT_TRANSITION_MS}ms`,
+        '--vxe-search-panel-motion-easing': SEARCH_PANEL_CONTENT_EASING,
+      };
+});
+
 const { isMobile } = usePreferences();
 const isSeparator = computed(() => {
   if (
     !formOptions.value ||
-    showSearchForm.value === false ||
+    (showSearchForm.value === false && !isSearchPanelAnimating.value) ||
     separator.value === false
   ) {
     return false;
@@ -315,8 +387,8 @@ async function init() {
       '[Vben Vxe Table]: The formConfig in the grid is not supported, please use the `formOptions` props',
     );
   }
-  // @ts-expect-error Type instantiation is excessively deep
-  props.api?.setState?.({ gridOptions: defaultGridOptions });
+  // VXE setState 泛型层级过深，使用断言绕过
+  props.api?.setState?.({ gridOptions: defaultGridOptions } as any);
   // form 由 vben-form 代替，所以需要保证query相关事件可以拿到参数
   extendProxyOptions(props.api, defaultGridOptions, () =>
     formApi.getLatestSubmissionValues(),
@@ -344,6 +416,63 @@ watch(
   },
 );
 
+watch(
+  () => showSearchForm.value,
+  async (isShown) => {
+    if (!formOptions.value) {
+      return;
+    }
+
+    const currentTransitionToken = ++searchPanelTransitionToken;
+
+    if (!shouldAnimateSearchPanel.value) {
+      clearSearchPanelTransitionTimer();
+      isSearchPanelAnimating.value = true;
+
+      if (isShown === false) {
+        isSearchPanelContentVisible.value = false;
+        searchPanelTransitionTimer = setTimeout(() => {
+          if (currentTransitionToken !== searchPanelTransitionToken) {
+            return;
+          }
+          isSearchPanelMounted.value = false;
+          isSearchPanelAnimating.value = false;
+          searchPanelTransitionTimer = null;
+          void recalculateGridLayout();
+        }, SEARCH_PANEL_CONTENT_TRANSITION_MS);
+        return;
+      }
+
+      isSearchPanelMounted.value = true;
+      await recalculateGridLayout();
+      if (currentTransitionToken !== searchPanelTransitionToken) {
+        return;
+      }
+      await nextTick();
+      if (currentTransitionToken !== searchPanelTransitionToken) {
+        return;
+      }
+      isSearchPanelContentVisible.value = true;
+      searchPanelTransitionTimer = setTimeout(() => {
+        if (currentTransitionToken !== searchPanelTransitionToken) {
+          return;
+        }
+        isSearchPanelAnimating.value = false;
+        searchPanelTransitionTimer = null;
+      }, SEARCH_PANEL_CONTENT_TRANSITION_MS);
+      return;
+    }
+
+    isSearchPanelAnimating.value = true;
+    clearSearchPanelTransitionTimer();
+    searchPanelTransitionTimer = setTimeout(() => {
+      isSearchPanelAnimating.value = false;
+      searchPanelTransitionTimer = null;
+      void recalculateGridLayout();
+    }, SEARCH_PANEL_TRANSITION_MS + 40);
+  },
+);
+
 const isCompactForm = computed(() => {
   return formApi.getState()?.compact;
 });
@@ -354,6 +483,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clearSearchPanelTransitionTimer();
   formApi?.unmount?.();
   props.api?.unmount?.();
 });
@@ -404,7 +534,11 @@ onUnmounted(() => {
           class="ml-2"
           v-if="gridOptions?.toolbarConfig?.search && !!formOptions"
           :status="showSearchForm ? 'primary' : undefined"
-          :title="$t('common.search')"
+          :title="
+            showSearchForm
+              ? $t('common.hideSearchPanel')
+              : $t('common.showSearchPanel')
+          "
           @click="onSearchBtnClick"
         />
       </template>
@@ -413,53 +547,52 @@ onUnmounted(() => {
       <template #form>
         <div
           v-if="formOptions"
-          v-show="showSearchForm !== false"
-          :class="
-            cn(
-              'relative rounded py-3',
-              isCompactForm
-                ? isSeparator
-                  ? 'pb-8'
-                  : 'pb-4'
-                : isSeparator
-                  ? 'pb-4'
-                  : 'pb-0',
-            )
-          "
+          class="overflow-hidden"
+          :style="searchPanelShellStyle"
         >
-          <slot name="form">
-            <Form>
-              <template
-                v-for="slotName in delegatedFormSlots"
-                :key="slotName"
-                #[slotName]="slotProps"
-              >
-                <slot
-                  :name="`${FORM_SLOT_PREFIX}${slotName}`"
-                  v-bind="slotProps"
-                ></slot>
-              </template>
-              <template #reset-before="slotProps">
-                <slot name="reset-before" v-bind="slotProps"></slot>
-              </template>
-              <template #submit-before="slotProps">
-                <slot name="submit-before" v-bind="slotProps"></slot>
-              </template>
-              <template #expand-before="slotProps">
-                <slot name="expand-before" v-bind="slotProps"></slot>
-              </template>
-              <template #expand-after="slotProps">
-                <slot name="expand-after" v-bind="slotProps"></slot>
-              </template>
-            </Form>
-          </slot>
-          <div
-            v-if="isSeparator"
-            :style="{
-              ...(separatorBg ? { backgroundColor: separatorBg } : undefined),
-            }"
-            class="bg-background-deep z-100 absolute -left-2 bottom-1 h-2 w-[calc(100%+1rem)] overflow-hidden md:bottom-2 md:h-3"
-          ></div>
+          <div class="min-h-0 overflow-hidden">
+            <div :class="searchPanelBodyClass" :style="searchPanelBodyStyle">
+              <slot name="form">
+                <Form>
+                  <template
+                    v-for="slotName in delegatedFormSlots"
+                    :key="slotName"
+                    #[slotName]="slotProps"
+                  >
+                    <slot
+                      :name="`${FORM_SLOT_PREFIX}${slotName}`"
+                      v-bind="slotProps"
+                    ></slot>
+                  </template>
+                  <template #reset-before="slotProps">
+                    <slot name="reset-before" v-bind="slotProps"></slot>
+                  </template>
+                  <template #submit-before="slotProps">
+                    <slot name="submit-before" v-bind="slotProps"></slot>
+                  </template>
+                  <template #expand-before="slotProps">
+                    <slot name="expand-before" v-bind="slotProps"></slot>
+                  </template>
+                  <template #expand-after="slotProps">
+                    <slot name="expand-after" v-bind="slotProps"></slot>
+                  </template>
+                </Form>
+              </slot>
+              <div
+                v-if="
+                  isSeparator &&
+                  !isSearchPanelAnimating &&
+                  !isSearchPanelCollapsed
+                "
+                :style="{
+                  ...(separatorBg
+                    ? { backgroundColor: separatorBg }
+                    : undefined),
+                }"
+                class="bg-background-deep z-100 pointer-events-none absolute -left-2 bottom-1 h-2 w-[calc(100%+1rem)] overflow-hidden md:bottom-2 md:h-3"
+              ></div>
+            </div>
+          </div>
         </div>
       </template>
       <!-- loading -->

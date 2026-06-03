@@ -19,6 +19,7 @@
   },
   "actionMessage": {
     "deleteConfirm": "Are you sure to delete {0}?",
+    "deleteConfirmContent": "The data will be moved to the recycle bin and can be restored from there.",
     "deleting": "Deleting {0} ...",
     "deleteSuccess": "{0} deleted successfully",
     "createSuccess": "Created successfully",
@@ -94,13 +95,16 @@
     "checkUpdatesDescription": "Click to refresh and get the latest version",
     "search": {
       "title": "Search",
-      "searchNavigate": "Search Navigation",
+      "searchNavigate": "Search navigation...",
       "select": "Select",
       "navigate": "Navigate",
       "close": "Close",
       "noResults": "No Search Results Found",
-      "noRecent": "No Search History",
-      "recent": "Search History"
+      "noRecent": "Type to search navigation menus",
+      "recent": "Recent",
+      "quickTip": "Navigate to any page quickly",
+      "typeToSearch": "Type a keyword to start searching",
+      "resultsCount": "{count} results"
     },
     "lockScreen": {
       "title": "Lock Screen",
@@ -115,6 +119,11 @@
     "timezone": {
       "setTimezone": "Set Timezone",
       "setSuccess": "Timezone set successfully"
-    }
+    },
+    "refresh": "Refresh",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "themeToggle": "Theme",
+    "languageToggle": "Language"
   }
 }

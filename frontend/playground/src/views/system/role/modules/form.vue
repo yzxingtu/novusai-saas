@@ -63,7 +63,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       if (permissions.value.length === 0) {
         await loadPermissions();
       }
-      // Wait for Vue to flush DOM updates (form fields mounted)
+      // Wait for Vue to flush DOM updates (form fields mounted) / 等待 DOM 挂载后再 setValues / wait for fields before setValues
       await nextTick();
       if (data) {
         formApi.setValues(data);

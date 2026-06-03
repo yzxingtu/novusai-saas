@@ -1,0 +1,159 @@
+{#
+{{ display_name }} Repository / {{ display_name_en }} Repository
+继承 BaseRepository 或 TenantRepository，get_by_{unique}，{field}_exists，get_tree，selectinload
+#}
+"""
+{{ display_name }}仓储 / {{ display_name_en }} Repository
+
+提供数据访问操作
+Provides data access operations.
+"""
+
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.core.base_repository import BaseRepository, TenantRepository
+from app.models.{{ module }}.{{ resource }} import {{ resource | pascal }}
+
+
+{% set base_class = model.base_class | default('TenantModel') %}
+{% set use_tenant_repo = base_class == 'TenantModel' and scenario in ['C', 'D'] %}
+{% set is_scenario_d = scenario == 'D' %}
+{% set has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+{% set unique_fields = fields | selectattr('unique', 'equalto', true) | list %}
+{% set fk_relations = relations | selectattr('type', 'equalto', 'many_to_one') | list %}
+{% set m2m_relations = relations | selectattr('type', 'equalto', 'many_to_many') | list %}
+{% set need_selectinload = (fk_relations | length) > 0 or (m2m_relations | length) > 0 %}
+
+{% if is_scenario_d %}
+{# 场景 D: Admin 端用 BaseRepository #}
+class Admin{{ resource | pascal }}Repository(BaseRepository[{{ resource | pascal }}]):
+    """{{ display_name }}仓储（管理端跨租户）/ {{ display_name_en }} repository (admin)."""
+
+    model = {{ resource | pascal }}
+
+{% for f in unique_fields %}
+    async def get_by_{{ f.name }}(self, {{ f.name }}: {{ type_registry.get_type_info(f.type | default('String')).python_type }}) -> {{ resource | pascal }} | None:
+        """根据{{ f.name }}获取 / Get by {{ f.name }}."""
+        return await self.get_one_by({{ f.name }}={{ f.name }})
+
+    async def {{ f.name }}_exists(self, {{ f.name }}: {{ type_registry.get_type_info(f.type | default('String')).python_type }}, exclude_id: int | None = None) -> bool:
+        """检查{{ f.name }}是否已存在 / Check if {{ f.name }} exists."""
+        query = select(self.model.id).where(self.model.{{ f.name }} == {{ f.name }}, self.model.is_deleted.is_(False))
+        if exclude_id:
+            query = query.where(self.model.id != exclude_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+{% endfor %}
+{% endif %}
+{# 主仓储：场景 A/B 用 BaseRepository，C 用 TenantRepository，D 用 TenantRepository（企业端） #}
+class {{ resource | pascal }}Repository({{ 'TenantRepository' if use_tenant_repo else 'BaseRepository' }}[{{ resource | pascal }}]):
+    """
+    {{ display_name }}仓储 / {{ display_name_en }} repository.
+    """
+
+    model = {{ resource | pascal }}
+
+{% for f in unique_fields %}
+    async def get_by_{{ f.name }}(self, {{ f.name }}: {{ type_registry.get_type_info(f.type | default('String')).python_type }}) -> {{ resource | pascal }} | None:
+        """
+        根据{{ f.name }}获取 / Get by {{ f.name }}.
+
+        Args:
+            {{ f.name }}: {{ f.comment | default(f.name) }}
+
+        Returns:
+            实例或 None / Instance or None
+        """
+        return await self.get_one_by({{ f.name }}={{ f.name }}{% if use_tenant_repo %}, tenant_id=self.tenant_id{% endif %})
+
+    async def {{ f.name }}_exists(
+        self,
+        {{ f.name }}: {{ type_registry.get_type_info(f.type | default('String')).python_type }},
+        exclude_id: int | None = None,
+    ) -> bool:
+        """
+        检查{{ f.name }}是否已存在 / Check if {{ f.name }} exists.
+
+        Args:
+            {{ f.name }}: {{ f.comment | default(f.name) }}
+            exclude_id: 排除的 ID（更新时排除自身）/ Exclude ID (for update)
+
+        Returns:
+            是否存在 / Whether exists
+        """
+        query = select(self.model.id).where(
+            self.model.{{ f.name }} == {{ f.name }},
+            self.model.is_deleted.is_(False),
+        )
+{% if use_tenant_repo %}
+        query = query.where(self.model.tenant_id == self.tenant_id)
+{% endif %}
+        if exclude_id:
+            query = query.where(self.model.id != exclude_id)
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+{% endfor %}
+{% if has_tree %}
+    async def get_tree(self, parent_id: int | None = None) -> list[{{ resource | pascal }}]:
+        """
+        获取树形结构 / Get tree structure.
+
+        Args:
+            parent_id: 父节点 ID，None 表示根节点 / Parent ID, None for root
+
+        Returns:
+            树形节点列表 / Tree node list
+        """
+        query = select(self.model).where(
+            self.model.parent_id == parent_id,
+            self.model.is_deleted.is_(False),
+        )
+{% if use_tenant_repo %}
+        query = query.where(self.model.tenant_id == self.tenant_id)
+{% endif %}
+        query = query.order_by(self.model.sort_order.asc() if hasattr(self.model, 'sort_order') else self.model.id.asc())
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+{% endif %}
+{% if need_selectinload %}
+    async def get_with_relations(self, id: int) -> {{ resource | pascal }} | None:
+        """
+        获取含关联数据的记录 / Get record with relations.
+
+        Args:
+            id: 记录 ID / Record ID
+
+        Returns:
+            实例（含关联）或 None / Instance with relations or None
+        """
+        query = select(self.model)
+{% for r in fk_relations %}
+{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
+        query = query.options(selectinload(self.model.{{ rel_name }}))
+{% endfor %}
+{% for r in m2m_relations %}
+        query = query.options(selectinload(self.model.{{ r.name }}))
+{% endfor %}
+        query = query.where(
+            self.model.id == id,
+            self.model.is_deleted.is_(False),
+        )
+{% if use_tenant_repo %}
+        query = query.where(self.model.tenant_id == self.tenant_id)
+{% endif %}
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+{% endif %}
+
+__all__ = [
+{% if is_scenario_d %}
+    "Admin{{ resource | pascal }}Repository",
+{% endif %}
+    "{{ resource | pascal }}Repository",
+]

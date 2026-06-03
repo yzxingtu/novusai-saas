@@ -1,18 +1,30 @@
 {
   "title": "个人中心",
   "edit": "编辑资料",
+  "editDisabled": "管理员已禁用个人资料编辑",
   "avatar": "头像",
   "username": "用户名",
   "nickname": "昵称",
   "email": "邮箱",
   "phone": "手机号",
+  "gender": "性别",
+  "genderUnknown": "未知",
+  "genderMale": "男",
+  "genderFemale": "女",
+  "security": "安全设置",
   "changePassword": "修改密码",
+  "changePasswordDesc": "定期修改密码以保护账户安全",
   "oldPassword": "当前密码",
   "newPassword": "新密码",
   "confirmPassword": "确认新密码",
   "messages": {
     "updateSuccess": "资料更新成功",
-    "changePasswordSuccess": "密码修改成功"
+    "changePasswordSuccess": "密码修改成功",
+    "passwordMismatch": "两次输入的密码不一致",
+    "avatarUpdated": "头像更新成功",
+    "avatarFailed": "头像更新失败",
+    "avatarTypeError": "只能上传图片文件",
+    "avatarSizeError": "图片大小不能超过 2MB"
   },
   "placeholder": {
     "inputNickname": "请输入昵称",

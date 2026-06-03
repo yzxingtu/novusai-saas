@@ -1,0 +1,9 @@
+{"file": "backend/app/ai/engine/dispatcher.py", "reason": "Entry-point convergence for live request ownership and runtime loop handoff"}
+{"file": "backend/app/ai/engine/task.py", "reason": "Background/runtime task entry should share the same canonical turn contract"}
+{"file": "backend/app/ai/engine/prepare_execution_pipeline.py", "reason": "Prepare-execution should stop carrying contract glue that belongs to the core loop"}
+{"file": "backend/app/ai/runtime/query_engine.py", "reason": "Canonical runtime query entrypoint and turn-record ownership"}
+{"file": "backend/app/ai/runtime/protocol_turn_session.py", "reason": "Single owner for runtime session state and emitted turn evidence"}
+{"file": "backend/app/services/ai/agent_chat_command_service.py", "reason": "Live chat command entry should depend on canonical dispatcher/quota/stats owners directly instead of the `agent_chat_service` compat export surface"}
+{"file": "backend/app/services/ai/agent_chat_stream_bootstrap_service.py", "reason": "Stream bootstrap should project, not rebuild, runtime decisions"}
+{"file": "backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py", "reason": "Stream on_complete must persist through the canonical conversation stream contract without old-shape method probing"}
+{"file": "backend/app/services/ai/agent_chat_stream_persistence_error_support.py", "reason": "Fallback error persistence should delegate to canonical conversation stream helpers instead of carrying inline legacy implementations"}

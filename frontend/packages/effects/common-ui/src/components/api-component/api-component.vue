@@ -138,11 +138,11 @@ const attrs = useAttrs();
 const innerParams = ref<Record<string, any>>({});
 const refOptions = ref<OptionsItem[]>([]);
 const loading = ref(false);
-// 首次是否加载过了
+// 首次是否加载过了 / First successful fetch done
 const isFirstLoaded = ref(false);
-// 标记是否有待处理的请求
+// 标记是否有待处理的请求 / Coalesce concurrent fetches
 const hasPendingRequest = ref(false);
-// 分页状态
+// 分页状态 / Remote pagination cursor
 const currentPage = ref(1);
 const hasMore = ref(false);
 
@@ -166,7 +166,7 @@ const getOptions = computed(() => {
         disabled: get(item, disabledField),
       };
 
-      // 只有在有 children 时才添加 children 字段
+      // 只有在有 children 时才添加 children 字段 / Tree options: children only when present
       if (childrenField && item[childrenField]) {
         result.children = transformData(item[childrenField]);
       }
@@ -181,7 +181,7 @@ const getOptions = computed(() => {
 });
 
 const bindProps = computed(() => {
-  // 保留用户自定义 onSearch/onPopupScroll
+  // 保留用户自定义 onSearch/onPopupScroll / Preserve user event hooks
   const userOnSearch = (attrs as any)?.onSearch as
     | ((val: string) => void)
     | undefined;
@@ -189,7 +189,7 @@ const bindProps = computed(() => {
     | ((e: any) => void)
     | undefined;
 
-  // 构建带分页的下拉渲染函数
+  // 构建带分页的下拉渲染函数 / Dropdown footer with prev/next pager
   const buildDropdownRender = (menu: any) => {
     const isPrevDisabled = loading.value || unref(currentPage) <= 1;
     const isNextDisabled = loading.value || !unref(hasMore);
@@ -221,7 +221,7 @@ const bindProps = computed(() => {
       };
     };
 
-    // 分页控制栏
+    // 分页控制栏 / Inline pager UI
     const pager = h(
       'div',
       {
@@ -288,8 +288,8 @@ const bindProps = computed(() => {
       ],
     );
 
-    // 返回包含原始菜单和分页器的容器
-    // 注意：在 Vue 3 中，h() 第三个参数可以是数组或对象
+    // 返回包含原始菜单和分页器的容器 / Wrap Ant menu + pager
+    // 注意：在 Vue 3 中，h() 第三个参数可以是数组或对象 / h() children: array or object
     return h('div', null, [menu, pager]);
   };
 
@@ -301,10 +301,10 @@ const bindProps = computed(() => {
     [`onUpdate:${props.modelPropName}`]: (val: string) => {
       modelValue.value = val;
     },
-    // 远程搜索：拦截 onSearch 更新内部参数（并透传给用户回调）
+    // 远程搜索：拦截 onSearch 更新内部参数（并透传给用户回调）/ Merge search into request params
     onSearch: (val: string) => {
       if (props.searchParamName) {
-        // 重置到第 1 页
+        // 重置到第 1 页 / New keyword → page 1
         currentPage.value = props.pagination ? 1 : 0;
         innerParams.value = {
           ...unref(innerParams),
@@ -319,7 +319,7 @@ const bindProps = computed(() => {
       }
       userOnSearch?.(val);
     },
-    // 下拉滚动加载更多
+    // 下拉滚动加载更多 / Infinite scroll pagination
     onPopupScroll: (e: any) => {
       if (!props.pagination) return userOnPopupScroll?.(e);
       const target = e?.target as HTMLElement | undefined;
@@ -361,7 +361,7 @@ async function fetchApi() {
     return;
   }
 
-  // 如果正在加载，标记有待处理的请求并返回
+  // 如果正在加载，标记有待处理的请求并返回 / Queue follow-up fetch
   if (loading.value) {
     hasPendingRequest.value = true;
     return;
@@ -388,7 +388,7 @@ async function fetchApi() {
       items = (get(res as any, resultField) as OptionsItem[]) || [];
     }
 
-    // 处理 hasMore（优先 hasMoreField，其次用 total/page/page_size 推导）
+    // 处理 hasMore（优先 hasMoreField，其次用 total/page/page_size 推导）/ Derive next page availability
     if (props.pagination) {
       const total = (res as any)?.[props.totalField!];
       const respPage = (res as any)?.[props.pageFieldInResponse!];
@@ -411,7 +411,7 @@ async function fetchApi() {
       hasMore.value = false;
     }
 
-    // 合并或替换选项
+    // 合并或替换选项 / Append page or replace list
     refOptions.value = isAppend
       ? [...unref(refOptions), ...(items || [])]
       : items || [];
@@ -419,14 +419,14 @@ async function fetchApi() {
     emitChange();
   } catch (error) {
     console.warn(error);
-    // reset status
+    // reset status / 出错时允许重试 / allow retry on error
     isFirstLoaded.value = false;
   } finally {
     loading.value = false;
-    // 如果有待处理的请求，立即触发新的请求
+    // 如果有待处理的请求，立即触发新的请求 / Run queued fetch after load ends
     if (hasPendingRequest.value) {
       hasPendingRequest.value = false;
-      // 使用 nextTick 确保状态更新完成后再触发新请求
+      // 使用 nextTick 确保状态更新完成后再触发新请求 / Flush loading flag first
       await nextTick();
       fetchApi();
     }
@@ -435,7 +435,7 @@ async function fetchApi() {
 
 async function handleFetchForVisible(visible: boolean) {
   if (visible) {
-    // 首次展开时，重置分页
+    // 首次展开时，重置分页 / Open dropdown → reset pager
     if (props.pagination) {
       currentPage.value = 1;
       innerParams.value = {

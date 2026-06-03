@@ -12,32 +12,32 @@ import { useVbenForm } from '#/adapter/form';
 const isReverseActionButtons = ref(false);
 
 const [BaseForm, formApi] = useVbenForm({
-  // 翻转操作按钮的位置
+  // 翻转操作按钮的位置 / Reverse submit/reset order
   actionButtonsReverse: isReverseActionButtons.value,
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared field defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / Default props for all fields
     componentProps: {
       class: 'w-full',
     },
   },
-  // 使用 tailwindcss grid布局
-  // 提交函数
+  // 使用 tailwindcss grid布局 / Tailwind CSS grid layout
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
+  // 垂直布局，label和input在不同行，值为vertical / vertical: label above input
   layout: 'horizontal',
-  // 水平布局，label和input在同一行
+  // 水平布局，label和input在同一行 / horizontal: label beside input
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts内注册，并加上类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
         placeholder: '请输入用户名',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field1',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: 'field1',
     },
     {
@@ -70,7 +70,7 @@ const [BaseForm, formApi] = useVbenForm({
       label: '下拉选',
     },
   ],
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个 / Responsive grid: 1 / 2 / 3 cols
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 
@@ -133,7 +133,7 @@ function handleClick(
       break;
     }
     case 'componentRef': {
-      // 获取下拉组件的实例，并调用它的focus方法
+      // 获取下拉组件的实例，并调用它的focus方法 / Focus Select via field component ref
       formApi.getFieldComponentRef<RefSelectProps>('fieldOptions')?.focus?.();
       break;
     }
@@ -193,7 +193,7 @@ function handleClick(
 
     case 'updateActionAlign': {
       formApi.setState({
-        // 可以自行调整class
+        // 可以自行调整class / Custom action bar classes
         actionWrapperClass: 'text-center',
       });
       break;

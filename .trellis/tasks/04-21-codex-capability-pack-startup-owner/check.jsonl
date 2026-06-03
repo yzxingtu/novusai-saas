@@ -1,0 +1,5 @@
+{"file": "backend/tests/test_skill_resolver.py", "reason": "Verify startup preview, activation, and live selected-skill behavior"}
+{"file": "backend/tests/integration/ai/test_context_engine_capabilities.py", "reason": "Verify capability assembly preserves inventory-vs-live owner boundaries"}
+{"file": "backend/tests/services/test_runtime_inventory_service.py", "reason": "Verify runtime inventory payloads keep catalog-only metadata bounded"}
+{"file": "backend/tests/services/test_conversation_engine_prepare_execution.py", "reason": "Verify tool-bearing turns project selected skills to the live subset only"}
+{"file": "backend/tests/tasks/test_agent_batch.py", "reason": "Verify batch warmup does not recreate a non-live eager capability resolve seam"}

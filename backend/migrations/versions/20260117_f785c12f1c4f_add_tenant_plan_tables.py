@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """add tenant plan tables
 
 Revision ID: f785c12f1c4f
@@ -62,8 +63,8 @@ def upgrade() -> None:
                existing_nullable=True)
     op.alter_column('tenants', 'settings',
                existing_type=postgresql.JSON(astext_type=sa.Text()),
-               comment='租户设置(已废弃)',
-               existing_comment='租户设置',
+               comment='企业设置(已废弃)',
+               existing_comment='企业设置',
                existing_nullable=True)
     op.create_index(op.f('ix_tenants_plan_id'), 'tenants', ['plan_id'], unique=False)
     op.create_foreign_key('fk_tenants_plan_id', 'tenants', 'tenant_plans', ['plan_id'], ['id'], ondelete='SET NULL')
@@ -77,8 +78,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_tenants_plan_id'), table_name='tenants')
     op.alter_column('tenants', 'settings',
                existing_type=postgresql.JSON(astext_type=sa.Text()),
-               comment='租户设置',
-               existing_comment='租户设置(已废弃)',
+               comment='企业设置',
+               existing_comment='企业设置(已废弃)',
                existing_nullable=True)
     op.alter_column('tenants', 'quota',
                existing_type=postgresql.JSON(astext_type=sa.Text()),

@@ -20,7 +20,7 @@ interface RowType {
 }
 
 const formOptions: VbenFormProps = {
-  // 默认展开
+  // 默认展开 / Search form expanded by default
   collapsed: false,
   fieldMappingTime: [['date', ['start', 'end']]],
   schema: [
@@ -66,11 +66,11 @@ const formOptions: VbenFormProps = {
       label: 'Date',
     },
   ],
-  // 控制表单是否显示折叠按钮
+  // 控制表单是否显示折叠按钮 / Show collapse toggle on toolbar search
   showCollapseButton: true,
-  // 是否在字段值改变时提交表单
+  // 是否在字段值改变时提交表单 / Auto-query on field change
   submitOnChange: true,
-  // 按下回车时是否提交表单
+  // 按下回车时是否提交表单 / Submit search on Enter key
   submitOnEnter: false,
 };
 
@@ -114,10 +114,7 @@ const gridOptions: VxeTableGridOptions<RowType> = {
   },
 };
 
-const [Grid] = useVbenVxeGrid({
-  formOptions,
-  gridOptions,
-});
+const [Grid] = useVbenVxeGrid({ formOptions, gridOptions } as any);
 </script>
 
 <template>

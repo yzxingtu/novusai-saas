@@ -103,6 +103,7 @@ defineExpose({
       </template>
     </Title>
     <Form />
+    <slot name="form-extend"></slot>
     <VbenButton
       :class="{
         'cursor-wait': loading,

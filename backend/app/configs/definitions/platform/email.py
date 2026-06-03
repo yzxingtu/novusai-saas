@@ -1,24 +1,23 @@
-"""
-平台邮件设置配置项
+"""Platform email settings config items / 平台邮件设置配置项
 
+Includes SMTP server config, sender info, etc.
 包含 SMTP 服务器配置、发件人信息等配置
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, max_length, option
 from app.configs.definitions.groups import PLATFORM_EMAIL_GROUP
+from app.configs.meta import ConfigMeta, max_length, max_value, min_value, option
 from app.enums.config import ConfigScope, ConfigValueType
 
-
 # ==========================================
-# SMTP 服务器配置
+# SMTP server config / SMTP 服务器配置
 # ==========================================
 
-# SMTP 服务器地址
+# SMTP server host / SMTP 服务器地址
 EMAIL_SMTP_HOST = ConfigMeta(
     key="email_smtp_host",
     name_key="config.platform.email_smtp_host.name",
     description_key="config.platform.email_smtp_host.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.STRING,
     default_value="",
     validation_rules=[
@@ -27,12 +26,12 @@ EMAIL_SMTP_HOST = ConfigMeta(
     sort_order=10,
 )
 
-# SMTP 端口
+# SMTP port / SMTP 端口
 EMAIL_SMTP_PORT = ConfigMeta(
     key="email_smtp_port",
     name_key="config.platform.email_smtp_port.name",
     description_key="config.platform.email_smtp_port.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.NUMBER,
     default_value=587,
     validation_rules=[
@@ -42,14 +41,14 @@ EMAIL_SMTP_PORT = ConfigMeta(
     sort_order=20,
 )
 
-# SMTP 加密方式
+# SMTP encryption / SMTP 加密方式
 EMAIL_SMTP_ENCRYPTION = ConfigMeta(
     key="email_smtp_encryption",
     name_key="config.platform.email_smtp_encryption.name",
     description_key="config.platform.email_smtp_encryption.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.SELECT,
-    default_value="tls",
+    default_value="ssl",
     options=[
         option("none", "config.platform.email_smtp_encryption.none"),
         option("ssl", "config.platform.email_smtp_encryption.ssl"),
@@ -58,12 +57,12 @@ EMAIL_SMTP_ENCRYPTION = ConfigMeta(
     sort_order=30,
 )
 
-# SMTP 用户名
+# SMTP username / SMTP 用户名
 EMAIL_SMTP_USERNAME = ConfigMeta(
     key="email_smtp_username",
     name_key="config.platform.email_smtp_username.name",
     description_key="config.platform.email_smtp_username.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.STRING,
     default_value="",
     validation_rules=[
@@ -72,12 +71,12 @@ EMAIL_SMTP_USERNAME = ConfigMeta(
     sort_order=40,
 )
 
-# SMTP 密码
+# SMTP password / SMTP 密码
 EMAIL_SMTP_PASSWORD = ConfigMeta(
     key="email_smtp_password",
     name_key="config.platform.email_smtp_password.name",
     description_key="config.platform.email_smtp_password.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.PASSWORD,
     default_value="",
     is_encrypted=True,
@@ -86,15 +85,15 @@ EMAIL_SMTP_PASSWORD = ConfigMeta(
 
 
 # ==========================================
-# 发件人配置
+# Sender config / 发件人配置
 # ==========================================
 
-# 发件人邮箱
+# Sender email address / 发件人邮箱
 EMAIL_FROM_ADDRESS = ConfigMeta(
     key="email_from_address",
     name_key="config.platform.email_from_address.name",
     description_key="config.platform.email_from_address.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.STRING,
     default_value="",
     validation_rules=[
@@ -103,12 +102,12 @@ EMAIL_FROM_ADDRESS = ConfigMeta(
     sort_order=60,
 )
 
-# 发件人名称
+# Sender name / 发件人名称
 EMAIL_FROM_NAME = ConfigMeta(
     key="email_from_name",
     name_key="config.platform.email_from_name.name",
     description_key="config.platform.email_from_name.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.STRING,
     default_value="NovusAI SaaS",
     validation_rules=[
@@ -119,15 +118,15 @@ EMAIL_FROM_NAME = ConfigMeta(
 
 
 # ==========================================
-# 邮件功能开关
+# Email feature toggle / 邮件功能开关
 # ==========================================
 
-# 启用邮件发送
+# Enable email sending / 启用邮件发送
 EMAIL_ENABLED = ConfigMeta(
     key="email_enabled",
     name_key="config.platform.email_enabled.name",
     description_key="config.platform.email_enabled.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.BOOLEAN,
     default_value=False,
     sort_order=80,
@@ -135,7 +134,7 @@ EMAIL_ENABLED = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
+# Register configs to group / 注册配置到分组
 # ==========================================
 
 PLATFORM_EMAIL_GROUP.configs = [

@@ -6,29 +6,29 @@ import { Button, Card, message } from 'ant-design-vue';
 import { useVbenForm, z } from '#/adapter/form';
 
 const [Form, formApi] = useVbenForm({
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared field defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / Default props for all fields
     componentProps: {
       class: 'w-full',
     },
   },
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局，label和input在不同行，值为vertical / vertical layout
+  // 水平布局，label和input在同一行 / horizontal layout
   layout: 'horizontal',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts内注册，并加上类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
         placeholder: '请输入',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field1',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '字段1',
       rules: 'required',
     },
@@ -62,13 +62,13 @@ const [Form, formApi] = useVbenForm({
     },
     {
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props passed to the component
       componentProps: {
         placeholder: '请输入',
       },
-      // 字段名
+      // 字段名 / Field name (form key)
       fieldName: 'field4',
-      // 界面显示的label
+      // 界面显示的label / Visible label
       label: '邮箱',
       rules: z.string().email('请输入正确的邮箱'),
     },
@@ -203,7 +203,7 @@ const [Form, formApi] = useVbenForm({
         .min(3, '用户名至少需要3个字符')
         .refine(
           async (username) => {
-            // 假设这是一个异步函数，模拟检查用户名是否已存在
+            // 假设这是一个异步函数，模拟检查用户名是否已存在 / Async mock: username taken check
             const checkUsernameExists = async (
               username: string,
             ): Promise<boolean> => {
@@ -219,7 +219,7 @@ const [Form, formApi] = useVbenForm({
         ),
     },
   ],
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个 / Responsive grid: 1 / 2 / 3 cols
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 

@@ -1,39 +1,49 @@
 """
-平台端附件服务
+平台端附件服务 / Admin Attachment Service
 
-提供跨租户的附件管理能力（平台管理员专用）
+提供跨企业的附件管理能力（平台管理员专用）
+Provides cross-tenant attachment management (platform admin only).
 """
 
 import hashlib
 import json
 import tempfile
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
 import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
+from app.configs.service import PLATFORM_TENANT_ID, ConfigService
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums import ErrorCode
-from app.enums.attachment import AttachmentSource, AttachmentStatus, AttachmentVisibility
+from app.enums.attachment import (
+    AttachmentSource,
+    AttachmentStatus,
+    AttachmentVisibility,
+)
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
+from app.services.common.storage_config_resolver import (
+    StorageConfigResolver,
+    merge_attachment_storage_snapshot,
+)
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 
 class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository]):
     """
-    平台端附件服务
-    
-    提供跨租户的附件管理能力
+    平台端附件服务 / Platform attachment service.
+
+    提供跨企业的附件管理能力
     """
-    
+
     model = Attachment
     repository_class = AdminAttachmentRepository
 
@@ -42,7 +52,20 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         self._config_service = ConfigService(db)
         self._file_validator = FileValidator(db)
 
-    # ========== 上传方法 ==========
+    @staticmethod
+    def _build_client_access_url(attachment: Attachment) -> str:
+        tenant_id = (
+            attachment.tenant_id
+            if attachment.tenant_id is not None
+            else PLATFORM_TENANT_ID
+        )
+        return AttachmentDownloadService.build_client_access_url(
+            attachment_id=attachment.id,
+            tenant_id=tenant_id,
+            visibility=attachment.visibility,
+        )
+
+    # ========== 上传方法 ========== / ========== Upload methods ==========
 
     async def upload_file(
         self,
@@ -59,12 +82,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        平台端上传文件
-        
-        不受租户配额限制，使用平台存储配置
-        
+        平台端上传文件 / Platform upload file.
+
+        不受企业配额限制，使用平台存储配置
+
         Args:
-            tenant_id: 目标租户 ID
+            tenant_id: 目标企业 ID
             content: 文件内容
             filename: 文件名
             file_size: 文件大小
@@ -75,32 +98,31 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_type: 业务类型
             business_id: 业务 ID
             metadata: 元数据
-        
+
         Returns:
             上传结果
         """
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_platform(
             filename, file_size
         )
         validate_result_or_raise(validation_result)
 
         storage_config = await self._resolve_platform_storage_config()
-        temp_path, size, file_hash = await self._save_to_temp(content)
-        actual_size = file_size or size
+        temp_path, _size, file_hash = await self._save_to_temp(content)
 
-        # 检查同租户是否已存在相同哈希的文件
-        existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
+        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动与可见性） / Check duplicate hash in same tenant (driver + visibility)
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=visibility.value,
+        )
         if existing:
             await self._remove_temp_file(temp_path)
-            driver = storage_manager.get_driver(storage_config)
-            url = await driver.get_url(
-                existing.path,
-                visibility=StorageVisibility(existing.visibility),
-            )
             return {
                 "attachment": existing,
-                "url": url,
+                "url": self._build_client_access_url(existing),
             }
 
         storage_path = self._build_storage_path(tenant_id, filename)
@@ -124,8 +146,57 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_id=business_id,
             metadata=metadata,
             storage_config=storage_config,
+            storage_scope="platform",
         )
-        return {"attachment": attachment, "url": upload_result.url}
+        return {
+            "attachment": attachment,
+            "url": self._build_client_access_url(attachment),
+        }
+
+    async def preflight_check(
+        self,
+        tenant_id: int,
+        file_hash: str,
+        filename: str,
+        size: int,
+        visibility: AttachmentVisibility = AttachmentVisibility.PRIVATE,
+    ) -> dict[str, Any]:
+        """
+        预检查文件是否已存在（秒传）/ Pre-check file existence (instant upload).
+
+        Args:
+            tenant_id: 目标企业 ID
+            file_hash: 文件哈希（纯 hex digest）
+            filename: 文件名
+            size: 文件大小
+            visibility: 附件可见性
+
+        Returns:
+            {"exists": bool, "attachment": Attachment|None, "url": str|None}
+        """
+        validation_result = await self._file_validator.validate_for_platform(
+            filename, size
+        )
+        validate_result_or_raise(validation_result)
+
+        storage_config = await self._resolve_platform_storage_config()
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=visibility.value,
+        )
+        if existing:
+            return {
+                "exists": True,
+                "attachment": existing,
+                "url": self._build_client_access_url(existing),
+            }
+        return {
+            "exists": False,
+            "attachment": None,
+            "url": None,
+        }
 
     async def start_chunk_upload(
         self,
@@ -142,9 +213,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        初始化分片上传会话
+        初始化分片上传会话 / Initialize chunk upload session.
         """
-        # 验证文件类型
+        # 验证文件类型 / Validate file type
         validation_result = await self._file_validator.validate_for_platform(
             filename, total_size
         )
@@ -171,7 +242,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             "business_id": business_id,
             "metadata": metadata or {},
             "uploaded_chunks": [],
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": utc_now().isoformat(),
         }
         await self._save_session(session)
         return self._build_session_response(session, uploaded_bytes=0)
@@ -183,7 +254,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         content: BinaryIO,
     ) -> dict[str, Any]:
         """
-        上传分片
+        上传分片 / Upload chunk.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -196,14 +267,16 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         await self._write_chunk(chunk_path, content)
         uploaded_chunks = set(session.get("uploaded_chunks", []))
         uploaded_chunks.add(chunk_index)
-        session["uploaded_chunks"] = sorted(list(uploaded_chunks))
-        uploaded_bytes = await self._calc_uploaded_bytes(upload_id, session["uploaded_chunks"])
+        session["uploaded_chunks"] = sorted(uploaded_chunks)
+        uploaded_bytes = await self._calc_uploaded_bytes(
+            upload_id, session["uploaded_chunks"]
+        )
         await self._save_session(session)
         return self._build_session_response(session, uploaded_bytes=uploaded_bytes)
 
     async def complete_chunk_upload(self, upload_id: str) -> dict[str, Any]:
         """
-        完成分片上传并合并文件
+        完成分片上传并合并文件 / Complete chunk upload and merge files.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -217,19 +290,19 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         tenant_id = int(session["tenant_id"])
 
-        # 检查是否已存在
-        existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
+        # 检查是否已存在（同时匹配当前存储驱动与可见性） / Check exists (driver + visibility)
+        existing = await self.repo.get_by_hash(
+            file_hash,
+            tenant_id=tenant_id,
+            driver=storage_config.driver,
+            visibility=str(session["visibility"]),
+        )
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
-            driver = storage_manager.get_driver(storage_config)
-            url = await driver.get_url(
-                existing.path,
-                visibility=StorageVisibility(existing.visibility),
-            )
             return {
                 "attachment": existing,
-                "url": url,
+                "url": self._build_client_access_url(existing),
             }
 
         storage_path = self._build_storage_path(tenant_id, session["filename"])
@@ -253,13 +326,17 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_id=session.get("business_id"),
             metadata=session.get("metadata"),
             storage_config=storage_config,
+            storage_scope="platform",
         )
         await self._remove_session(upload_id)
-        return {"attachment": attachment, "url": upload_result.url}
+        return {
+            "attachment": attachment,
+            "url": self._build_client_access_url(attachment),
+        }
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
-        获取分片上传进度
+        获取分片上传进度 / Get chunk upload progress.
         """
         session = await self._load_session(upload_id)
         uploaded_bytes = await self._calc_uploaded_bytes(
@@ -269,22 +346,23 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def abort_upload(self, upload_id: str) -> None:
         """
-        取消上传并清理临时文件
+        取消上传并清理临时文件 / Abort upload and clean temp files.
         """
         await self._remove_session(upload_id)
 
-    # ========== 私有方法 ==========
+    # ========== 私有方法 ========== / ========== Private methods ==========
 
     async def _resolve_platform_storage_config(self) -> StorageConfig:
         """
-        获取平台存储配置
+        获取平台存储配置 / Get platform storage config.
         """
         driver = await self._config_service.get_platform_config(
             "platform_storage_driver", default="local"
         )
         if str(driver) == "local":
-            # 本地存储使用硬编码路径
+            # 本地存储使用硬编码路径 / Local storage uses hardcoded paths
             from app.storage import LOCAL_STORAGE_ROOT
+
             root_path = str(LOCAL_STORAGE_ROOT)
         else:
             root_path = await self._config_service.get_platform_config(
@@ -305,11 +383,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def _save_to_temp(self, content: BinaryIO) -> tuple[str, int, str]:
         """
-        将内容写入临时文件并计算哈希
+        将内容写入临时文件并计算哈希 / Write content to temp file and compute hash.
         """
+
         def _write() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 while True:
                     chunk = content.read(8192)
@@ -319,14 +398,17 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                     hasher.update(chunk)
                     size += len(chunk)
                 return temp.name, size, hasher.hexdigest()
+
         return await anyio.to_thread.run_sync(_write)
 
     async def _remove_temp_file(self, temp_path: str) -> None:
         """
-        删除临时文件
+        删除临时文件 / Remove temp file.
         """
+
         def _remove() -> None:
             Path(temp_path).unlink(missing_ok=True)
+
         await anyio.to_thread.run_sync(_remove)
 
     async def _upload_to_storage(
@@ -339,7 +421,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None,
     ):
         """
-        上传临时文件到存储驱动
+        上传临时文件到存储驱动 / Upload temp file to storage driver.
         """
         driver = storage_manager.get_driver(storage_config)
         with open(temp_path, "rb") as f:
@@ -366,19 +448,27 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         business_id: int | None,
         metadata: dict | None,
         storage_config: StorageConfig | None = None,
+        storage_scope: str | None = None,
     ) -> Attachment:
         """
-        落库附件记录
+        落库附件记录 / Persist attachment record.
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
-        
+
         # 获取 base_url
         if storage_config:
             driver = storage_manager.get_driver(storage_config)
             base_url = driver.get_base_url()
         else:
             base_url = ""
-        
+        stored_meta = metadata or {}
+        if storage_config and storage_scope in {"platform", "tenant"}:
+            stored_meta = merge_attachment_storage_snapshot(
+                metadata,
+                storage_config,
+                storage_scope,
+            )
+
         attachment = await self.repo.create(
             {
                 "tenant_id": tenant_id,
@@ -397,26 +487,28 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 "uploader_id": uploader_id,
                 "business_type": business_type,
                 "business_id": business_id,
-                "meta": metadata or {},
+                "meta": stored_meta,
             }
         )
         return attachment
 
     def _build_storage_path(self, tenant_id: int, filename: str) -> str:
         """
-        构建存储路径
-        
-        - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
-        - tenant_id>0: 租户附件，路径为 {tenant_id}/{date}/{uuid}.ext
+        构建存储路径（管理端始终使用平台存储 / 共享 Bucket）/ Build storage path (platform/shared bucket).
+
+        - tenant_id=PLATFORM_TENANT_ID: 平台附件，路径为 platform/{date}/{uuid}.ext
+        - tenant_id>PLATFORM_TENANT_ID: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
-        date_path = datetime.utcnow().strftime("%Y/%m/%d")
-        prefix = "platform" if tenant_id == 0 else str(tenant_id)
+        date_path = utc_now().strftime("%Y/%m/%d")
+        prefix = (
+            "platform" if tenant_id == PLATFORM_TENANT_ID else f"tenants/{tenant_id}"
+        )
         return f"{prefix}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:
         """
-        获取上传临时根目录
+        获取上传临时根目录 / Get upload temp root.
         """
         return Path(tempfile.gettempdir()) / "novusai_uploads" / "admin"
 
@@ -433,8 +525,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         session_path = self._get_session_path(session["upload_id"])
         session_path.mkdir(parents=True, exist_ok=True)
         session_file = session_path / "session.json"
+
         def _write() -> None:
-            session_file.write_text(json.dumps(session, ensure_ascii=False), encoding="utf-8")
+            session_file.write_text(
+                json.dumps(session, ensure_ascii=False), encoding="utf-8"
+            )
+
         await anyio.to_thread.run_sync(_write)
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
@@ -444,21 +540,26 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 message=_("error.common.not_found"),
                 code=ErrorCode.NOT_FOUND,
             )
+
         def _read() -> dict[str, Any]:
             return json.loads(session_file.read_text(encoding="utf-8"))
+
         return await anyio.to_thread.run_sync(_read)
 
     async def _remove_session(self, upload_id: str) -> None:
         session_path = self._get_session_path(upload_id)
+
         def _remove() -> None:
             if session_path.exists():
                 for item in session_path.iterdir():
                     item.unlink(missing_ok=True)
                 session_path.rmdir()
+
         await anyio.to_thread.run_sync(_remove)
 
     async def _write_chunk(self, chunk_path: Path, content: BinaryIO) -> None:
         chunk_path.parent.mkdir(parents=True, exist_ok=True)
+
         def _write() -> None:
             with open(chunk_path, "wb") as f:
                 while True:
@@ -466,6 +567,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                     if not chunk:
                         break
                     f.write(chunk)
+
         await anyio.to_thread.run_sync(_write)
 
     async def _calc_uploaded_bytes(self, upload_id: str, chunks: list[int]) -> int:
@@ -476,12 +578,15 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 if chunk_path.exists():
                     total += chunk_path.stat().st_size
             return total
+
         return await anyio.to_thread.run_sync(_sum)
 
-    async def _merge_chunks(self, upload_id: str, chunk_count: int) -> tuple[str, int, str]:
+    async def _merge_chunks(
+        self, upload_id: str, chunk_count: int
+    ) -> tuple[str, int, str]:
         def _merge() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 for index in range(chunk_count):
                     chunk_path = self._get_chunk_path(upload_id, index)
@@ -494,6 +599,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                             hasher.update(chunk)
                             size += len(chunk)
                 return temp.name, size, hasher.hexdigest()
+
         return await anyio.to_thread.run_sync(_merge)
 
     def _calc_chunk_count(self, total_size: int, chunk_size: int) -> int:
@@ -501,7 +607,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             return 0
         return (total_size + chunk_size - 1) // chunk_size
 
-    def _build_session_response(self, session: dict[str, Any], uploaded_bytes: int) -> dict[str, Any]:
+    def _build_session_response(
+        self, session: dict[str, Any], uploaded_bytes: int
+    ) -> dict[str, Any]:
         total_size = int(session["total_size"])
         percent = int(uploaded_bytes * 100 / total_size) if total_size else 0
         return {
@@ -515,30 +623,87 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             "progress": percent,
         }
 
-    # ========== 管理方法 ==========
+    # ========== 管理方法 ========== / ========== Admin methods ==========
 
-    async def soft_delete(self, attachment_id: int) -> bool:
+    async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        软删除附件
-        
+        删除附件（含依赖检查 + 物理文件删除）/ Delete attachment (dependency check + physical delete).
+
+        流程：
+        1. 获取附件信息（driver / path / tenant_id）
+        2. 调用 BaseService.delete() 执行 __delete_deps__ 检查与软删除
+        3. 删除存储中的物理文件（本地 / 七牛 / S3 等）
+
         Args:
-            attachment_id: 附件 ID
-        
+            id: 附件 ID
+            soft: 是否软删除（默认 True）
+
         Returns:
             是否删除成功
         """
-        attachment = await self.repo.get_by_id(attachment_id)
+        attachment = await self.repo.get_by_id(id)
         if not attachment:
             raise NotFoundException(message=_("error.common.not_found"))
-        return await self.repo.delete(attachment_id, soft=True)
+
+        # 保存物理文件信息（删除后 instance 可能不可用）
+        file_driver = attachment.driver
+        file_path = attachment.path
+        file_tenant_id = attachment.tenant_id or PLATFORM_TENANT_ID
+
+        # BaseService.delete() 自动执行 __delete_deps__ 检查
+        result = await super().delete(id, soft=soft)
+
+        if result:
+            await self._delete_storage_file(file_driver, file_path, file_tenant_id)
+
+        return result
+
+    async def _delete_storage_file(
+        self, driver_name: str, path: str, tenant_id: int
+    ) -> None:
+        """
+        从存储驱动中删除物理文件 / Delete physical file from storage driver.
+
+        Args:
+            driver_name: 存储驱动名称（local / qiniu / s3 等）
+            path: 文件存储路径
+            tenant_id: 企业 ID（用于解析存储配置）
+        """
+        from app.core.logging import LogManager
+
+        logger = LogManager.get_logger("storage")
+        try:
+            resolver = StorageConfigResolver(self.db)
+            config = await resolver.resolve_for_attachment(driver_name, tenant_id)
+            driver = storage_manager.get_driver(config)
+            deleted = await driver.delete(path)
+            if deleted:
+                logger.info(
+                    "Storage file deleted: driver={} path={}",
+                    driver_name,
+                    path,
+                )
+            else:
+                logger.warning(
+                    "Storage file not found (already removed?): driver={} path={}",
+                    driver_name,
+                    path,
+                )
+        except Exception as e:
+            logger.error(
+                "Failed to delete storage file: driver={} path={} error={}",
+                driver_name,
+                path,
+                str(e),
+            )
 
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """
-        获取存储统计
-        
+        获取存储统计 / Get storage stats.
+
         Args:
-            tenant_id: 可选的租户 ID，不传则统计所有租户
-        
+            tenant_id: 可选的企业 ID，不传则统计所有企业
+
         Returns:
             存储统计信息
         """
@@ -546,10 +711,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按租户分组的存储统计
-        
+        获取按企业分组的存储统计 / Get storage stats by tenant.
+
         Returns:
-            各租户存储统计列表
+            各企业存储统计列表
         """
         return await self.repo.get_storage_stats_by_tenant()
 

@@ -1,0 +1,66 @@
+{
+  "selectDriver": "Select storage driver",
+  "selectDriverFirst": "Please select a storage driver first",
+  "builtin": "Built-in",
+  "plugin": "Plugin",
+  "unavailable": "Unavailable",
+  "pluginNotEnabled": "The corresponding storage plugin is not installed or enabled",
+  "testConnection": "Test Connection",
+  "testSuccess": "Connection test successful",
+  "testFailed": "Connection test failed",
+  "testing": "Testing...",
+  "save": "Save Configuration",
+  "saving": "Saving...",
+  "required": "is required",
+  "driver": {
+    "local": "Local Storage",
+    "s3": "Amazon S3",
+    "aliyun_oss": "Alibaba Cloud OSS",
+    "qiniu_kodo": "Qiniu Kodo",
+    "tencent_cos": "Tencent Cloud COS"
+  },
+  "field": {
+    "bucket": "Bucket",
+    "baseUrl": "Base URL",
+    "accessKeyId": "Access Key ID",
+    "secretAccessKey": "Secret Access Key",
+    "accessKeySecret": "Access Key Secret",
+    "secretKey": "Secret Key",
+    "secretId": "Secret ID",
+    "region": "Region",
+    "endpointUrl": "Endpoint URL",
+    "endpoint": "Endpoint",
+    "prefix": "Path Prefix",
+    "isPrivate": "Private Bucket",
+    "domain": "Custom Domain"
+  },
+  "mode": {
+    "platform": "Use Platform Storage",
+    "adminOverride": "Admin-specified Storage",
+    "custom": "Custom Storage"
+  },
+  "modeDesc": {
+    "platform": "Uses platform-configured global storage; all files share the same storage space",
+    "adminOverride": "Cloud storage configuration specified by the platform admin for this tenant",
+    "custom": "Allow tenant to configure their own cloud storage credentials; files stored in tenant's own space"
+  },
+  "status": {
+    "title": "Storage Configuration",
+    "currentMode": "Current Mode",
+    "currentDriver": "Current Driver",
+    "selfConfigNotAllowed": "Platform admin has not enabled self-service storage configuration",
+    "selfConfigEnabled": "You can configure your own cloud storage",
+    "readonlyHint": "Current storage configuration is managed by the admin. Contact admin to modify."
+  },
+  "adminOverrideDetail": {
+    "title": "Admin-configured Storage Details",
+    "driver": "Storage Driver"
+  },
+  "adminTab": {
+    "title": "Storage Configuration",
+    "modeLabel": "Storage Mode",
+    "selfConfigSwitch": "Allow tenant self-configuration",
+    "selfConfigSwitchDesc": "When enabled, tenants can fill in their own cloud storage credentials",
+    "customHint": "After saving, the tenant can configure cloud storage credentials in their System Settings → Storage"
+  }
+}

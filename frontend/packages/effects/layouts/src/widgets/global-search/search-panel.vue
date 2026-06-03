@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import type { MenuRecordRaw } from '@vben/types';
 
-import { nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { SearchX, X } from '@vben/icons';
+import { CornerDownLeft, SearchX, X } from '@vben/icons';
 import { $t } from '@vben/locales';
 import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 
-import { VbenIcon, VbenScrollbar } from '@vben-core/shadcn-ui';
+import { VbenIcon } from '@vben-core/shadcn-ui';
 import { isHttpUrl } from '@vben-core/shared/utils';
 
 import { onKeyStroke, useLocalStorage, useThrottleFn } from '@vueuse/core';
+import DOMPurify from 'dompurify';
 
 defineOptions({
   name: 'SearchPanel',
@@ -34,48 +35,87 @@ const searchHistory = useLocalStorage<MenuRecordRaw[]>(
 const activeIndex = ref(-1);
 const searchItems = shallowRef<MenuRecordRaw[]>([]);
 const searchResults = ref<MenuRecordRaw[]>([]);
+const pathToNameMap = new Map<string, string>();
+
+const displayResults = computed(() =>
+  uniqueByField(searchResults.value, 'path'),
+);
+
+function buildPathToNameMap(menus: MenuRecordRaw[]) {
+  traverseTreeValues(menus, (item) => {
+    pathToNameMap.set(item.path, item.name);
+  });
+}
+
+function getParentBreadcrumb(item: MenuRecordRaw): string {
+  if (!item.parents || item.parents.length === 0) {
+    return item.parent ? pathToNameMap.get(item.parent) || '' : '';
+  }
+  return item.parents
+    .map((p) => pathToNameMap.get(p))
+    .filter(Boolean)
+    .join(' / ');
+}
+
+function highlightMatch(text: string, keyword: string): string {
+  if (!keyword || !text) return text;
+  const reg = createSearchReg(keyword);
+  if (!reg.test(text.toLowerCase())) return text;
+  let result = '';
+  let ki = 0;
+  const lowerKeyword = keyword.toLowerCase();
+  for (const char of text) {
+    if (ki < lowerKeyword.length && char.toLowerCase() === lowerKeyword[ki]) {
+      result += `<span class="text-primary font-semibold">${char}</span>`;
+      ki++;
+    } else {
+      result += char;
+    }
+  }
+  return DOMPurify.sanitize(result);
+}
 
 const handleSearch = useThrottleFn(search, 200);
 
-// 搜索函数，用于根据搜索关键词查找匹配的菜单项
+// 搜索函数，用于根据搜索关键词查找匹配的菜单项 / Filter menu tree by keyword
 function search(searchKey: string) {
-  // 去除搜索关键词的前后空格
+  // 去除搜索关键词的前后空格 / Trim query
   searchKey = searchKey.trim();
 
-  // 如果搜索关键词为空，清空搜索结果并返回
+  // 如果搜索关键词为空，清空搜索结果并返回 / Empty query clears results
   if (!searchKey) {
     searchResults.value = [];
     return;
   }
 
-  // 使用搜索关键词创建正则表达式
+  // 使用搜索关键词创建正则表达式 / Build fuzzy regex
   const reg = createSearchReg(searchKey);
 
-  // 初始化结果数组
+  // 初始化结果数组 / Matches accumulator
   const results: MenuRecordRaw[] = [];
 
-  // 遍历搜索项
+  // 遍历搜索项 / Walk flattened menu items
   traverseTreeValues(searchItems.value, (item) => {
-    // 如果菜单项的名称匹配正则表达式，将其添加到结果数组中
+    // 如果菜单项的名称匹配正则表达式，将其添加到结果数组中 / Name match
     if (reg.test(item.name?.toLowerCase())) {
       results.push(item);
     }
   });
 
-  // 更新搜索结果
+  // 更新搜索结果 / Publish matches
   searchResults.value = results;
 
-  // 如果有搜索结果，设置索引为 0
+  // 如果有搜索结果，设置索引为 0 / Reset highlight when non-empty
   if (results.length > 0) {
     activeIndex.value = 0;
   }
 
-  // 赋值索引为 0
+  // 赋值索引为 0 / Always reset active row (including empty)
   activeIndex.value = 0;
 }
 
-// When the keyboard up and down keys move to an invisible place
-// the scroll bar needs to scroll automatically
+// When the keyboard up and down keys move to an invisible place / 键盘上下项滚入可视区
+// the scroll bar needs to scroll automatically / Auto-scroll list on arrow keys
 function scrollIntoView() {
   const element = document.querySelector(
     `[data-search-item="${activeIndex.value}"]`,
@@ -86,7 +126,7 @@ function scrollIntoView() {
   }
 }
 
-// enter keyboard event
+// enter keyboard event / Enter 打开选中项 / open active item on Enter
 async function handleEnter() {
   if (searchResults.value.length === 0) {
     return;
@@ -109,7 +149,7 @@ async function handleEnter() {
   }
 }
 
-// Arrow key up
+// Arrow key up / 上一条 / previous result
 function handleUp() {
   if (searchResults.value.length === 0) {
     return;
@@ -121,7 +161,7 @@ function handleUp() {
   scrollIntoView();
 }
 
-// Arrow key down
+// Arrow key down / 下一条 / next result
 function handleDown() {
   if (searchResults.value.length === 0) {
     return;
@@ -133,13 +173,13 @@ function handleDown() {
   scrollIntoView();
 }
 
-// close search modal
+// close search modal / 关闭搜索面板
 function handleClose() {
   searchResults.value = [];
   emit('close');
 }
 
-// Activate when the mouse moves to a certain line
+// Activate when the mouse moves to a certain line / 悬停高亮行 / hover highlights row
 function handleMouseenter(e: MouseEvent) {
   const index = (e.target as HTMLElement)?.dataset.index;
   activeIndex.value = Number(index);
@@ -155,7 +195,7 @@ function removeItem(index: number) {
   scrollIntoView();
 }
 
-// 存储所有需要转义的特殊字符
+// 存储所有需要转义的特殊字符 / Regex special chars to escape
 const code = new Set([
   '$',
   '(',
@@ -173,20 +213,20 @@ const code = new Set([
   '}',
 ]);
 
-// 转换函数，用于转义特殊字符
+// 转换函数，用于转义特殊字符 / Escape one char for RegExp source
 function transform(c: string) {
-  // 如果字符在特殊字符列表中，返回转义后的字符
-  // 如果不在，返回字符本身
+  // 如果字符在特殊字符列表中，返回转义后的字符 / Escape specials
+  // 如果不在，返回字符本身 / Passthrough otherwise
   return code.has(c) ? `\\${c}` : c;
 }
 
-// 创建搜索正则表达式
+// 创建搜索正则表达式 / Loose-order substring regex
 function createSearchReg(key: string) {
-  // 将输入的字符串拆分为单个字符
-  // 对每个字符进行转义
-  // 然后用'.*'连接所有字符，创建正则表达式
+  // 将输入的字符串拆分为单个字符 / Per-char
+  // 对每个字符进行转义 / Escape each
+  // 然后用'.*'连接所有字符，创建正则表达式 / Join with .*
   const keys = [...key].map((item) => transform(item)).join('.*');
-  // 返回创建的正则表达式
+  // 返回创建的正则表达式 / Case-insensitive match elsewhere
   return new RegExp(`.*${keys}.*`);
 }
 
@@ -208,81 +248,189 @@ onMounted(() => {
       name: $t(item?.name),
     };
   });
+  buildPathToNameMap(searchItems.value);
   if (searchHistory.value.length > 0) {
     searchResults.value = searchHistory.value;
   }
-  // enter search
   onKeyStroke('Enter', handleEnter);
-  // Monitor keyboard arrow keys
   onKeyStroke('ArrowUp', handleUp);
   onKeyStroke('ArrowDown', handleDown);
-  // esc close
   onKeyStroke('Escape', handleClose);
 });
 </script>
 
 <template>
-  <VbenScrollbar>
-    <div class="!flex h-full justify-center px-2 sm:max-h-[450px]">
-      <!-- 无搜索结果 -->
-      <div
-        v-if="keyword && searchResults.length === 0"
-        class="text-muted-foreground text-center"
-      >
-        <SearchX class="mx-auto mt-4 size-12" />
-        <p class="mb-10 mt-6 text-xs">
-          {{ $t('ui.widgets.search.noResults') }}
-          <span class="text-foreground text-sm font-medium">
-            "{{ keyword }}"
-          </span>
-        </p>
+  <div>
+    <!-- Empty state: no keyword, no history -->
+    <div v-if="!keyword && searchResults.length === 0" class="px-4 py-3">
+      <div class="text-muted-foreground/70 flex items-center gap-4 text-xs">
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Enter</kbd
+          >
+          {{ $t('ui.widgets.search.select') }}
+        </span>
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >↑↓</kbd
+          >
+          {{ $t('ui.widgets.search.navigate') }}
+        </span>
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Esc</kbd
+          >
+          {{ $t('ui.widgets.search.close') }}
+        </span>
       </div>
-      <!-- 历史搜索记录 & 没有搜索结果 -->
       <div
-        v-if="!keyword && searchResults.length === 0"
-        class="text-muted-foreground text-center"
+        class="border-border/30 mt-3 flex flex-col items-center justify-center border-t py-6"
       >
-        <p class="my-10 text-xs">
+        <SearchX class="text-muted-foreground/30 size-8" />
+        <p class="text-muted-foreground/60 mt-2 text-sm">
           {{ $t('ui.widgets.search.noRecent') }}
         </p>
       </div>
-
-      <ul v-show="searchResults.length > 0" class="w-full">
-        <li
-          v-if="searchHistory.length > 0 && !keyword"
-          class="text-muted-foreground mb-2 text-xs"
-        >
-          {{ $t('ui.widgets.search.recent') }}
-        </li>
-        <li
-          v-for="(item, index) in uniqueByField(searchResults, 'path')"
-          :key="item.path"
-          :class="
-            activeIndex === index
-              ? 'active bg-primary text-primary-foreground'
-              : ''
-          "
-          :data-index="index"
-          :data-search-item="index"
-          class="bg-accent flex-center group mb-3 w-full cursor-pointer rounded-lg px-4 py-4"
-          @click="handleEnter"
-          @mouseenter="handleMouseenter"
-        >
-          <VbenIcon
-            :icon="item.icon"
-            class="mr-2 size-5 flex-shrink-0"
-            fallback
-          />
-
-          <span class="flex-1">{{ item.name }}</span>
-          <div
-            class="flex-center dark:hover:bg-accent hover:text-primary-foreground rounded-full p-1 hover:scale-110"
-            @click.stop="removeItem(index)"
-          >
-            <X class="size-4" />
-          </div>
-        </li>
-      </ul>
     </div>
-  </VbenScrollbar>
+
+    <!-- No search results -->
+    <div
+      v-else-if="keyword && searchResults.length === 0"
+      class="flex flex-col items-center justify-center py-10"
+    >
+      <SearchX class="text-muted-foreground/30 size-8" />
+      <p class="text-muted-foreground mt-3 text-sm">
+        {{ $t('ui.widgets.search.noResults') }}
+      </p>
+      <p class="text-muted-foreground/50 mt-1 text-xs">"{{ keyword }}"</p>
+    </div>
+
+    <!-- Results or History -->
+    <template v-else-if="displayResults.length > 0">
+      <div class="max-h-[300px] overflow-y-auto p-2">
+        <!-- Section header -->
+        <div
+          v-if="!keyword && searchHistory.length > 0"
+          class="text-muted-foreground/60 mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider"
+        >
+          <CornerDownLeft class="size-3" />
+          {{ $t('ui.widgets.search.recent') }}
+        </div>
+        <div
+          v-else-if="keyword"
+          class="mb-2 flex items-center justify-between px-2"
+        >
+          <span
+            class="text-muted-foreground/60 text-[11px] font-medium uppercase tracking-wider"
+          >
+            {{ $t('ui.widgets.search.title') }}
+          </span>
+          <span class="text-muted-foreground/50 text-[10px] tabular-nums">
+            {{
+              $t('ui.widgets.search.resultsCount', {
+                count: displayResults.length,
+              })
+            }}
+          </span>
+        </div>
+
+        <!-- Result items -->
+        <div class="space-y-0.5">
+          <div
+            v-for="(item, index) in displayResults"
+            :key="item.path"
+            :data-index="index"
+            :data-search-item="index"
+            class="group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors"
+            :class="
+              activeIndex === index
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-muted'
+            "
+            @click="handleEnter"
+            @mouseenter="handleMouseenter"
+          >
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-colors"
+              :class="
+                activeIndex === index
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground'
+              "
+            >
+              <VbenIcon :icon="item.icon" class="size-4" fallback />
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <!-- eslint-disable vue/no-v-html -->
+              <div
+                class="truncate text-sm font-medium"
+                v-html="
+                  keyword ? highlightMatch(item.name, keyword) : item.name
+                "
+              ></div>
+              <!-- eslint-enable vue/no-v-html -->
+              <div class="flex items-center gap-2">
+                <span
+                  v-if="getParentBreadcrumb(item)"
+                  class="text-muted-foreground/70 truncate text-xs"
+                >
+                  {{ getParentBreadcrumb(item) }}
+                </span>
+                <span
+                  v-if="item.path && !isHttpUrl(item.path)"
+                  class="text-muted-foreground/40 shrink-0 truncate text-[10px] tabular-nums"
+                >
+                  {{ item.path }}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex shrink-0 items-center gap-1">
+              <CornerDownLeft
+                v-if="activeIndex === index"
+                class="text-primary size-3.5"
+              />
+              <div
+                class="hover:bg-accent flex items-center justify-center rounded-full p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                @click.stop="removeItem(index)"
+              >
+                <X class="text-muted-foreground size-3.5" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer hints (when results are showing) -->
+      <div
+        class="border-border/40 text-muted-foreground/70 flex items-center gap-4 border-t px-4 py-2.5 text-xs"
+      >
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Enter</kbd
+          >
+          {{ $t('ui.widgets.search.select') }}
+        </span>
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >↑↓</kbd
+          >
+          {{ $t('ui.widgets.search.navigate') }}
+        </span>
+        <span class="flex items-center gap-1">
+          <kbd
+            class="border-border/50 bg-muted/50 rounded border px-1 py-0.5 text-[10px]"
+            >Esc</kbd
+          >
+          {{ $t('ui.widgets.search.close') }}
+        </span>
+      </div>
+    </template>
+  </div>
 </template>

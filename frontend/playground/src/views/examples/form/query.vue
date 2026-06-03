@@ -6,31 +6,31 @@ import { Card, message } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 
 const [QueryForm] = useVbenForm({
-  // 默认展开
+  // 默认展开 / Expanded by default
   collapsed: false,
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / All fields
     componentProps: {
       class: 'w-full',
     },
   },
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局：label 与 input 分行 / vertical layout
+  // 水平布局：label 与 input 同行 / horizontal layout
   layout: 'horizontal',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts 内注册并声明类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props for the component
       componentProps: {
         placeholder: '请输入用户名',
       },
-      // 字段名
+      // 字段名 / fieldName
       fieldName: 'username',
-      // 界面显示的label
+      // 界面显示的 label / Visible label
       label: '字符串',
     },
     {
@@ -77,12 +77,12 @@ const [QueryForm] = useVbenForm({
       label: '日期选择框',
     },
   ],
-  // 是否可展开
+  // 是否可展开 / Collapse toggle
   showCollapseButton: true,
   submitButtonOptions: {
     content: '查询',
   },
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏 3 列、中屏 2 列、小屏 1 列 / Responsive grid columns
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 
@@ -90,15 +90,15 @@ const [InlineForm] = useVbenForm({
   layout: 'inline',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts 内注册并声明类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props for the component
       componentProps: {
         placeholder: '请输入用户名',
       },
-      // 字段名
+      // 字段名 / fieldName
       fieldName: 'username',
-      // 界面显示的label
+      // 界面显示的 label / Visible label
       label: '字符串',
     },
     {
@@ -143,74 +143,74 @@ const [InlineForm] = useVbenForm({
 });
 
 const [QueryForm1] = useVbenForm({
-  // 默认展开
+  // 默认展开 / Expanded by default
   collapsed: true,
   collapsedRows: 2,
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / All fields
     componentProps: {
       class: 'w-full',
     },
   },
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局：label 与 input 分行 / vertical layout
+  // 水平布局：label 与 input 同行 / horizontal layout
   layout: 'horizontal',
   schema: (() => {
     const schema = [];
     for (let index = 0; index < 14; index++) {
       schema.push({
-        // 组件需要在 #/adapter.ts内注册，并加上类型
+        // 组件需要在 #/adapter.ts 内注册并声明类型 / Register in adapter + types
         component: 'Input',
-        // 字段名
+        // 字段名 / fieldName
         fieldName: `field${index}`,
-        // 界面显示的label
+        // 界面显示的 label / Visible label
         label: `字段${index}`,
       });
     }
     return schema;
   })(),
-  // 是否可展开
+  // 是否可展开 / Collapse toggle
   showCollapseButton: true,
   submitButtonOptions: {
     content: '查询',
   },
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏 3 列、中屏 2 列、小屏 1 列 / Responsive grid columns
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 
 const [QueryForm2] = useVbenForm({
-  // 操作按钮组 newLine: 在新行显示。rowEnd: 在行内显示，靠右对齐（默认）。inline: 使用grid默认样式
+  // 操作按钮组：newLine 新行；rowEnd 行尾右对齐；inline grid 默认 / Action bar layout
   actionLayout: 'newLine',
-  actionPosition: 'left', // 操作按钮组在左侧显示
-  // 默认折叠
+  actionPosition: 'left', // 操作按钮组在左侧显示 / Actions on the left
+  // 默认折叠 / Collapsed by default
   collapsed: true,
   collapsedRows: 3,
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / All fields
     componentProps: {
       class: 'w-full',
     },
   },
-  // 提交函数
+  // 提交函数 / Submit handler
   handleSubmit: onSubmit,
-  // 垂直布局，label和input在不同行，值为vertical
-  // 水平布局，label和input在同一行
+  // 垂直布局：label 与 input 分行 / vertical layout
+  // 水平布局：label 与 input 同行 / horizontal layout
   layout: 'vertical',
   schema: [
     {
-      // 组件需要在 #/adapter.ts内注册，并加上类型
+      // 组件需要在 #/adapter.ts 内注册并声明类型 / Register in adapter + types
       component: 'Input',
-      // 对应组件的参数
+      // 对应组件的参数 / Props for the component
       componentProps: {
         placeholder: '请输入用户名',
       },
-      // 字段名
+      // 字段名 / fieldName
       fieldName: 'username',
-      // 界面显示的label
+      // 界面显示的 label / Visible label
       label: '字符串',
     },
     {
@@ -236,12 +236,12 @@ const [QueryForm2] = useVbenForm({
       label: '日期选择框',
     },
   ],
-  // 是否可展开
+  // 是否可展开 / Collapse toggle
   showCollapseButton: true,
   submitButtonOptions: {
     content: '查询',
   },
-  // 大屏一行显示3个，中屏一行显示2个，小屏一行显示1个
+  // 大屏 3 列、中屏 2 列、小屏 1 列 / Responsive grid columns
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 

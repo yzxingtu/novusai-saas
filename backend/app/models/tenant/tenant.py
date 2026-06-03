@@ -1,29 +1,55 @@
 """
-租户模型
+企业模型 / Tenant Model
 
-多租户 SaaS 的租户实体
+多企业 SaaS 的企业实体
+Multi-tenant SaaS tenant entity.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, JSON
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Tenant(BaseModel):
     """
-    租户模型
-    
-    - 每个租户是一个独立的商户/组织
-    - 租户数据完全隔离
+    企业模型 / Tenant model.
+
+    - 每个企业是一个独立的商户/组织
+    - 企业数据完全隔离
     """
-    
+
     __tablename__ = "tenants"
-    
-    # 允许前端筛选的字段
+
+    __delete_deps__ = [
+        DeletionDep(
+            "TenantAdmin",
+            "tenant_id",
+            DeletionStrategy.BLOCK,
+            label_field="username",
+            i18n_key="tenant_admin",
+        ),
+        DeletionDep(
+            "TenantDomain",
+            "tenant_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="domain",
+            i18n_key="tenant_domain",
+        ),
+        DeletionDep(
+            "SystemAgentAssignment",
+            "tenant_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="system_agent_assignment",
+        ),
+    ]
+
+    # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",
         "name": "name",
@@ -37,138 +63,191 @@ class Tenant(BaseModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
-    
-    # 下拉选项配置
+
+    __sortable__ = [
+        "id",
+        "name",
+        "code",
+        "is_active",
+        "plan_id",
+        "expires_at",
+        "created_at",
+        "updated_at",
+    ]
+
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "name",
         "value": "id",
         "search": ["name", "code"],
         "extra": ["code"],
     }
-    
-    # 基本信息
+
+    # 基本信息 / Basic info
     name: Mapped[str] = mapped_column(
-        String(100), index=True, comment="租户名称"
+        String(100),
+        index=True,
+        comment="企业名称 / Tenant name",
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="租户编码（唯一标识）"
+        String(50),
+        unique=True,
+        index=True,
+        comment="企业编码（唯一标识） / Tenant code",
     )
-    
-    # 联系信息
+
+    # 联系信息 / Contact
     contact_name: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="联系人姓名"
+        String(50),
+        nullable=True,
+        comment="联系人姓名 / Contact name",
     )
     contact_phone: Mapped[str | None] = mapped_column(
-        String(20), nullable=True, comment="联系人电话"
+        String(20),
+        nullable=True,
+        comment="联系人电话 / Contact phone",
     )
     contact_email: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="联系人邮箱"
+        String(255),
+        nullable=True,
+        comment="联系人邮箱 / Contact email",
     )
-    
-    # 租户状态
+
+    # 企业状态 / Status
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否启用"
+        Boolean,
+        default=True,
+        comment="是否启用 / Active",
     )
-    
-    # 套餐/配额
-    # @deprecated: plan 字段已废弃，请使用 plan_id 关联 TenantPlan
-    # 保留字段以兼容旧数据，迁移后删除
+
+    # 退役存储列：仅映射现有库表形态，应用写入会拒绝 /
+    # Retired storage column: mapped for the existing table shape; app writes are rejected.
     plan: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, default=None, comment="套餐类型(已废弃)"
+        String(50),
+        nullable=True,
+        default=None,
+        comment="退役套餐文本列 / Retired plan text column",
     )
-    
-    # 套餐外键关联
+
+    # 套餐外键关联 / FK to TenantPlan
     plan_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenant_plans.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="关联套餐ID"
+        comment="关联套餐ID / Plan id",
     )
-    
-    # 租户级配额覆盖（可覆盖套餐默认配额）
+
+    # 企业级配额覆盖（可覆盖套餐默认配额） / Tenant quota overrides
     quota: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="配额配置(可覆盖套餐默认值)"
+        JSON,
+        nullable=True,
+        comment="配额配置(可覆盖套餐默认值) / Quota JSON overrides",
     )
-    
-    # 有效期
+
+    # 有效期 / Expiry
     expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="到期时间"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="到期时间 / Expires at",
     )
-    
-    # 备注
+
+    # 备注 / Remark
     remark: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="备注"
+        Text,
+        nullable=True,
+        comment="备注 / Remark",
     )
-    
-    # 租户设置（JSON 格式）
-    # @deprecated: 已废弃，请使用 ConfigService.get_tenant_config() 获取配置
-    # 数据已迁移到 system_config_values 表
-    # 保留字段以兼容旧数据，但不再使用
+
+    # 退役存储列：配置读取统一走 ConfigService /
+    # Retired storage column: config reads go through ConfigService.
     settings: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="租户设置(已废弃)"
+        JSON,
+        nullable=True,
+        comment="退役企业设置列 / Retired tenant settings column",
     )
-    
-    # ==================== 关系 ====================
-    
-    # 关联套餐
+
+    # ==================== 关系 ==================== / Relationships
+
+    # 关联套餐 / Linked plan
     tenant_plan: Mapped["TenantPlan | None"] = relationship(
         "TenantPlan",
         back_populates="tenants",
         lazy="selectin",
     )
-    
-    # 租户绑定的域名列表
+
+    # 企业绑定的域名列表 / Bound domains
     domains = relationship(
         "TenantDomain",
         back_populates="tenant",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    
-    # ==================== 辅助属性 ====================
-    
+
+    # ==================== 辅助属性 ==================== / Helpers
+
     @property
     def subdomain(self) -> str:
-        """获取租户子域名"""
+        """获取企业子域名 / Get tenant subdomain."""
         return self.code
-    
-    # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
-    # - logo_url -> tenant_logo
-    # - favicon_url -> tenant_favicon  
-    # - theme_color -> tenant_primary_color
-    # - captcha_enabled -> tenant_captcha_enabled
-    # - login_methods -> tenant_login_methods
-    
+
+    @property
+    def has_active_plan(self) -> bool:
+        """Whether this active tenant is linked to an active plan."""
+        plan = self.tenant_plan
+        return (
+            bool(self.is_active)
+            and not bool(self.is_deleted)
+            and self.plan_id is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
+        )
+
+    @validates("plan", "settings")
+    def _reject_retired_storage_write(self, key: str, value: Any) -> Any:
+        """中文: 退役列只允许清空，新写入必须走 plan_id 或 ConfigService。
+
+        EN: Retired columns may only be cleared; new writes must use plan_id or
+        ConfigService.
+        """
+        if value is None:
+            return None
+        raise ValueError(f"tenants.{key} is retired; use plan_id or ConfigService")
+
     @property
     def max_custom_domains(self) -> int:
-        """获取最大自定义域名数量（由套餐决定）"""
-        # 优先从租户级 quota 获取，其次从套餐获取
+        """获取最大自定义域名数量（由套餐决定） / Max custom domains (from plan quota)."""
+        if not self.has_active_plan:
+            return 0
+        # 优先从企业级 quota 获取，其次从套餐获取 /
+        # Prefer tenant quota, then plan defaults
         if self.quota and "max_custom_domains" in self.quota:
             return self.quota.get("max_custom_domains", 0)
         if self.tenant_plan:
             return self.tenant_plan.get_quota_value("max_custom_domains", 0)
         return 0
-    
+
     def get_quota_value(self, key: str, default: int | bool | None = None):
         """
-        获取配额值（优先租户级覆盖，其次套餐默认值）
-        
+        获取配额值（优先企业级覆盖，其次套餐默认值）/ Get quota value (tenant override first, then plan default).
+
         Args:
             key: 配额键名
             default: 默认值
-        
+
         Returns:
             配额值
         """
-        # 优先从租户级 quota 获取
+        if not self.has_active_plan:
+            return default
+        # 优先从企业级 quota 获取 / Prefer tenant-level quota
         if self.quota and key in self.quota:
             return self.quota.get(key, default)
-        # 其次从套餐获取
+        # 其次从套餐获取 / Else plan defaults
         if self.tenant_plan:
             return self.tenant_plan.get_quota_value(key, default)
         return default
-    
+
     def __repr__(self) -> str:
         return f"<Tenant(id={self.id}, code={self.code}, name={self.name})>"
 

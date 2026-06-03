@@ -1,0 +1,176 @@
+/**
+ * {{ display_name }} - Card 模式数据配置
+ * {{ display_name_en }} - Card mode data config
+ *
+ * Card 模式只导出 useFormSchema + getFormDefaults + useGridFormSchema(简化搜索)
+ */
+import type { VbenFormSchema } from '#/adapter/form';
+
+{% set _card_fk_ns = namespace(rels=[]) %}
+{% for f in fields if ('ForeignKey' in (f.type | default('')) or f.type == 'TreeSelect') and not f.get('divider') %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+{% if _rel not in _card_fk_ns.rels %}
+{% set _card_fk_ns.rels = _card_fk_ns.rels + [_rel] %}
+import { get{{ _rel | pascal }}ListApi } from '#/api/{{ api_scope | default("admin") }}/{{ _rel }}';
+{% endif %}
+{% endfor %}
+{% if fields | selectattr('type', 'equalto', 'UserSelect') | list | length > 0 or fields | selectattr('type', 'equalto', 'DeptSelect') | list | length > 0 %}
+import { getDeptTreeApi, getUserSelectApi } from '#/composables/use-codegen-apis';
+{% endif %}
+import {
+  apiSelect,
+  inputField,
+  numberField,
+  searchInput,
+  select,
+  switchField,
+  textareaField,
+} from '#/adapter/form';
+import { $t } from '#/locales';
+
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set card_title = (detail and detail.card and detail.card.title) or (resource | camel) %}
+{% set card_icon = (detail and detail.card and detail.card.icon) or 'lucide:file-text' %}
+
+{# useFormSchema - 同 data_table #}
+export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
+  return [
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set form_cfg = f.get('form', {}) %}
+{% if form_cfg is not mapping %}{% set form_cfg = {} %}{% endif %}
+{% set _comp_result = type_registry.get_form_component(f) if type_registry else 'input' %}
+{% set comp = form_cfg.get('component') or _comp_result %}
+{% set ftype = f.type | default('String') %}
+{% if f.name == 'parent_id' and (model.tree | default({})).get('enabled') %}
+    inputField('{{ f.name }}', $t('{{ i18n_pre }}.parentId'), { placeholder: $t('{{ i18n_pre }}.placeholder.parentId') }),
+{% elif 'ForeignKey' in ftype %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+    apiSelect({
+      api: () => get{{ _rel | pascal }}ListApi(),
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      required: {{ f.get('required', true) | lower }},
+      componentProps: {
+        labelField: '{{ f.get("relation_display_field") or f.get("relation_display") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+        {% if f.get('multiple') %}multiple: true,{% endif %}
+      },
+    }),
+{% elif ftype == 'UserSelect' %}
+    apiSelect({
+      api: getUserSelectApi,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      required: {{ f.get('required', true) | lower }},
+      componentProps: {
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    }),
+{% elif ftype == 'DeptSelect' %}
+    {
+      component: 'ApiTreeSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: getDeptTreeApi,
+        labelField: '{{ f.get("relation_display_field") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    },
+{% elif ftype == 'TreeSelect' %}
+{% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
+{% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+    {
+      component: 'ApiTreeSelect',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        api: () => get{{ _rel | pascal }}ListApi(),
+        labelField: '{{ f.get("relation_display_field") or f.get("relation_display") or "name" }}',
+        valueField: '{{ f.get("relation_value_field") or "id" }}',
+      },
+    },
+{% elif ftype == 'Cascader' %}
+    {
+      component: 'Cascader',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        options: {{ f.get('cascader_options', []) | tojson }},
+        placeholder: $t('{{ i18n_pre }}.placeholder.select'),
+      },
+    },
+{% elif comp == 'ImageUpload' or comp == 'FilePicker' %}
+    {
+      component: '{{ comp }}' as const,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        {% if f.get('multiple') %}multiple: true,{% endif %}
+        {% if f.get('max_count') is defined %}maxCount: {{ f.get('max_count') }},{% endif %}
+      },
+    },
+{% elif comp == 'RichText' or comp == 'CronPicker' or comp == 'IconPicker' or comp == 'CodeEditor' %}
+    {
+      component: '{{ comp }}' as const,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+    },
+{% elif 'Boolean' in ftype or comp == 'switch' %}
+    switchField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { defaultValue: {{ (f.get('default', false) and 'true') or 'false' }} }),
+{% elif 'Text' in ftype or comp == 'textarea' %}
+    textareaField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { rows: 3{% if f.get('required', true) %}, required: true{% endif %} }),
+{% elif 'Integer' in ftype or 'Float' in ftype or 'Decimal' in ftype or comp == 'number' %}
+    numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { min: undefined{% if f.get('default') is not none %}, defaultValue: {{ f.get('default') }}{% endif %} }),
+{% elif 'DateTime' in ftype %}
+    {
+      component: 'DatePicker',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: { showTime: true, format: 'YYYY-MM-DD HH:mm:ss' },
+    },
+{% elif 'Date' in ftype and 'DateTime' not in ftype %}
+    {
+      component: 'DatePicker',
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      componentProps: { format: 'YYYY-MM-DD' },
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+    },
+{% elif f.get('enum_values') %}
+    select('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), {
+      options: [{% for v in f.enum_values %}{ label: $t('{{ i18n_pre }}.enum.{{ v.value if v is mapping else v }}'), value: '{{ v.value if v is mapping else v }}' }{% if not loop.last %}, {% endif %}{% endfor %}],
+      required: {{ f.get('required', true) | lower }},
+    }),
+{% else %}
+    inputField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { required: {{ f.get('required', true) | lower }} }),
+{% endif %}
+{% endfor %}
+  ];
+}
+
+export function getFormDefaults(): Record<string, unknown> {
+  return {
+{% for f in fields if not f.get('divider') and (f.get('default') is not none or f.get('form_default') is not none) %}
+{% set dv = f.get('form_default') if f.get('form_default') is not none else f.get('default') %}
+{% set dv_str = dv | string %}
+{% set dv_clean = dv_str.strip("'\"") if dv_str.startswith("'") or dv_str.startswith('"') else dv_str %}
+    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv_clean }}'{% endif %},
+{% endfor %}
+  };
+}
+
+{# Card 模式简化的搜索 Schema，供 useCrudList 的 searchParams 使用 #}
+export function useGridFormSchema(): VbenFormSchema[] {
+  return [
+    searchInput('name', $t('{{ i18n_pre }}.name')),
+  ];
+}

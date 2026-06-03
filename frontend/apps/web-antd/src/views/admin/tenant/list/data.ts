@@ -1,5 +1,5 @@
 /**
- * 租户管理 - 表格列和表单配置
+ * 企业管理 - 表格列和表单配置
  * 遵循 vben-admin 规范
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -19,84 +19,33 @@ import {
 } from '#/adapter/form';
 import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 
 type TenantInfo = adminApi.TenantInfo;
-type TenantPlan = adminApi.TenantPlan;
-
-// ============ 业务预设 ============
-
-/**
- * 获取套餐选项列表（用于下拉选择）
- */
-export function getPlanOptions(): { label: string; value: TenantPlan }[] {
-  return [
-    { label: $t('admin.tenant.planOptions.free'), value: 'free' },
-    { label: $t('admin.tenant.planOptions.basic'), value: 'basic' },
-    { label: $t('admin.tenant.planOptions.pro'), value: 'pro' },
-    { label: $t('admin.tenant.planOptions.enterprise'), value: 'enterprise' },
-  ];
-}
-
-// For backward compatibility - 使用函数获取以支持 i18n
-export function PLAN_OPTIONS(): { label: string; value: TenantPlan }[] {
-  return getPlanOptions();
-}
-
-/**
- * 获取套餐显示文本
- */
-export function getPlanText(plan: null | TenantPlan | undefined): string {
-  if (!plan) return '-';
-  const key = `admin.tenant.planOptions.${plan}`;
-  return $t(key);
-}
-
-/**
- * 获取套餐颜色
- */
-export function getPlanColor(plan: null | TenantPlan | undefined): string {
-  if (!plan) return 'default';
-  switch (plan) {
-    case 'basic': {
-      return 'blue';
-    }
-    case 'enterprise': {
-      return 'gold';
-    }
-    case 'free': {
-      return 'default';
-    }
-    case 'pro': {
-      return 'green';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
 
 /**
  * 表格列定义
- * @param onActionClick 操作按钮点击回调
+ * @param _onActionClick 操作按钮点击回调
  * @param onStatusChange 状态切换回调
  */
 export function useColumns<T = TenantInfo>(
-  onActionClick: OnActionClickFn<T>,
+  _onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
+  const { hasAccessByCodes } = useAccess();
+  const canToggleStatus =
+    !!onStatusChange && hasAccessByCodes(['tenant:update']);
+
   return [
     {
-      field: 'code',
-      title: $t('admin.tenant.code'),
-      minWidth: 140,
-      slots: {
-        default: 'code_cell',
-      },
+      type: 'expand',
+      width: 40,
+      slots: { content: 'expand_content' },
     },
     {
       field: 'name',
       title: $t('admin.tenant.name'),
-      minWidth: 180,
+      minWidth: 200,
       slots: {
         default: 'name_cell',
       },
@@ -104,18 +53,9 @@ export function useColumns<T = TenantInfo>(
     {
       field: 'primaryDomain',
       title: $t('admin.tenant.domain.primaryDomain'),
-      minWidth: 180,
+      minWidth: 220,
       slots: {
         default: 'primaryDomain_cell',
-      },
-    },
-    {
-      field: 'domainCount',
-      title: $t('admin.tenant.domain.domainCount'),
-      width: 90,
-      align: 'center',
-      slots: {
-        default: 'domainCount_cell',
       },
     },
     {
@@ -146,11 +86,11 @@ export function useColumns<T = TenantInfo>(
     {
       cellRender: {
         attrs: {
-          beforeChange: onStatusChange,
+          beforeChange: canToggleStatus ? onStatusChange : undefined,
           checkedValue: true,
           unCheckedValue: false,
         },
-        name: onStatusChange ? 'CellSwitch' : 'CellTag',
+        name: canToggleStatus ? 'CellSwitch' : 'CellTag',
         options: [
           { color: 'success', label: $t('admin.common.enabled'), value: true },
           {
@@ -184,49 +124,21 @@ export function useColumns<T = TenantInfo>(
     },
     {
       align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'tenant', // 自动检查 tenant:update, tenant:delete
-          nameField: 'name',
-          nameTitle: $t('admin.tenant.name'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: [
-          {
-            code: 'manageDomains',
-            text: $t('admin.tenant.manageDomains'),
-            icon: 'lucide:globe',
-            accessCodes: ['tenant:update'], // 域名管理需要更新权限
-          },
-          {
-            code: 'resetPassword',
-            text: $t('admin.tenant.resetPassword'),
-            icon: 'lucide:key-round',
-            accessCodes: ['tenant:update'], // 重置密码需要更新权限
-          },
-          {
-            code: 'impersonate',
-            text: $t('admin.tenant.enterBackend'),
-            icon: 'lucide:log-in',
-            accessCodes: ['tenant:impersonate'], // 自定义权限
-          },
-          'edit', // 自动鉴权: tenant:update
-          'delete', // 自动鉴权: tenant:delete
-        ],
-      },
       field: 'operation',
       fixed: 'right',
+      slots: {
+        default: 'operation_cell',
+      },
       title: $t('admin.common.operation'),
-      width: 120,
+      width: 140,
     },
   ];
 }
 
-// ============ 业务预设 ============
+// ============ 业务预设 / Business presets ============
 
-/** 套餐选择器 */
-export function planSelect(
+/** 套餐选择器 / Plan selector */
+function planSelect(
   options: { required?: boolean; search?: boolean } = {},
 ): VbenFormSchema {
   const { search = false, required = false } = options;
@@ -277,7 +189,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // 编辑模式时显示租户编码（只读）
+    // Show tenant code in edit mode (readonly) / 编辑模式时显示企业编码（只读）
     ...(isEdit
       ? [inputField('code', $t('admin.tenant.code'), { disabled: true })]
       : []),
@@ -302,7 +214,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
     textareaField('remark', $t('admin.tenant.remark'), {
       placeholder: $t('admin.tenant.placeholder.inputRemark'),
     }),
-    // 新建时显示管理员信息
+    // Show admin info in create mode / 新建时显示管理员信息
     ...(isEdit
       ? []
       : [
@@ -347,7 +259,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
 }
 
 /**
- * 重置租户管理员密码表单 Schema
+ * 重置企业管理员密码表单 Schema
  */
 export function useResetPasswordSchema(): VbenFormSchema[] {
   return [

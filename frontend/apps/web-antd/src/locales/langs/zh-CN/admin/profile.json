@@ -1,0 +1,19 @@
+{
+  "tabs": {
+    "basic": "基本信息",
+    "password": "修改密码"
+  },
+  "save": "保存修改",
+  "changePassword": "修改密码",
+  "messages": {
+    "loadFailed": "加载个人信息失败",
+    "updateSuccess": "个人信息已更新",
+    "updateFailed": "更新个人信息失败",
+    "avatarUpdated": "头像已更新",
+    "avatarFailed": "头像上传失败",
+    "avatarTypeError": "只能上传图片文件",
+    "avatarSizeError": "图片大小不能超过 2MB",
+    "passwordChanged": "密码修改成功",
+    "passwordFailed": "密码修改失败"
+  }
+}

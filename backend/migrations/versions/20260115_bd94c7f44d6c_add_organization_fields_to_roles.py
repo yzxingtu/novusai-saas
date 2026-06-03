@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add_organization_fields_to_roles
 
 Revision ID: bd94c7f44d6c

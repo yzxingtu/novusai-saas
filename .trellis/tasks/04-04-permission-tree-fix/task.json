@@ -1,0 +1,34 @@
+{
+  "id": "permission-tree-fix",
+  "name": "permission-tree-fix",
+  "title": "Fix permission tree nodes and translations",
+  "description": "修复权限树父节点与翻译缺失问题，并统一 `/admin/permissions` 与套餐可分配权限树的构建规则。",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-04",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "2026-04-22 completed: `/admin/plans/available-permissions` now reuses the shared permission presentation flow through `PermissionService.build_simple_permission_tree`, so the plan-assignable tree and the canonical permission tree share one translation and parent-filled projection owner. Added route-level verification for the shared projection seam.",
+  "meta": {}
+}

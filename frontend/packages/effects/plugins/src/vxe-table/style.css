@@ -18,10 +18,10 @@
   --vxe-ui-loading-background-color: hsl(var(--overlay-content));
 
   /* table */
-  --vxe-ui-table-header-background-color: hsl(var(--accent));
+  --vxe-ui-table-header-background-color: hsl(var(--accent) / 80%);
   --vxe-ui-table-border-color: hsl(var(--border));
   --vxe-ui-table-row-hover-background-color: hsl(var(--accent-hover));
-  --vxe-ui-table-row-striped-background-color: hsl(var(--accent) / 60%);
+  --vxe-ui-table-row-striped-background-color: hsl(var(--accent) / 40%);
   --vxe-ui-table-row-hover-striped-background-color: hsl(var(--accent));
   --vxe-ui-table-row-radio-checked-background-color: hsl(var(--accent));
   --vxe-ui-table-row-hover-radio-checked-background-color: hsl(
@@ -82,12 +82,13 @@
 
 .vxe-toolbar {
   padding: 0;
+  border-bottom: 1px solid hsl(var(--border) / 60%);
 }
 
 .vxe-buttons--wrapper:not(:empty),
 .vxe-tools--operate:not(:empty),
 .vxe-tools--wrapper:not(:empty) {
-  padding: 0.6em 0;
+  padding: 0.5em 0;
 }
 
 .vxe-tools--operate:not(:has(button)) {
@@ -102,13 +103,94 @@
   overflow: hidden;
 }
 
-/* 空状态样式 - 增加上下间距 */
+.vxe-grid-search-panel {
+  transform-origin: top center;
+  will-change: opacity, transform, clip-path, filter;
+}
+
+.vxe-grid-search-panel.is-legacy-motion {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.vxe-grid-search-panel.is-legacy-motion.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.vxe-grid-search-panel.is-legacy-motion.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.vxe-grid-search-panel.is-modern-motion {
+  transition:
+    opacity var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    clip-path calc(var(--vxe-search-panel-motion-duration, 220ms) + 20ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    filter var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.vxe-grid-search-panel.is-modern-motion.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(6px);
+  clip-path: inset(0 0 100% 0 round 14px);
+  transform: translateY(-10px) scaleY(0.985);
+}
+
+.vxe-grid-search-panel.is-modern-motion.is-visible {
+  opacity: 1;
+  filter: blur(0);
+  clip-path: inset(0 0 0 0 round 14px);
+  transform: translateY(0) scaleY(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vxe-grid-search-panel {
+    filter: none !important;
+    clip-path: inset(0 0 0 0 round 14px) !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* 表头样式 - 精致层次感 */
+.vxe-header--column {
+  .vxe-cell--title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: hsl(var(--foreground) / 65%);
+    letter-spacing: 0.02em;
+  }
+}
+
+/* 行 hover 平滑过渡 */
+.vxe-body--row {
+  transition: background-color 0.15s ease;
+}
+
+/* 分页器上方分隔线 */
+.vxe-grid--pager-wrapper {
+  padding-top: 4px;
+  border-top: 1px solid hsl(var(--border) / 50%);
+}
+
+/* 空状态样式 */
 .vxe-table--empty-placeholder {
-  padding: 32px 0;
+  padding: 48px 0;
 }
 
 .vxe-table--empty-content {
-  padding: 16px;
+  padding: 20px;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground) / 45%);
 }
 
 /* 操作列图标按钮样式 */
@@ -117,14 +199,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border-radius: 6px;
-    transition: all 0.2s;
+    border-radius: 8px;
+    transition: all 0.2s ease;
 
     &:hover {
       background-color: hsl(var(--accent));
+      transform: scale(1.05);
     }
 
     &.ant-btn-dangerous:hover {

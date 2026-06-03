@@ -61,6 +61,7 @@ const props = withDefaults(defineProps<Props>(), {
   tabbarEnable: true,
   tabbarHeight: 40,
   zIndex: 200,
+  panelRightOffset: 0,
 });
 
 const emit = defineEmits<{ sideMouseLeave: []; toggleSidebar: [] }>();
@@ -221,6 +222,7 @@ const maskVisible = computed(() => !sidebarCollapse.value && props.isMobile);
 const mainStyle = computed(() => {
   let width = '100%';
   let sidebarAndExtraWidth = 'unset';
+  const rightOffset = props.panelRightOffset || 0;
   if (
     headerFixed.value &&
     currentLayout.value !== 'header-nav' &&
@@ -243,16 +245,22 @@ const mainStyle = computed(() => {
         ? props.sidebarExtraCollapsedWidth
         : props.sidebarWidth;
 
-      // 100% - 侧边菜单混合宽度 - 菜单宽度
+      // 100% - 侧边菜单混合宽度 - 菜单宽度 - 右侧面板偏移
       sidebarAndExtraWidth = `${sideCollapseWidth + sideWidth}px`;
-      width = `calc(100% - ${sidebarAndExtraWidth})`;
+      width = rightOffset
+        ? `calc(100% - ${sidebarAndExtraWidth} - ${rightOffset}px)`
+        : `calc(100% - ${sidebarAndExtraWidth})`;
     } else {
       sidebarAndExtraWidth =
         sidebarExpandOnHovering.value && !sidebarExpandOnHover.value
           ? `${getSideCollapseWidth.value}px`
           : `${getSidebarWidth.value}px`;
-      width = `calc(100% - ${sidebarAndExtraWidth})`;
+      width = rightOffset
+        ? `calc(100% - ${sidebarAndExtraWidth} - ${rightOffset}px)`
+        : `calc(100% - ${sidebarAndExtraWidth})`;
     }
+  } else if (rightOffset) {
+    width = `calc(100% - ${rightOffset}px)`;
   }
   return {
     sidebarAndExtraWidth,
@@ -290,6 +298,11 @@ const tabbarStyle = computed((): CSSProperties => {
     marginLeft: `${marginLeft}px`,
     width,
   };
+});
+
+const contentColumnStyle = computed((): CSSProperties => {
+  const rightOffset = props.panelRightOffset || 0;
+  return rightOffset ? { paddingRight: `${rightOffset}px` } : {};
 });
 
 const contentStyle = computed((): CSSProperties => {
@@ -344,8 +357,9 @@ const sidebarZIndex = computed(() => {
 });
 
 const footerWidth = computed(() => {
+  const rightOffset = props.panelRightOffset || 0;
   if (!props.footerFixed) {
-    return '100%';
+    return rightOffset ? `calc(100% - ${rightOffset}px)` : '100%';
   }
 
   return mainStyle.value.width;
@@ -516,6 +530,9 @@ const idMainContent = ELEMENT_ID_MAIN_CONTENT;
         <slot name="menu"></slot>
       </template>
 
+      <template #bottom>
+        <slot name="sidebar-bottom"></slot>
+      </template>
       <template #extra>
         <slot name="side-extra"></slot>
       </template>
@@ -527,6 +544,7 @@ const idMainContent = ELEMENT_ID_MAIN_CONTENT;
     <div
       ref="contentRef"
       class="flex flex-1 flex-col overflow-hidden transition-all duration-300 ease-in"
+      :style="contentColumnStyle"
     >
       <div
         :class="[
@@ -559,8 +577,8 @@ const idMainContent = ELEMENT_ID_MAIN_CONTENT;
               class="my-0 mr-1 rounded-md"
               @click="handleHeaderToggle"
             >
-              <IconifyIcon v-if="showSidebar" icon="ep:fold" />
-              <IconifyIcon v-else icon="ep:expand" />
+              <IconifyIcon v-if="showSidebar" icon="lucide:panel-left-close" />
+              <IconifyIcon v-else icon="lucide:panel-left-open" />
             </VbenIconButton>
           </template>
           <slot name="header"></slot>

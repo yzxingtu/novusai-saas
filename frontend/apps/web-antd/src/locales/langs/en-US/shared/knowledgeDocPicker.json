@@ -1,0 +1,36 @@
+{
+  "upload": {
+    "tab": "Upload File",
+    "hint": "Click or drag files here to upload",
+    "formats": "Supports PDF, DOCX, TXT, MD, CSV, XLSX, HTML formats",
+    "uploading": "Uploading..."
+  },
+  "text": {
+    "tab": "Paste Text",
+    "title": "Document Title",
+    "titlePlaceholder": "Enter document title",
+    "content": "Text Content",
+    "contentPlaceholder": "Paste or enter text content...",
+    "submit": "Submit",
+    "requiredHint": "Title and content are required"
+  },
+  "qa": {
+    "tab": "Q&A Pair",
+    "question": "Question",
+    "questionPlaceholder": "Enter the question",
+    "answer": "Answer",
+    "answerPlaceholder": "Enter the answer",
+    "submit": "Submit",
+    "requiredHint": "Question and answer are required",
+    "batchImport": "Batch Import CSV/Excel",
+    "batchResult": "Import complete: {imported} imported, {skipped} skipped"
+  },
+  "url": {
+    "tab": "URL Import",
+    "label": "Web Page URLs",
+    "placeholder": "Enter one URL per line, e.g.:\nhttps://example.com/page1\nhttps://example.com/page2",
+    "submit": "Start Import",
+    "requiredHint": "Please enter at least one valid URL",
+    "result": "Created {count} documents, processing in background"
+  }
+}

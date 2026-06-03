@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """add login security fields
 
 为 admins、tenant_admins、tenant_users 表添加登录安全相关字段：
@@ -24,7 +25,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """添加登录安全字段"""
+    """添加登录安全字段 / Add login security fields."""
 
     # 为 admins 表添加字段
     op.add_column('admins', sa.Column(
@@ -91,7 +92,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """移除登录安全字段"""
+    """移除登录安全字段 / Remove login security fields."""
 
     # 从 admins 表移除字段
     op.drop_column('admins', 'login_fail_count')

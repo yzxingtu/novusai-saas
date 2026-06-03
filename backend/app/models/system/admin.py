@@ -1,28 +1,48 @@
 """
-平台管理员模型
+平台管理员模型 / Platform Admin Model
 
-平台级别的超级管理员，独立于租户体系
+平台级别的超级管理员，独立于企业体系
+Platform-level super administrators, independent of the tenant system.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Integer, String, ForeignKey
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Admin(BaseModel):
     """
-    平台管理员模型
-    
-    - 独立于租户体系
+    平台管理员模型 / Platform admin model.
+
+    - 独立于企业体系
     - 用于平台后台管理
-    - 可管理所有租户和系统配置
+    - 可管理所有企业和系统配置
     """
-    
+
     __tablename__ = "admins"
-    
+
+    __delete_deps__ = [
+        DeletionDep(
+            "AdminRole",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="admin_role_leader",
+        ),
+        DeletionDep(
+            "AdminOrgNode",
+            "leader_id",
+            DeletionStrategy.NULLIFY,
+            label_field="name",
+            i18n_key="admin_org_node_leader",
+        ),
+    ]
+
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
     __filterable__ = {
         "id": "id",
@@ -30,22 +50,36 @@ class Admin(BaseModel):
         "email": "email",
         "phone": "phone",
         "is_active": "is_active",
+        "ai_enabled": "ai_enabled",
         "is_super": "is_super",
         "nickname": "nickname",
         "role_id": "role_id",
+        "org_node_id": "org_node_id",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
-    
-    # 下拉选项配置
+
+    __sortable__ = [
+        "id",
+        "username",
+        "email",
+        "nickname",
+        "is_active",
+        "ai_enabled",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+    ]
+
+    # 下拉选项配置 / Select dropdown config
     __selectable__ = {
         "label": "username",
         "value": "id",
         "search": ["username", "nickname", "email"],
         "extra": ["nickname", "avatar"],
     }
-    
-    # 基本信息
+
+    # 基本信息 / Basic identity
     username: Mapped[str] = mapped_column(
         String(50), unique=True, index=True, comment="用户名"
     )
@@ -55,29 +89,32 @@ class Admin(BaseModel):
     phone: Mapped[str | None] = mapped_column(
         String(20), unique=True, index=True, nullable=True, comment="手机号"
     )
-    
-    # 认证信息
-    password_hash: Mapped[str] = mapped_column(
-        String(255), comment="密码哈希"
-    )
-    
-    # 管理员状态
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, comment="是否激活"
+
+    # 认证信息 / Credentials
+    password_hash: Mapped[str] = mapped_column(String(255), comment="密码哈希")
+
+    # 管理员状态 / Admin status flags
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否激活")
+    ai_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        comment="是否允许使用 AI 对话 / AI chat enabled",
     )
     is_super: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="是否超级管理员（最高权限）"
     )
-    
-    # 个人资料
+
+    # 个人资料 / Profile
     nickname: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="昵称"
     )
     avatar: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="头像 URL"
+        String(500), nullable=True, comment="头像附件 ID / Avatar attachment id"
     )
-    
-    # 登录信息
+
+    # 登录信息 / Login audit
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后登录时间"
     )
@@ -85,7 +122,7 @@ class Admin(BaseModel):
         String(50), nullable=True, comment="最后登录 IP"
     )
 
-    # 登录安全信息
+    # 登录安全信息 / Login security counters
     login_fail_count: Mapped[int] = mapped_column(
         Integer, default=0, comment="登录失败次数"
     )
@@ -95,46 +132,64 @@ class Admin(BaseModel):
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
-    
-    # 角色关联（平台角色）
+
+    # 角色关联（平台角色） / Role linkage (platform role)
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("admin_roles.id"), nullable=True, comment="角色 ID"
     )
-    
-    # 角色关系
+    org_node_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("admin_org_nodes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="组织节点 ID",
+    )
+
+    # 角色关系 / ORM relationships
     role: Mapped["AdminRole | None"] = relationship(
         "AdminRole",
         back_populates="admins",
         lazy="selectin",
         foreign_keys=[role_id],
     )
-    
+    org_node: Mapped["AdminOrgNode | None"] = relationship(
+        "AdminOrgNode",
+        back_populates="admins",
+        lazy="selectin",
+        foreign_keys=[org_node_id],
+    )
+
     def __repr__(self) -> str:
         return f"<Admin(id={self.id}, username={self.username})>"
-    
+
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查管理员是否拥有指定权限
-        
+        检查管理员是否拥有指定权限 / Check if admin has the given permission.
+
         Args:
             permission_code: 权限代码
-        
+
         Returns:
             是否拥有该权限
         """
-        # 超级管理员拥有所有权限
+        # 超级管理员拥有所有权限 / Super admin bypass
         if self.is_super:
             return True
-        # 检查角色权限
+        if self.org_node:
+            return any(
+                permission.code == permission_code
+                for permission in self.org_node.permissions
+                if permission.is_enabled and not permission.is_deleted
+            )
+        # 检查角色权限 / Check role permissions
         if self.role:
             return self.role.has_permission(permission_code)
         return False
 
 
-# 类型注解导入
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.auth.admin_role import AdminRole
+    from app.models.org.admin_org_node import AdminOrgNode
 
 
 __all__ = ["Admin"]

@@ -1,0 +1,599 @@
+"""
+hosts 文件管理工具（仅开发环境） / Hosts File Manager (dev environment only)
+
+在 DEBUG 模式下，自动管理 hosts 文件中的企业域名映射。
+Automatically manages tenant domain mappings in hosts file under DEBUG mode.
+支持 Windows / macOS / Linux，生产环境（DEBUG=false）完全不触发。
+Supports Windows / macOS / Linux. Never triggered in production (DEBUG=false).
+
+标记格式 / Entry format:
+    127.0.0.1  demo.app.local  # NovusAI-Dev / NovusAI 本地开发标记
+
+CLI 用法 / CLI usage (in backend/ dir, requires admin/sudo):
+    python -m app.core.hosts_helper add demo.app.local
+    python -m app.core.hosts_helper remove demo.app.local
+    python -m app.core.hosts_helper list
+    python -m app.core.hosts_helper cleanup
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import platform
+import re
+import sys
+from pathlib import Path
+from typing import Literal, TypedDict
+
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app")
+
+# ──────────────────────────────────────────────
+# 常量 / Constants
+# ──────────────────────────────────────────────
+
+MARKER = "# NovusAI-Dev"
+LOOPBACK_IP = "127.0.0.1"
+
+_HOSTS_PATHS: dict[str, Path] = {
+    "Windows": Path(r"C:\Windows\System32\drivers\etc\hosts"),
+    "Darwin": Path("/etc/hosts"),
+    "Linux": Path("/etc/hosts"),
+}
+
+HostEntryState = Literal["managed_present", "manual_present", "missing", "unsupported"]
+
+
+class HostsRuntimeInfo(TypedDict):
+    enabled: bool
+    debug: bool
+    supported: bool
+    os_name: str
+    hosts_path: str | None
+    requires_elevation: bool
+    can_write_hint: bool
+
+
+class HostEntryStatus(TypedDict):
+    domain: str
+    status: HostEntryState
+    matched_ip: str | None
+    managed: bool
+
+
+# ──────────────────────────────────────────────
+# 环境检测 / Environment detection
+# ──────────────────────────────────────────────
+
+
+def _get_hosts_path() -> Path | None:
+    """返回当前操作系统的 hosts 文件路径，不支持则返回 None / Return hosts file path for current OS, or None if unsupported"""
+    return _HOSTS_PATHS.get(platform.system())
+
+
+def is_dev_local() -> bool:
+    """
+    判断当前是否为开发环境（需要自动管理 hosts） / Whether dev environment (auto-manage hosts).
+
+    条件：settings.DEBUG == True 且当前 OS 支持 hosts 操作。Returns True if DEBUG and OS supports hosts.
+    """
+    from app.core.config import settings
+
+    return bool(settings.DEBUG) and _get_hosts_path() is not None
+
+
+# ──────────────────────────────────────────────
+# 底层文件读写 / Low-level file I/O
+# ──────────────────────────────────────────────
+
+
+def _read_lines() -> list[str]:
+    """读取 hosts 文件所有行（含换行符），文件不存在返回空列表 / Read all hosts lines (with newlines), return [] if file missing"""
+    path = _get_hosts_path()
+    if not path or not path.exists():
+        return []
+    return path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+
+
+def _write_lines(lines: list[str]) -> None:
+    """将行列表写回 hosts 文件，自动补末尾换行 / Write lines back to hosts file, auto-append trailing newline"""
+    path = _get_hosts_path()
+    if not path:
+        return
+    content = "".join(lines)
+    if content and not content.endswith("\n"):
+        content += "\n"
+    path.write_text(content, encoding="utf-8")
+
+
+# ──────────────────────────────────────────────
+# 行解析工具 / Line parsing utils
+# ──────────────────────────────────────────────
+
+
+def _is_managed(line: str) -> bool:
+    """是否为本工具管理的条目（含 MARKER 注释）/ Whether this line is a managed entry (contains MARKER)"""
+    return MARKER in line
+
+
+def _normalize_domain(domain: str) -> str:
+    """标准化域名，统一去空格并转小写 / Normalize domain by trimming spaces and lowercasing"""
+    return domain.strip().lower()
+
+
+def _parse_hosts_line(line: str) -> tuple[str, list[str]] | None:
+    """解析 hosts 行并返回 IP 与域名列表，忽略注释与空行 / Parse a hosts line into IP and domains while ignoring comments and blank lines"""
+    line_body = line.split("#", 1)[0].strip()
+    if not line_body:
+        return None
+
+    parts = re.split(r"\s+", line_body)
+    if len(parts) < 2:
+        return None
+
+    ip = parts[0]
+    domains = [part for part in parts[1:] if part]
+    if not domains:
+        return None
+
+    return ip, domains
+
+
+def _extract_domain(line: str) -> str | None:
+    """从 hosts 行提取域名，不是托管行则返回 None / Extract domain from hosts line, None if not managed"""
+    if not _is_managed(line):
+        return None
+    parsed = _parse_hosts_line(line)
+    if not parsed:
+        return None
+    _, domains = parsed
+    return domains[0] if domains else None
+
+
+def _extract_managed_domains(line: str) -> list[str]:
+    """提取单行中的所有托管域名，非托管行返回空列表 / Extract all managed domains from one line, or return an empty list for unmanaged lines"""
+    if not _is_managed(line):
+        return []
+    parsed = _parse_hosts_line(line)
+    if not parsed:
+        return []
+    _, domains = parsed
+    return domains
+
+
+def _inspect_entry(lines: list[str], domain: str) -> HostEntryStatus:
+    """在已读取的 hosts 行中检查域名状态 / Inspect the domain state from already loaded hosts lines"""
+    normalized_domain = _normalize_domain(domain)
+
+    for line in lines:
+        parsed = _parse_hosts_line(line)
+        if not parsed:
+            continue
+
+        ip, domains = parsed
+        if any(_normalize_domain(item) == normalized_domain for item in domains):
+            managed = _is_managed(line)
+            return {
+                "domain": domain.strip(),
+                "status": "managed_present" if managed else "manual_present",
+                "matched_ip": ip,
+                "managed": managed,
+            }
+
+    return {
+        "domain": domain.strip(),
+        "status": "missing",
+        "matched_ip": None,
+        "managed": False,
+    }
+
+
+def _make_entry(domain: str) -> str:
+    """生成标准格式的 hosts 条目行（含换行符）/ Generate standard hosts entry line (with newline)"""
+    return f"{LOOPBACK_IP}  {domain}  {MARKER}\n"
+
+
+def _probe_write_access(path: Path) -> bool:
+    """
+    中文: 探测当前进程是否真的能写 hosts 文件。
+
+    EN: Probe whether the current process can actually write the hosts file.
+    """
+    if not path.exists():
+        return path.parent.exists() and os.access(path.parent, os.W_OK)
+
+    try:
+        # 中文: Windows 的 os.access 在 UAC/ACL 下会误报可写；实际打开写句柄才可靠。
+        # EN: Windows os.access can be optimistic under UAC/ACL; opening a write handle is the reliable probe.
+        with path.open("a", encoding="utf-8"):
+            pass
+    except OSError:
+        return False
+    return True
+
+
+def get_runtime_info() -> HostsRuntimeInfo:
+    """返回当前 hosts 管理的运行时信息 / Return runtime information for current hosts management"""
+    from app.core.config import settings
+
+    hosts_path = _get_hosts_path()
+    supported = hosts_path is not None
+
+    can_write_hint = False
+    if hosts_path is not None:
+        can_write_hint = _probe_write_access(hosts_path)
+
+    return {
+        "enabled": bool(settings.DEBUG) and supported,
+        "debug": bool(settings.DEBUG),
+        "supported": supported,
+        "os_name": platform.system(),
+        "hosts_path": str(hosts_path) if hosts_path else None,
+        "requires_elevation": supported and not can_write_hint,
+        "can_write_hint": can_write_hint,
+    }
+
+
+def get_domain_entry_status(domain: str) -> HostEntryStatus:
+    """检查单个域名在 hosts 文件中的状态 / Check the status of a single domain inside the hosts file"""
+    hosts_path = _get_hosts_path()
+    if hosts_path is None:
+        return {
+            "domain": domain.strip(),
+            "status": "unsupported",
+            "matched_ip": None,
+            "managed": False,
+        }
+
+    try:
+        return _inspect_entry(_read_lines(), domain)
+    except Exception:
+        logger.exception(
+            "[NovusAI-Dev] Failed to inspect hosts entry status: {}",
+            domain,
+        )
+        return {
+            "domain": domain.strip(),
+            "status": "missing",
+            "matched_ip": None,
+            "managed": False,
+        }
+
+
+# ──────────────────────────────────────────────
+# 核心操作（同步，供 to_thread 使用）/ Core ops (sync, for to_thread)
+# ──────────────────────────────────────────────
+
+
+def add_host_entry(domain: str) -> bool:
+    """
+    添加域名到 hosts 文件（幂等） / Add domain to hosts file (idempotent).
+
+    - 已存在：直接返回 True / Exists: return True
+    - 权限不足：打印指引，返回 False / Permission: print hint, return False
+    - 非 DEBUG：返回 False / Non-DEBUG: return False
+    """
+    if not is_dev_local():
+        return False
+
+    hosts_path = _get_hosts_path()
+
+    try:
+        lines = _read_lines()
+        entry_status = _inspect_entry(lines, domain)
+        if entry_status["status"] == "managed_present":
+            logger.info(
+                "[NovusAI-Dev] managed hosts entry already exists, skipping: {}  {}",
+                LOOPBACK_IP,
+                domain,
+            )
+            return True
+        if entry_status["status"] == "manual_present":
+            logger.info(
+                "[NovusAI-Dev] manual hosts entry already exists, skipping managed write: {}  {}",
+                entry_status["matched_ip"] or LOOPBACK_IP,
+                domain,
+            )
+            return True
+
+        lines.append(_make_entry(domain))
+        _write_lines(lines)
+
+        logger.info(
+            "\n"
+            "┌─────────────────────────────────────────────────────────┐\n"
+            "│  [NovusAI-Dev] LOCAL DEV ENVIRONMENT - hosts updated    │\n"
+            "└─────────────────────────────────────────────────────────┘\n"
+            f"  Added : {LOOPBACK_IP}  {domain}\n"
+            f"  File  : {hosts_path}\n"
+            f"  Access: http://{domain}:8000 (API) | http://{domain}:5666 (Frontend)\n"
+        )
+        return True
+
+    except PermissionError:
+        _print_permission_warning("add", domain, hosts_path)
+        return False
+    except OSError as exc:
+        logger.warning(
+            "[NovusAI-Dev] Could not write hosts file ({}): {}",
+            type(exc).__name__,
+            exc,
+        )
+        return False
+    except Exception:
+        logger.exception(
+            "[NovusAI-Dev] Unexpected error while adding hosts entry: {}",
+            domain,
+        )
+        return False
+
+
+def remove_host_entry(domain: str) -> bool:
+    """
+    从 hosts 文件移除域名托管条目 / Remove managed domain entry from hosts file.
+
+    - 条目不存在：返回 True（幂等）/ Not present: return True (idempotent)
+    - 权限不足 / 非 DEBUG：返回 False
+    """
+    if not is_dev_local():
+        return False
+
+    hosts_path = _get_hosts_path()
+
+    try:
+        lines = _read_lines()
+        dl = domain.lower()
+
+        new_lines: list[str] = []
+        removed = False
+        for line in lines:
+            d = _extract_domain(line)
+            if d and d.lower() == dl:
+                removed = True
+                continue
+            new_lines.append(line)
+
+        if not removed:
+            return True
+
+        _write_lines(new_lines)
+        logger.info(
+            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - removed hosts entry: {}",
+            domain,
+        )
+        return True
+
+    except PermissionError:
+        _print_permission_warning("remove", domain, hosts_path)
+        return False
+    except OSError as exc:
+        logger.warning(
+            "[NovusAI-Dev] Could not update hosts file ({}): {}",
+            type(exc).__name__,
+            exc,
+        )
+        return False
+    except Exception:
+        logger.exception(
+            "[NovusAI-Dev] Unexpected error while removing hosts entry: {}",
+            domain,
+        )
+        return False
+
+
+def list_managed_entries() -> list[str]:
+    """
+    列出所有 NovusAI-Dev 托管的域名 / List all NovusAI-Dev managed domains.
+    Returns: 域名列表，空列表表示无托管条目或读取失败 / List of domains, or [] if none or read failed.
+    """
+    try:
+        lines = _read_lines()
+        return [domain for line in lines for domain in _extract_managed_domains(line)]
+    except Exception:
+        logger.exception("[NovusAI-Dev] Failed to read hosts file")
+        return []
+
+
+def cleanup_all_entries() -> int:
+    """
+    清除 hosts 文件中所有 NovusAI-Dev 托管条目 / Clear all NovusAI-Dev managed entries from hosts file.
+
+    Returns:
+        清除的条目数量（0 = 无或失败）/ Number of entries removed (0 = none or failed)
+    """
+    if not is_dev_local():
+        return 0
+
+    hosts_path = _get_hosts_path()
+
+    try:
+        lines = _read_lines()
+        new_lines = [line for line in lines if not _is_managed(line)]
+        removed = len(lines) - len(new_lines)
+
+        if removed == 0:
+            logger.info("[NovusAI-Dev] No managed entries found in hosts file")
+            return 0
+
+        _write_lines(new_lines)
+        logger.info(
+            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - cleaned {} entries from hosts file",
+            removed,
+        )
+        return removed
+
+    except PermissionError:
+        _print_permission_warning("cleanup", "all NovusAI-Dev entries", hosts_path)
+        return 0
+    except OSError as exc:
+        logger.warning(
+            "[NovusAI-Dev] Could not cleanup hosts file ({}): {}",
+            type(exc).__name__,
+            exc,
+        )
+        return 0
+    except Exception:
+        logger.exception("[NovusAI-Dev] Unexpected error during cleanup")
+        return 0
+
+
+# ──────────────────────────────────────────────
+# 异步包装（供 Service 层 asyncio 上下文使用）/ Async wrapper (for Service asyncio)
+# ──────────────────────────────────────────────
+
+
+async def async_add_host_entry(domain: str) -> bool:
+    """异步添加 hosts 条目（通过 to_thread 不阻塞事件循环）/ Add a hosts entry asynchronously via to_thread"""
+    return await asyncio.to_thread(add_host_entry, domain)
+
+
+async def async_remove_host_entry(domain: str) -> bool:
+    """异步移除 hosts 条目 / Remove a hosts entry asynchronously"""
+    return await asyncio.to_thread(remove_host_entry, domain)
+
+
+async def async_cleanup_all_entries() -> int:
+    """异步清除所有托管条目 / Remove all managed hosts entries asynchronously"""
+    return await asyncio.to_thread(cleanup_all_entries)
+
+
+async def async_get_runtime_info() -> HostsRuntimeInfo:
+    """异步获取 hosts 管理运行时信息 / Get hosts management runtime information asynchronously"""
+    return await asyncio.to_thread(get_runtime_info)
+
+
+async def async_get_domain_entry_status(domain: str) -> HostEntryStatus:
+    """异步获取单个域名的 hosts 状态 / Get the hosts status for a single domain asynchronously"""
+    return await asyncio.to_thread(get_domain_entry_status, domain)
+
+
+# ──────────────────────────────────────────────
+# 权限错误提示 / Permission error message
+# ──────────────────────────────────────────────
+
+
+def _print_permission_warning(
+    action: str, target: str, hosts_path: Path | None
+) -> None:
+    """打印权限不足的详细操作指引（不抛出异常） / Print permission-denied instructions (no exception)."""
+    path_str = str(hosts_path) if hosts_path else "hosts"
+    system = platform.system()
+    entry_line = f"{LOOPBACK_IP}  {target}  {MARKER}"
+
+    if system == "Windows":
+        _instructions = (
+            f"\n"
+            f"  ┌─ Option A: PowerShell (Run as Administrator) ────────────────────┐\n"
+            f'  │  Add-Content -Path "{path_str}"'
+            f' -Value "{entry_line}"  │\n'
+            f"  └──────────────────────────────────────────────────────────────────┘\n"
+            f"  ┌─ Option B: Notepad (Run as Administrator) ────────────────────────┐\n"
+            f"  │  1. Open Notepad as Administrator                                 │\n"
+            f"  │  2. File → Open → {path_str}                │\n"
+            f"  │  3. Append:  {entry_line:<52s}  │\n"
+            f"  └──────────────────────────────────────────────────────────────────┘\n"
+            f"  ┌─ Option C: Re-run backend as Administrator ───────────────────────┐\n"
+            f"  │  Right-click PowerShell → Run as administrator                    │\n"
+            f"  │  cd backend && uvicorn app.main:app --reload --reload-dir app     │\n"
+            f"  └──────────────────────────────────────────────────────────────────┘\n"
+        )
+    else:
+        _instructions = (
+            f"\n"
+            f"  Run with sudo:\n"
+            f"  $ sudo sh -c 'echo \"{entry_line}\" >> {path_str}'\n"
+            f"\n"
+            f"  Or re-run backend with sudo:\n"
+            f"  $ sudo uvicorn app.main:app --reload --reload-dir app\n"
+        )
+
+    logger.warning(
+        "\n"
+        "╔══════════════════════════════════════════════════════════════════════╗\n"
+        f"║  [NovusAI-Dev] Cannot {action} hosts entry — Permission Denied           ║\n"
+        "╚══════════════════════════════════════════════════════════════════════╝\n"
+        "\n"
+        f"  Action : {action}  →  {target}\n"
+        f"  File   : {path_str}\n"
+        f"{_instructions}"
+        "\n"
+        "  NOTE: Domain record has been saved to database.\n"
+        "        hosts update is optional for local browser access.\n"
+        "        Use CLI to manage manually (run as admin):\n"
+        f"        python -m app.core.hosts_helper {action}"
+        f"{f' {target}' if action != 'cleanup' else ''}\n"
+    )
+
+
+# ──────────────────────────────────────────────
+# CLI 入口（python -m app.core.hosts_helper）/ CLI entry
+# ──────────────────────────────────────────────
+
+
+def _cli_main() -> None:
+    """
+    命令行工具入口 / CLI entry. 用法：python -m app.core.hosts_helper add|remove|list|cleanup [domain]
+    """
+    args = sys.argv[1:]
+
+    if not args:
+        print("Usage: python -m app.core.hosts_helper <command> [domain]")
+        print("Commands:")
+        print("  add <domain>    Add domain to hosts file")
+        print("  remove <domain> Remove domain from hosts file")
+        print("  list            List all NovusAI-Dev managed entries")
+        print("  cleanup         Remove ALL NovusAI-Dev entries")
+        sys.exit(0)
+
+    command = args[0].lower()
+
+    if command == "add":
+        if len(args) < 2:
+            print("Error: domain is required for 'add'")
+            sys.exit(1)
+        domain = args[1]
+        ok = add_host_entry(domain)
+        if ok:
+            print(f"OK  {LOOPBACK_IP}  {domain}  {MARKER}")
+        else:
+            print(f"FAILED to add {domain!r} — check permissions or DEBUG setting")
+            sys.exit(1)
+
+    elif command == "remove":
+        if len(args) < 2:
+            print("Error: domain is required for 'remove'")
+            sys.exit(1)
+        domain = args[1]
+        ok = remove_host_entry(domain)
+        if ok:
+            print(f"OK  Removed: {domain}")
+        else:
+            print(f"FAILED to remove {domain!r} — check permissions")
+            sys.exit(1)
+
+    elif command == "list":
+        entries = list_managed_entries()
+        if entries:
+            print(f"NovusAI-Dev managed entries ({len(entries)}):")
+            for d in entries:
+                print(f"  {LOOPBACK_IP}  {d}  {MARKER}")
+        else:
+            print("No NovusAI-Dev managed entries found.")
+
+    elif command == "cleanup":
+        count = cleanup_all_entries()
+        if count > 0:
+            print(f"OK  Removed {count} entries")
+        else:
+            print("Nothing to clean up.")
+
+    else:
+        print(f"Unknown command: {command!r}")
+        print("Available commands: add, remove, list, cleanup")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _cli_main()

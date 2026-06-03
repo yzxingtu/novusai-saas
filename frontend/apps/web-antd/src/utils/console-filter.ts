@@ -1,18 +1,27 @@
 /**
- * 控制台消息过滤器
- * 过滤掉框架产生的特定错误消息，避免干扰开发体验
+ * Console message filter utilities
+ * 控制台消息过滤工具
+ *
+ * Used to filter and fix specific warnings and error messages in the console.
+ * 用于过滤和修复控制台中的特定警告和错误消息。
+ *
+ * Avoids interfering with the development experience.
+ * 避免干扰开发体验
  */
 
-// 保存原始的 console.error 方法
+// Save the original console.error method / 保留原始 console.error
 const originalConsoleError = console.error;
 
 /**
+ * Fix Ant Design Tabs aria-hidden warning
  * 修复 Ant Design Tabs 的 aria-hidden 警告
  *
- * 问题：ant-tabs-nav-more 按钮在展开下拉时同时设置了 aria-hidden="true"
- * 和 aria-expanded="true"，导致浏览器警告焦点元素被隐藏
- *
- * 解决：使用 MutationObserver 监听，当按钮展开时移除 aria-hidden 属性
+ * When using Ant Design Tabs, it sets aria-hidden="true" on focusable elements
+ * that also have aria-expanded="true", causing accessibility warnings.
+ * This function uses MutationObserver to monitor and remove conflicting aria-hidden attributes.
+ * 当使用 Ant Design 的 Tabs 组件时，它会在具有 aria-expanded="true" 的可聚焦元素上
+ * 同时设置 aria-hidden="true"，导致无障碍警告。
+ * 此函数通过 MutationObserver 监视并自动移除这些冲突的 aria-hidden 属性。
  */
 export function setupAriaHiddenFix(): void {
   if (
@@ -32,19 +41,21 @@ export function setupAriaHiddenFix(): void {
       }
 
       const target = mutation.target as HTMLElement;
-      // 检查是否是 Tabs 的 more 按钮
+      // Check if it's the Tabs' more button / 是否为 Tabs「更多」按钮
       if (!target.classList?.contains('ant-tabs-nav-more')) {
         continue;
       }
 
-      // 当按钮展开时，移除 aria-hidden 属性
+      // Remove aria-hidden attribute when the button is expanded / 展开时移除 aria-hidden
       if (target.getAttribute('aria-expanded') === 'true') {
         target.removeAttribute('aria-hidden');
       }
     }
   });
 
-  // 延迟启动观察，等待 DOM 准备好
+  // Delay starting the observer to wait for the DOM to be ready
+  // Global lifetime observer, intentionally no disconnect() — active for entire app lifecycle
+  // 全局生命周期 observer，无需 disconnect，应用存活期间持续生效
   setTimeout(() => {
     observer.observe(document.body, {
       attributes: true,
@@ -55,21 +66,30 @@ export function setupAriaHiddenFix(): void {
 }
 
 /**
- * 需要过滤的错误消息模式
- * 这些错误会被转换为更友好的提示，或直接忽略
+ * Filter console error messages
+ * 过滤控制台错误消息
+ *
+ * Some framework errors are already handled more gracefully elsewhere;
+ * this suppresses them in the console to avoid developer confusion.
+ * 某些框架错误在其他地方已用更友好的方式处理，此处将其在控制台中抑制，
+ * 避免给开发者造成困扰。
  */
 const FILTERED_ERROR_PATTERNS = [
-  // 框架的路由组件无效错误 - 已在 menu-transformer 中输出友好提示
+  // Framework's route component invalid error - already handled in menu-transformer / 路由无效错误已由 menu-transformer 处理
   /route component is invalid:/i,
 ];
 
 /**
+ * Set up the console filter
  * 设置控制台过滤器
+ *
+ * Filters out framework-generated component error messages, as we've already
+ * output more user-friendly hints in menu-transformer.
  * 过滤掉框架产生的组件错误消息，因为我们已经在 menu-transformer 中输出了更友好的提示
  */
 export function setupConsoleFilter(): void {
   console.error = (...args: any[]) => {
-    // 检查第一个参数是否匹配需要过滤的模式
+    // Check if the first argument matches a filtered pattern / 首参是否命中过滤规则
     const firstArg = args[0];
     if (typeof firstArg === 'string') {
       for (const pattern of FILTERED_ERROR_PATTERNS) {
@@ -80,7 +100,7 @@ export function setupConsoleFilter(): void {
       }
     }
 
-    // 其他错误正常输出
+    // 其他错误正常输出 / passthrough other errors
     originalConsoleError.apply(console, args);
   };
 }

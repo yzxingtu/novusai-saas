@@ -1,0 +1,196 @@
+"""
+任务管理 API / Task Management API
+
+提供异步任务的查询、重试、取消等管理接口（平台管理员专用）
+Provides async task query, retry, cancel and other management endpoints (platform admin only)
+"""
+
+from datetime import timedelta
+from typing import Literal
+
+from fastapi import Path, Query, Request
+
+from app.core.base_controller import GlobalController
+from app.core.base_model import utc_now
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
+from app.core.i18n import _
+from app.core.response import paginated, success
+from app.enums.rbac import PermissionScope
+from app.rbac.decorators import (
+    MenuConfig,
+    action_read,
+    action_update,
+    permission_resource,
+)
+from app.schemas.system import (
+    ActiveTaskResponse,
+    TaskRetryRequest,
+    TaskStatsResponse,
+)
+from app.services.system import TaskLogService, TaskManagerService
+from app.services.system.task_log_query_service import TaskLogRelationService
+
+
+@permission_resource(
+    resource="task_log",
+    name="menu.admin.task_log",
+    scope=PermissionScope.ADMIN,
+    parent_resource="system_maintenance",
+    menu=MenuConfig(
+        icon="lucide:list-checks",
+        path="/system/task-logs",
+        component="admin/system/task-logs/index",
+        parent="logs",
+        sort_order=30,
+    ),
+)
+class AdminTaskController(GlobalController):
+    """
+    任务管理控制器 / Task Management Controller
+
+    提供任务日志查询、统计、重试、取消等接口
+    Provides task log query, statistics, retry, cancel and other endpoints
+    """
+
+    prefix = "/tasks"
+    tags = ["Task Management"]
+    service_class = TaskLogService
+
+    def _register_routes(self) -> None:
+        router = self.router
+
+        @router.get("", summary="获取任务日志列表")
+        @action_read("action.task_log.list")
+        async def list_tasks(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            query: QueryParams,
+            view: Literal["all", "execution", "internal"] = Query(
+                "all",
+                description="Task log view mode",
+            ),
+        ):
+            service = self.get_service(db)
+            items, total = await service.query_list_by_view(query, view=view)
+            relation_resolver = TaskLogRelationService(db)
+            definition_map, tenant_map = await relation_resolver.build_maps(items)
+            return paginated(
+                items=[
+                    relation_resolver.serialize_task_run(
+                        item,
+                        definition_map=definition_map,
+                        tenant_map=tenant_map,
+                    )
+                    for item in items
+                ],
+                total=total,
+                page=query.page,
+                page_size=query.size,
+            )
+
+        @router.get("/stats", summary="获取任务统计")
+        @action_read("action.task_log.stats")
+        async def task_stats(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            days: int = Query(7, ge=1, le=30, description=_("api.param.days")),
+        ):
+            service = self.get_service(db)
+            end_date = utc_now()
+            start_date = end_date - timedelta(days=days)
+            stats = await service.get_dashboard_stats(start_date, end_date)
+            result = [
+                TaskStatsResponse(
+                    status=status,
+                    count=data["count"],
+                    avg_duration_ms=data["avg_duration_ms"],
+                )
+                for status, data in stats.items()
+            ]
+            return success(data=[item.model_dump() for item in result])
+
+        @router.get("/active", summary="获取活跃任务")
+        @action_read("action.task_log.active")
+        async def active_tasks(
+            request: Request,
+            current_admin: ActiveAdmin,
+        ):
+            tasks = TaskManagerService.get_active_tasks()
+            result = [ActiveTaskResponse(**t) for t in tasks]
+            return success(data=[item.model_dump() for item in result])
+
+        @router.get("/{task_log_id}", summary="获取任务详情")
+        @action_read("action.task_log.detail")
+        async def task_detail(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
+        ):
+            service = self.get_service(db)
+            task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
+            relation_resolver = TaskLogRelationService(db)
+            definition_map, tenant_map = await relation_resolver.build_maps([task_log])
+            return success(
+                data=relation_resolver.serialize_task_run_detail(
+                    task_log,
+                    definition_map=definition_map,
+                    tenant_map=tenant_map,
+                )
+            )
+
+        @router.post("/{task_log_id}/retry", summary="重试任务")
+        @action_update("action.task_log.retry")
+        async def retry_task(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
+            body: TaskRetryRequest | None = None,
+        ):
+            service = self.get_service(db)
+            task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
+            relation_resolver = TaskLogRelationService(db)
+            args, kwargs = relation_resolver.unpack_args_kwargs(task_log.args_summary)
+
+            retry_result = TaskManagerService.retry_task(
+                task_name=task_log.handler_path_snapshot,
+                args=args,
+                kwargs=kwargs,
+                queue=body.queue if body and body.queue else task_log.queue,
+                original_run=task_log,
+            )
+            return success(data=retry_result)
+
+        @router.post("/{task_log_id}/cancel", summary="取消任务")
+        @action_update("action.task_log.cancel")
+        async def cancel_task(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
+        ):
+            service = self.get_service(db)
+            task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
+            TaskManagerService.cancel_task(task_log.celery_task_id)
+            return success(message=_("common.operation_success"))
+
+
+router = AdminTaskController.get_router()

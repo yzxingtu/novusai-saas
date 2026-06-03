@@ -17,10 +17,17 @@
     },
     "./global": {
       "types": "./global.d.ts"
+    },
+    "./shims-modules": {
+      "types": "./shims-modules.d.ts"
+    },
+    "./shim-modules": {
+      "types": "./shims-modules.d.ts"
     }
   },
   "dependencies": {
     "@vben-core/typings": "workspace:*",
+    "sortablejs": "catalog:",
     "vue": "catalog:",
     "vue-router": "catalog:"
   }

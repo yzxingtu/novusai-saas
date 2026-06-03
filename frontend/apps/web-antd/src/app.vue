@@ -6,7 +6,9 @@ import { preferences, usePreferences } from '@vben/preferences';
 
 import { App, ConfigProvider, theme } from 'ant-design-vue';
 
+import AppErrorBoundary from '#/components/AppErrorBoundary.vue';
 import { antdLocale } from '#/locales';
+import IdentityDetailDrawer from '#/views/_shared/identity/IdentityDetailDrawer.vue';
 
 defineOptions({ name: 'App' });
 
@@ -33,7 +35,10 @@ const tokenTheme = computed(() => {
 <template>
   <ConfigProvider :locale="antdLocale" :theme="tokenTheme">
     <App>
-      <RouterView />
+      <AppErrorBoundary>
+        <RouterView />
+        <IdentityDetailDrawer />
+      </AppErrorBoundary>
     </App>
   </ConfigProvider>
 </template>

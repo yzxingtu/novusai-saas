@@ -1,7 +1,8 @@
 """
-权限相关 Schema
+权限相关 Schema / Permission Schema
 
 定义权限树、菜单等响应结构
+Defines permission tree, menu and other response structures.
 """
 
 from pydantic import Field
@@ -10,8 +11,8 @@ from app.core.base_schema import BaseSchema
 
 
 class PermissionResponse(BaseSchema):
-    """权限响应"""
-    
+    """权限响应 / Permission response."""
+
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
     name: str = Field(..., description="权限名称")
@@ -29,14 +30,35 @@ class PermissionResponse(BaseSchema):
 
 
 class PermissionTreeResponse(PermissionResponse):
-    """权限树响应（含子权限）"""
-    
-    children: list["PermissionTreeResponse"] = Field(default_factory=list, description="子权限")
+    """权限树响应（含子权限） / Permission tree response (with children)."""
+
+    children: list["PermissionTreeResponse"] = Field(
+        default_factory=list, description="子权限"
+    )
+
+
+class MenuAIResponse(BaseSchema):
+    """菜单 AI 元信息响应 / Menu AI metadata response."""
+
+    description: str | None = Field(None, description="AI 菜单描述")
+    keywords: list[str] = Field(default_factory=list, description="AI 菜单关键词")
+    capabilities: list[str] = Field(
+        default_factory=list,
+        description="AI 菜单能力标签",
+    )
+    category: str | None = Field(None, description="AI 菜单分类")
+    mode: str | None = Field(None, description="AI 对话入口模式")
+
+
+class MenuMetaResponse(BaseSchema):
+    """菜单元信息响应 / Menu meta response."""
+
+    ai: MenuAIResponse | None = Field(None, description="AI 菜单元信息")
 
 
 class MenuResponse(BaseSchema):
-    """菜单响应"""
-    
+    """菜单响应 / Menu response."""
+
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
     name: str = Field(..., description="菜单名称")
@@ -45,16 +67,21 @@ class MenuResponse(BaseSchema):
     component: str | None = Field(None, description="前端组件")
     hidden: bool = Field(False, description="是否隐藏")
     sort_order: int = Field(0, description="排序")
-    permissions: list[str] = Field(default_factory=list, description="该菜单下的操作权限码列表")
+    permissions: list[str] = Field(
+        default_factory=list, description="该菜单下的操作权限码列表"
+    )
+    meta: MenuMetaResponse | None = Field(None, description="菜单元信息")
     children: list["MenuResponse"] = Field(default_factory=list, description="子菜单")
 
 
-# 解决循环引用
+# 解决循环引用 / Resolve forward references
 PermissionTreeResponse.model_rebuild()
 MenuResponse.model_rebuild()
 
 
 __all__ = [
+    "MenuAIResponse",
+    "MenuMetaResponse",
     "PermissionResponse",
     "PermissionTreeResponse",
     "MenuResponse",

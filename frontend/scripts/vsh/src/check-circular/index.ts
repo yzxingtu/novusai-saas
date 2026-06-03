@@ -6,7 +6,7 @@ import { getStagedFiles } from '@vben/node-utils';
 
 import { circularDepsDetect } from 'circular-dependency-scanner';
 
-// 默认配置
+// 默认配置 / default options
 const DEFAULT_CONFIG = {
   allowedExtensions: ['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
   ignoreDirs: [
@@ -22,10 +22,10 @@ const DEFAULT_CONFIG = {
     'packages/@core/ui-kit/form-ui/src/',
     'packages/effects/plugins/src/vxe-table/',
   ],
-  threshold: 0, // 循环依赖的阈值
+  threshold: 0, // 循环依赖的阈值 / circular dep threshold
 } as const;
 
-// 类型定义
+// 类型定义 / types
 type CircularDependencyResult = string[];
 
 interface CheckCircularConfig {
@@ -40,7 +40,7 @@ interface CommandOptions {
   verbose: boolean;
 }
 
-// 缓存机制
+// 缓存机制 / result cache
 const cache = new Map<string, CircularDependencyResult[]>();
 
 /**
@@ -74,16 +74,16 @@ async function checkCircular({
   verbose,
 }: CommandOptions): Promise<void> {
   try {
-    // 合并配置
+    // 合并配置 / merge with defaults
     const finalConfig = {
       ...DEFAULT_CONFIG,
       ...config,
     };
 
-    // 生成忽略模式
+    // 生成忽略模式 / build ignore glob
     const ignorePattern = `**/{${finalConfig.ignoreDirs.join(',')}}/**`;
 
-    // 检查缓存
+    // 检查缓存 / cache lookup
     const cacheKey = `${staged}-${process.cwd()}-${ignorePattern}`;
     if (cache.has(cacheKey)) {
       const cachedResults = cache.get(cacheKey);
@@ -93,7 +93,7 @@ async function checkCircular({
       return;
     }
 
-    // 检测循环依赖
+    // 检测循环依赖 / run scanner
     const results = await circularDepsDetect({
       absolute: staged,
       cwd: process.cwd(),
@@ -104,7 +104,7 @@ async function checkCircular({
       let files = await getStagedFiles();
       const allowedExtensions = new Set(finalConfig.allowedExtensions);
 
-      // 过滤文件列表
+      // 过滤文件列表 / filter by extension
       files = files.filter((file) => allowedExtensions.has(extname(file)));
 
       const circularFiles: CircularDependencyResult[] = [];
@@ -118,16 +118,16 @@ async function checkCircular({
         }
       }
 
-      // 更新缓存
+      // 更新缓存 / store staged results
       cache.set(cacheKey, circularFiles);
       verbose && formatCircles(circularFiles);
     } else {
-      // 更新缓存
+      // 更新缓存 / store full scan
       cache.set(cacheKey, results);
       verbose && formatCircles(results);
     }
 
-    // 如果发现循环依赖，只输出警告信息
+    // 如果发现循环依赖，只输出警告信息 / warn when any cycles exist
     if (results.length > 0) {
       console.log(
         '\n⚠️ Warning: Circular dependencies found, please check and fix',

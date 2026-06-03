@@ -1,0 +1,109 @@
+{
+  "title": "Dashboard",
+  "platformConsole": "Platform Control Tower",
+  "admin": "Admin",
+  "connected": "Connected",
+  "disconnected": "Disconnected",
+  "tenantGrowth": {
+    "empty": "No growth data"
+  },
+  "activities": {
+    "title": "Recent activities",
+    "empty": "No activities yet"
+  },
+  "realtime": {
+    "onlineAdmins": "{count} admins online",
+    "unreadNotifications": "{count} unread notifications"
+  },
+  "spotlights": {
+    "growth": "New tenants in 7 days",
+    "cost": "Total AI cost",
+    "plugins": "Enabled plugins",
+    "runtime": "Runtime"
+  },
+  "command": {
+    "badge": "Platform control tower",
+    "description": "{name}, this view combines tenant growth, AI infrastructure, and the operating signals that need attention first.",
+    "metrics": {
+      "tenants": "Total tenants",
+      "activeRate": "Active tenant rate",
+      "users": "Total platform users",
+      "callsToday": "AI calls today"
+    }
+  },
+  "controlTower": {
+    "unknown": "Unknown",
+    "growthTitle": "Tenant growth trajectory",
+    "growthDesc": "Use the last 14 days of tenant growth to quickly judge platform momentum and weekly volatility.",
+    "growthSeries": "New tenants",
+    "recentWindow": "New in last 7 days",
+    "deltaLabel": "vs previous window",
+    "widgetsTitle": "Plugin and extension board",
+    "widgetsDesc": "Keep existing plugin widgets visible and fold extension status into the control tower.",
+    "widgetsEmptyTitle": "No plugin dashboard widgets yet",
+    "widgetsEmptyDesc": "Existing plugins can still surface capability through header widgets, pages, or other slots, but nothing is currently registered to dashboard_widgets.",
+    "signalsTitle": "Operational signals",
+    "signalsDesc": "System health, plugin risk, AI success rate, and tenant usage density are surfaced together here.",
+    "activitiesDesc": "Recent system activity for fast anomaly review and operational triage.",
+    "systemActor": "System",
+    "unknownModule": "Unlabeled module",
+    "signals": {
+      "healthTitle": "System health",
+      "healthHealthy": "Database, Redis, and Celery are currently healthy.",
+      "healthAttention": "Infrastructure needs attention. Review the latest operational logs.",
+      "pluginTitle": "Plugin stability",
+      "pluginHealthy": "Plugins are stable and no new errors were detected.",
+      "pluginAttention": "Plugin errors were detected. Review the latest change and logs first.",
+      "aiTitle": "AI success rate",
+      "aiHealthy": "AI success rate remains within a healthy range.",
+      "aiAttention": "AI success rate is slipping. Review models, providers, or throttling settings.",
+      "usersTitle": "Tenant user density",
+      "usersDesc": "Active tenants currently average {count} users each."
+    },
+    "actionsTitle": "Control tower quick actions",
+    "actionsDesc": "Jump directly into tenants, plans, AI, and operations pages without traversing deep menus.",
+    "actions": {
+      "tenantsTitle": "Manage tenants",
+      "tenantsDesc": "Review tenant status, activity, and configuration.",
+      "plansTitle": "Manage plans",
+      "plansDesc": "Adjust commercial plans, quotas, and renewal boundaries.",
+      "providersTitle": "Manage AI providers",
+      "providersDesc": "Check model-provider availability and integration settings.",
+      "usageTitle": "View AI analytics",
+      "usageDesc": "Open the AI usage page for volume, cost, and distribution trends.",
+      "tasksTitle": "Inspect scheduled tasks",
+      "tasksDesc": "Confirm scheduled tasks, background jobs, and automations remain healthy.",
+      "logsTitle": "Review operation logs",
+      "logsDesc": "Quickly inspect recent platform actions for anomaly review and auditing."
+    }
+  },
+  "infrastructure": {
+    "title": "Platform infrastructure",
+    "description": "Bring AI, system connectivity, storage, and plugin status into one operational surface.",
+    "runtime": "Current uninterrupted runtime",
+    "ai": {
+      "title": "AI overview",
+      "calls": "Total calls",
+      "tokens": "Accumulated tokens",
+      "cost": "Accumulated cost"
+    },
+    "system": {
+      "title": "System connectivity",
+      "database": "Database",
+      "redis": "Redis",
+      "celery": "Celery"
+    },
+    "storage": {
+      "title": "Storage side",
+      "files": "Total files",
+      "size": "Used space",
+      "drivers": "Driver count"
+    },
+    "plugins": {
+      "title": "Plugin side",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "errors": "Errors"
+    }
+  }
+}

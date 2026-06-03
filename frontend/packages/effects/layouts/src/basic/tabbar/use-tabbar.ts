@@ -21,9 +21,9 @@ import {
   RotateCw,
   X,
 } from '@vben/icons';
-import { $t, useI18n } from '@vben/locales';
+import { $t, $te, useI18n } from '@vben/locales';
 import { getTabKey, useAccessStore, useTabbarStore } from '@vben/stores';
-import { filterTree } from '@vben/utils';
+import { filterTree, resolveRouteMetaTitle } from '@vben/utils';
 
 export function useTabbar() {
   const router = useRouter();
@@ -112,7 +112,11 @@ export function useTabbar() {
       ...tab,
       meta: {
         ...tab?.meta,
-        title: $t(tab?.meta?.title as string),
+        title: resolveRouteMetaTitle(tab?.meta, {
+          hasLocaleKey: $te,
+          locale: locale.value,
+          translate: $t,
+        }),
       },
     };
   }
@@ -129,9 +133,18 @@ export function useTabbar() {
     () => route.fullPath,
     () => {
       const meta = route.matched?.[route.matched.length - 1]?.meta;
+      const tabMeta = {
+        ...(meta || route.meta),
+      };
+
+      // 默认按 path 作为 tab key，避免 query 抖动导致 tab 与 KeepAlive 实例膨胀
+      if (tabMeta.fullPathKey === undefined) {
+        tabMeta.fullPathKey = false;
+      }
+
       tabbarStore.addTab({
         ...route,
-        meta: meta || route.meta,
+        meta: tabMeta,
       });
     },
     { immediate: true },

@@ -1,6 +1,6 @@
-// type Diff<T = any> = T;
+// type Diff<T = any> = T; / 历史占位类型 / legacy placeholder
 
-// 比较两个数组是否相等
+// 比较两个数组是否相等 / Multiset equality (order-insensitive)
 
 function arraysEqual<T>(a: T[], b: T[]): boolean {
   if (a.length !== b.length) return false;
@@ -18,7 +18,7 @@ function arraysEqual<T>(a: T[], b: T[]): boolean {
   return true;
 }
 
-// 深度对比两个值
+// 深度对比两个值 / Deep equal (commented sample)
 // function deepEqual<T>(oldVal: T, newVal: T): boolean {
 //   if (
 //     typeof oldVal === 'object' &&
@@ -34,24 +34,21 @@ function arraysEqual<T>(a: T[], b: T[]): boolean {
 //   }
 // }
 
-// // diff 函数
+// diff 函数（注释样例）/ Object shallow-diff sample
 // function diff<T extends object>(
 //   oldObj: T,
 //   newObj: T,
 //   ignoreFields: (keyof T)[] = [],
 // ): { [K in keyof T]?: Diff<T[K]> } | null {
 //   const difference: { [K in keyof T]?: Diff<T[K]> } = {};
-
 //   for (const key in oldObj) {
 //     if (ignoreFields.includes(key)) continue;
 //     const oldValue = oldObj[key];
 //     const newValue = newObj[key];
-
 //     if (!deepEqual(oldValue, newValue)) {
 //       difference[key] = newValue;
 //     }
 //   }
-
 //   return Object.keys(difference).length === 0 ? null : difference;
 // }
 

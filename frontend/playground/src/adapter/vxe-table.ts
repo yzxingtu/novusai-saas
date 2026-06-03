@@ -236,7 +236,7 @@ setupVbenVxeTable({
               ...opt,
               icon: undefined,
               onOpenChange: (open: boolean) => {
-                // 当弹窗打开时，禁止表格的滚动
+                // 当弹窗打开时，禁止表格的滚动 / Disable table scroll while popover open
                 if (open) {
                   viewportWrapper?.style.setProperty('pointer-events', 'none');
                 } else {

@@ -1,0 +1,21 @@
+{
+  "name": "@novus-plugin/slider-captcha",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vue": "^3.5.0"
+  },
+  "peerDependencies": {
+    "ant-design-vue": "^4.2.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  }
+}

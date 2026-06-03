@@ -1,0 +1,206 @@
+"""
+Prompt addition helpers extracted from context.engine.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.ai.page_locale import (
+    page_language_name,
+    resolve_visible_reply_locale,
+)
+from app.ai.prompt_contracts import render_prompt_contract
+
+
+def _coerce_non_negative_int(value: Any, default: int = 0) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return max(default, 0)
+    return max(number, 0)
+
+
+def build_memory_recall_block(records: list[Any]) -> str:
+    lines = ["[LONG-TERM MEMORY RECALL]"]
+    for record in records:
+        memory_type = str(getattr(record, "memory_type", "") or "").strip()
+        summary = str(
+            getattr(record, "summary", None) or getattr(record, "content", "") or ""
+        ).strip()
+        if not summary:
+            continue
+        label = memory_type.replace("_", " ").title() if memory_type else "Memory"
+        lines.append(f"- {label}: {summary}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def build_profile_snapshot_block(snapshot: dict[str, Any]) -> str:
+    profile = snapshot.get("profile") if isinstance(snapshot, dict) else None
+    if not isinstance(profile, dict):
+        return ""
+
+    lines = ["[PROFILE SNAPSHOT]"]
+    label_map = {
+        "constraints": "Constraints",
+        "corrections": "Corrections",
+        "decisions": "Decisions",
+        "facts": "Facts",
+        "patterns": "Patterns",
+        "preferences": "Preferences",
+        "relationships": "Relationships",
+        "task_summaries": "Task Summaries",
+    }
+    for key in (
+        "preferences",
+        "constraints",
+        "facts",
+        "decisions",
+        "patterns",
+        "corrections",
+        "relationships",
+        "task_summaries",
+    ):
+        values = profile.get(key)
+        if not isinstance(values, list) or not values:
+            continue
+        compact_values = [
+            str(value).strip() for value in values[:2] if str(value).strip()
+        ]
+        if not compact_values:
+            continue
+        lines.append(
+            f"- {label_map.get(key, key.title())}: {'; '.join(compact_values)}"
+        )
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def build_visible_output_locale_hint(request: Any) -> str:
+    reply_locale = resolve_visible_reply_locale(
+        getattr(request, "messages", None),
+        getattr(request, "input_variables", None),
+    )
+    return render_prompt_contract(
+        "visible_output_locale",
+        reply_locale=reply_locale,
+        reply_language=page_language_name(reply_locale),
+    )
+
+
+def _normalize_knowledge_base_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            kb_id = int(item.get("id") or item.get("knowledge_base_id") or 0)
+        except (TypeError, ValueError):
+            kb_id = 0
+        name = str(
+            item.get("name")
+            or item.get("knowledge_base_name")
+            or item.get("kb_name")
+            or ""
+        ).strip()
+        if kb_id <= 0 and not name:
+            continue
+        try:
+            document_count = int(item.get("document_count") or 0)
+        except (TypeError, ValueError):
+            document_count = 0
+        normalized.append(
+            {
+                "id": kb_id or None,
+                "name": name,
+                "description": str(item.get("description") or "").strip(),
+                "document_count": max(document_count, 0),
+            }
+        )
+    return normalized
+
+
+def _normalize_knowledge_context(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    knowledge_bases = _normalize_knowledge_base_items(
+        value.get("knowledge_bases") or value.get("bound_knowledge_bases")
+    )
+    retrieval = value.get("retrieval")
+    retrieval = dict(retrieval or {}) if isinstance(retrieval, dict) else {}
+    if not knowledge_bases and not retrieval:
+        return None
+    return {
+        "knowledge_bases": knowledge_bases,
+        "retrieval": {
+            "attempted": bool(retrieval.get("attempted")),
+            "status": str(retrieval.get("status") or "").strip() or None,
+            "source_count": _coerce_non_negative_int(
+                retrieval.get("source_count"),
+                0,
+            ),
+            "matched_chunk_count": _coerce_non_negative_int(
+                retrieval.get("matched_chunk_count"),
+                0,
+            ),
+            "no_hit_reason": (
+                str(retrieval.get("no_hit_reason") or "").strip() or None
+            ),
+        },
+    }
+
+
+def build_runtime_capability_block(
+    sections: list[dict[str, Any]],
+    *,
+    knowledge_context: dict[str, Any] | None = None,
+) -> str:
+    normalized_sections = []
+    for section in sections or []:
+        if not isinstance(section, dict):
+            continue
+        items = [
+            str(item or "").strip()
+            for item in section.get("items") or []
+            if str(item or "").strip()
+        ]
+        if not items:
+            continue
+        displayed_count = _coerce_non_negative_int(
+            section.get("displayed_count"),
+            len(items),
+        )
+        total_count = _coerce_non_negative_int(
+            section.get("total_count"),
+            displayed_count,
+        )
+        total_count = max(total_count, displayed_count)
+        omitted_count = max(total_count - displayed_count, 0)
+        normalized_sections.append(
+            {
+                "category": str(section.get("category") or "").strip(),
+                "title": str(section.get("title") or "").strip(),
+                "items": items,
+                "displayed_count": displayed_count,
+                "total_count": total_count,
+                "omitted_count": omitted_count,
+            }
+        )
+    normalized_knowledge_context = _normalize_knowledge_context(knowledge_context)
+    if not normalized_sections and not normalized_knowledge_context:
+        return ""
+    return render_prompt_contract(
+        "turn_capabilities",
+        selected_skill_names="",
+        capability_sections=normalized_sections,
+        knowledge_context=normalized_knowledge_context,
+    )
+
+
+__all__ = [
+    "build_memory_recall_block",
+    "build_profile_snapshot_block",
+    "build_runtime_capability_block",
+    "build_visible_output_locale_hint",
+]

@@ -22,14 +22,14 @@ async function initSetupVbenForm() {
       },
     },
     defineRules: {
-      // 输入项目必填国际化适配
+      // 输入项目必填国际化适配 / i18n for required input
       required: (value, _params, ctx) => {
         if (value === undefined || value === null || value.length === 0) {
           return $t('ui.formRules.required', [ctx.label]);
         }
         return true;
       },
-      // 选择项目必填国际化适配
+      // 选择项目必填国际化适配 / i18n for required select
       selectRequired: (value, _params, ctx) => {
         if (value === undefined || value === null) {
           return $t('ui.formRules.selectRequired', [ctx.label]);

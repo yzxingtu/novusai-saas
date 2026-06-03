@@ -1,57 +1,116 @@
 """
-租户域名 Schema
+企业域名 Schema / Tenant Domain Schema
 
 定义域名管理相关的请求和响应数据结构
+Defines domain management request and response data structures.
 """
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
+from app.core.i18n import _
 
 
 class TenantDomainSimpleResponse(BaseSchema):
-    """域名简略响应（用于租户响应嵌套）"""
-    
+    """域名简略响应（用于企业响应嵌套） / Domain brief response (for tenant response nesting)"""
+
     id: int = Field(..., description="域名 ID")
     domain: str = Field(..., description="域名")
+    domain_type: str = Field("custom", description="域名类型: default/custom")
     is_primary: bool = Field(..., description="是否主域名")
     is_verified: bool = Field(..., description="是否已验证")
     ssl_status: str = Field(..., description="SSL 状态")
 
 
 class TenantDomainVerificationInfo(BaseSchema):
-    """域名验证 DNS 记录信息"""
-    
+    """域名验证 DNS 记录信息 / Domain verification DNS record info"""
+
     dns_type: str = Field("TXT", description="DNS 记录类型")
     dns_name: str = Field(..., description="DNS 记录名称")
     dns_value: str = Field(..., description="DNS 记录值")
 
 
 class TenantDomainResponse(BaseSchema):
-    """租户域名响应"""
-    
+    """企业域名响应 / Tenant domain response"""
+
     id: int = Field(..., description="域名 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     domain: str = Field(..., description="域名")
+    domain_type: str = Field("custom", description="域名类型: default/custom")
     is_verified: bool = Field(..., description="是否已验证")
     verified_at: datetime | None = Field(None, description="验证时间")
     is_primary: bool = Field(..., description="是否主域名")
     ssl_status: str = Field(..., description="SSL 状态")
     ssl_expires_at: datetime | None = Field(None, description="SSL 到期时间")
     verification_token: str | None = Field(None, description="验证 Token")
-    verification_info: TenantDomainVerificationInfo | None = Field(None, description="DNS 验证记录信息")
+    verification_info: TenantDomainVerificationInfo | None = Field(
+        None, description="DNS 验证记录信息"
+    )
     remark: str | None = Field(None, description="备注")
     cname_target: str | None = Field(None, description="CNAME 解析目标")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
 
+class DevHostsRuntimeInfo(BaseSchema):
+    """Dev Hosts 运行时信息 / Dev Hosts runtime information"""
+
+    enabled: bool = Field(..., description="是否启用 Dev Hosts 管理")
+    debug: bool = Field(..., description="当前是否为 DEBUG 模式")
+    supported: bool = Field(..., description="当前系统是否支持 hosts 管理")
+    os_name: str = Field(..., description="当前操作系统名称")
+    hosts_path: str | None = Field(None, description="hosts 文件路径")
+    requires_elevation: bool = Field(..., description="是否可能需要管理员或 sudo 权限")
+    can_write_hint: bool = Field(..., description="当前进程是否看起来具备写入权限")
+
+
+class DevHostDomainStatus(BaseSchema):
+    """单个域名的 Dev Hosts 状态 / Dev Hosts status for a single domain"""
+
+    domain_id: int = Field(..., description="域名 ID")
+    domain: str = Field(..., description="域名")
+    eligible: bool = Field(..., description="当前域名是否应参与 Dev Hosts 管理")
+    status: str = Field(
+        ...,
+        description="hosts 状态：managed_present/manual_present/missing/not_required/unsupported",
+    )
+    managed: bool = Field(..., description="是否为系统托管条目")
+    matched_ip: str | None = Field(None, description="匹配到的 IP")
+    reason: str | None = Field(None, description="状态原因")
+
+
+class DevHostsStatusResponse(BaseSchema):
+    """企业全部域名的 Dev Hosts 状态总览 / Dev Hosts overview for all tenant domains"""
+
+    runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
+    domains: list[DevHostDomainStatus] = Field(
+        default_factory=list, description="域名状态列表"
+    )
+
+
+class DevHostMutationResponse(BaseSchema):
+    """单域名 Dev Hosts 操作响应 / Dev Hosts mutation response for a single domain"""
+
+    runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
+    domain: DevHostDomainStatus = Field(..., description="操作后的域名状态")
+
+
+class DevHostsSyncAllResponse(BaseSchema):
+    """批量同步 Dev Hosts 响应 / Batch Dev Hosts sync response"""
+
+    runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
+    domains: list[DevHostDomainStatus] = Field(
+        default_factory=list, description="域名状态列表"
+    )
+    synced: int = Field(..., description="本次同步的域名数量")
+    skipped: int = Field(..., description="本次跳过的域名数量")
+
+
 class TenantDomainCreateRequest(BaseSchema):
-    """创建域名请求"""
-    
+    """创建域名请求 / Create domain request"""
+
     domain: str = Field(
         ...,
         min_length=4,
@@ -60,119 +119,55 @@ class TenantDomainCreateRequest(BaseSchema):
     )
     is_primary: bool = Field(False, description="是否设为主域名")
     remark: str | None = Field(None, max_length=500, description="备注")
-    
+
     @field_validator("domain")
     @classmethod
     def validate_domain(cls, v: str) -> str:
-        """验证域名格式"""
+        """验证域名格式 / Validate domain format"""
         import re
-        
+
         v = v.lower().strip()
-        
-        # 基本域名格式验证
+
+        # 基本域名格式验证 / Basic domain format
         pattern = r"^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$"
         if not re.match(pattern, v):
-            raise ValueError("域名格式不正确")
-        
-        # 禁止使用平台域名
+            raise ValueError(_("tenant_domain.invalid_format"))
+
+        # 禁止使用平台域名 / Forbid platform-reserved suffix
         from app.core.config import settings
+
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if v.endswith(suffix):
-            raise ValueError(f"不能使用平台域名后缀 {suffix}")
-        
+            raise ValueError(
+                _("tenant_domain.platform_suffix_forbidden", suffix=suffix)
+            )
+
         return v
 
 
 class TenantDomainUpdateRequest(BaseSchema):
-    """更新域名请求"""
-    
+    """更新域名请求 / Update domain request"""
+
     is_primary: bool | None = Field(None, description="是否设为主域名")
     remark: str | None = Field(None, max_length=500, description="备注")
 
 
 class TenantDomainVerifyRequest(BaseSchema):
-    """域名验证请求"""
-    
+    """域名验证请求 / Domain verification request"""
+
     domain_id: int = Field(..., description="域名 ID")
-
-
-class TenantSettingsResponse(BaseSchema):
-    """租户设置响应"""
-    
-    tenant_id: int = Field(..., description="租户 ID")
-    tenant_code: str = Field(..., description="租户代码")
-    tenant_name: str = Field(..., description="租户名称")
-    
-    # 品牌设置
-    logo_url: str | None = Field(None, description="Logo URL")
-    favicon_url: str | None = Field(None, description="Favicon URL")
-    theme_color: str | None = Field(None, description="主题色")
-    
-    # 登录设置
-    captcha_enabled: bool = Field(False, description="是否启用验证码")
-    login_methods: list[str] = Field(
-        default_factory=lambda: ["password"],
-        description="支持的登录方式",
-    )
-    
-    # 域名信息
-    subdomain: str = Field(..., description="租户子域名")
-    subdomain_url: str = Field(..., description="子域名完整 URL")
-    max_custom_domains: int = Field(0, description="最大自定义域名数量")
-    custom_domain_count: int = Field(0, description="已绑定自定义域名数量")
-
-
-class TenantSettingsUpdateRequest(BaseSchema):
-    """更新租户设置请求"""
-    
-    # 品牌设置
-    logo_url: str | None = Field(None, description="Logo URL")
-    favicon_url: str | None = Field(None, description="Favicon URL")
-    theme_color: str | None = Field(None, description="主题色（十六进制颜色码）")
-    
-    # 登录设置
-    captcha_enabled: bool | None = Field(None, description="是否启用验证码")
-    login_methods: list[str] | None = Field(None, description="支持的登录方式")
-    
-    @field_validator("theme_color")
-    @classmethod
-    def validate_theme_color(cls, v: str | None) -> str | None:
-        """验证主题色格式"""
-        if v is None:
-            return v
-        
-        import re
-        v = v.strip()
-        if not re.match(r"^#[0-9a-fA-F]{6}$", v):
-            raise ValueError("主题色必须是有效的十六进制颜色码（如 #FF5500）")
-        
-        return v.upper()
-    
-    @field_validator("login_methods")
-    @classmethod
-    def validate_login_methods(cls, v: list[str] | None) -> list[str] | None:
-        """验证登录方式"""
-        if v is None:
-            return v
-        
-        allowed = {"password", "sms", "email", "wechat", "dingtalk", "oauth2"}
-        for method in v:
-            if method not in allowed:
-                raise ValueError(f"不支持的登录方式: {method}")
-        
-        if not v:
-            raise ValueError("至少需要一种登录方式")
-        
-        return v
 
 
 __all__ = [
     "TenantDomainSimpleResponse",
     "TenantDomainVerificationInfo",
     "TenantDomainResponse",
+    "DevHostsRuntimeInfo",
+    "DevHostDomainStatus",
+    "DevHostsStatusResponse",
+    "DevHostMutationResponse",
+    "DevHostsSyncAllResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",
-    "TenantSettingsResponse",
-    "TenantSettingsUpdateRequest",
 ]

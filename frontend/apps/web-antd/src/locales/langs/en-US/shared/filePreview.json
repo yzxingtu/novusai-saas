@@ -1,0 +1,6 @@
+{
+  "title": "File Preview",
+  "loadFailed": "Failed to load preview",
+  "notSupported": "This file type is not supported for preview",
+  "download": "Download File"
+}

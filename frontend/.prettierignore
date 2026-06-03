@@ -8,6 +8,11 @@ coverage
 CODEOWNERS
 .nitro
 .output
+.vendor
+apps/web-antd/build/*.js
+apps/web-antd/build/*.test.ts
+apps/web-antd/build/__tests__
+packages/icons/src/iconify/*.generated.ts
 
 
 **/*.svg

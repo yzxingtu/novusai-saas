@@ -1,0 +1,92 @@
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify no cross-workstream file ownership drift"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend acceptance and no-controller-query rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend shell/composable split and validation rules"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "High cohesion and low coupling review checklist"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify thin facade + parts and controller transport-only boundaries are codified"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify page-shell and anti business-manager constraints are codified"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify boundary checklist now includes controller-query and page-orchestration gates"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin host/frontend split seams and compatibility constraints are explicit"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify umbrella acceptance includes plugin/codegen seam map and governance gates"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify umbrella notes capture landed lifecycle split evidence (443/987) and no stale fake-split wording"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify plugin-platform ownership includes lifecycle_orchestrator.py and facade+mixin/parts note"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend index explicitly anchors facade+mixin/parts and controller no-direct-query guard"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend index elevates page business-manager violation to merge blocker"}
+{"file": "backend/tests/api/test_public_attachments_endpoints.py", "reason": "Verify public attachment endpoint contracts remain protected after repository facade and storage-resolution changes"}
+{"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify admin plugin read-model flows still traverse BaseService/BaseRepository facade without silent query/get_by_id regressions"}
+{"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Verify /admin/plugins list/detail transport layer still exercises PluginReadModelService facade and returns stable envelopes after facade refactors"}
+{"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Verify /admin/operation-logs/{id} still exercises OperationLogService/BaseService facade and returns stable success envelope after repository refactors"}
+{"file": "backend/tests/test_admin_system_log_routes_contract.py", "reason": "Verify /admin/system-logs stats/read/delete still return stable success and fail-close contracts after controller/service refactors"}
+{"file": "backend/tests/test_admin_task_routes_contract.py", "reason": "Verify /admin/tasks list/active/retry contracts stay stable after control-plane facade and query-service refactors"}
+{"file": "backend/tests/test_admin_periodic_task_routes_contract.py", "reason": "Verify /admin/periodic-tasks list/create/binding-sync contracts stay stable after controller/query-service split"}
+{"file": "frontend/apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts", "reason": "Verify extracted config-form model seam keeps nested JSON hydration, encrypted placeholders, and dirty reset behavior stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Verify extracted plugin-config-drawer seam keeps schema normalization, tenant loading, save flow, and invalid JSON guard stable"}
+{"file": "backend/app/services/common/auth_domains/facades.py", "reason": "Verify AuthService facades are extracted without changing external auth entrypoints"}
+{"file": "backend/app/rbac/services/permission_domains/checks.py", "reason": "Verify permission predicate logic moved out of PermissionService stays stable"}
+{"file": "backend/app/rbac/services/permission_domains/query.py", "reason": "Verify permission tree/list query logic moved out of PermissionService stays stable"}
+{"file": "backend/app/rbac/services/permission_domains/tenant_admin.py", "reason": "Verify tenant-admin permission aggregation moved out of PermissionService stays stable"}
+{"file": "backend/tests/services/test_auth_service.py", "reason": "Verify AuthService facade extraction preserved auth/password/bootstrap behavior"}
+{"file": "backend/tests/rbac/test_permission_service_menu_ai_meta.py", "reason": "Verify permission menu AI metadata stays stable after PermissionService domain extraction"}
+{"file": "backend/tests/services/test_permission_service_tenant_org_node.py", "reason": "Verify tenant org-node permission aggregation stays stable after PermissionService domain extraction"}
+{"file": "backend/tests/codegen/test_codegen_service_orchestration.py", "reason": "Verify extracted codegen execution/workbench orchestration remains stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts", "reason": "Verify extracted codegen workbench helper rules stay stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts", "reason": "Verify extracted codegen workflow helper logic stays stable"}
+{"file": "backend/tests/test_admin_plugin_dependency_contract.py", "reason": "Verify admin plugin dependency routes stay stable after admin/plugins controller thinning"}
+{"file": "backend/tests/test_admin_plugin_marketplace_contract.py", "reason": "Verify plugin marketplace/preview-install routes stay stable after transport extraction"}
+{"file": "backend/tests/services/test_plugin_admin_workflow_service.py", "reason": "Verify extracted admin plugin write workflow keeps menu override, notify, commit, icon, and license rules stable"}
+{"file": "backend/tests/test_admin_plugin_repair_fail_close.py", "reason": "Verify plugin repair path still delegates through the new lifecycle facade/lock seam without runtime regression"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify .trellis task/spec ownership is reserved to the umbrella owner/docs worker instead of a business workstream"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend rules now treat thin facades as closed-state seams instead of perpetual hotspots"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality gates now require transport-level sentinels for split governance controllers when applicable"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend governance rules forbid regrowing extracted shell pages/components"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend acceptance adds shell follow-up and contract gates for extracted seams"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify reuse guidance now protects thin facades as compatibility seams"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer checklist includes governance route-test isolation guidance"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin runtime playbook now separates admin plugin controller seam responsibilities explicitly"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify stabilization rules now allow hotspots to close once facades are genuinely thin"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify stabilization rules keep umbrella task/spec backfill as a dedicated .trellis write set instead of burying it under one feature workstream"}
+{"file": "backend/plugins/storage-billing/frontend/src/views/admin/__tests__/reconciliation-helpers.test.ts", "reason": "Verify storage-billing admin helper seam keeps scope/provider-plan normalization and allocation summary behavior stable"}
+{"file": "backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-reconciliation-run-detail.test.ts", "reason": "Verify storage-billing run-detail seam keeps audited sources, filter badges, and source label fallback stable"}
+{"file": "backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-run-actions.test.ts", "reason": "Verify storage-billing run action seam keeps detail loading, export, manual trigger, and Qiniu month validation stable"}
+{"file": "backend/plugins/storage-billing/frontend/vitest.config.ts", "reason": "Verify bundled plugin admin page seam tests run under a plugin-local Vitest contract instead of leaking host-web aliases"}
+{"file": "backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-a11y.test.ts", "reason": "Verify slider-captcha keyboard and global-window a11y bridge stays stable after shell/controller extraction"}
+{"file": "backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-state-machine.test.ts", "reason": "Verify slider-captcha retry and auto-refresh state-machine behavior stays stable after controller extraction"}
+{"file": "backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-layout.test.ts", "reason": "Verify slider-captcha layout seam keeps modal placement and drag-to-handle mapping stable"}
+{"file": "backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-controller.test.ts", "reason": "Verify slider-captcha controller seam keeps modal opening, challenge load, and teardown behavior stable"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify bundled-plugin closure notes now match the landed storage-billing and slider-captcha refactors instead of leaving stale residual wording"}
+{"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify extracted tenant config/storage/impersonation workflow services keep validation, commit, and token issuance rules stable"}
+{"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Verify tenant config controller stays transport-only and delegates group/storage flows to TenantConfigWorkflowService"}
+{"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Verify admin tenant storage and impersonation routes stay transport-only after workflow extraction"}
+{"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Verify admin tenant-admin controller delegates to TenantAdminWorkflowService and keeps transport contract stable"}
+{"file": "backend/tests/test_admin_user_routes_contract.py", "reason": "Verify admin user routes keep controller-to-service delegation for select/detail/force-logout"}
+{"file": "backend/tests/test_recycle_bin_registry.py", "reason": "Verify recycle-bin registry contract stays stable for module codes, side validation, and delete scope mapping"}
+{"file": "backend/tests/codegen/test_codegen_service.py", "reason": "Verify codegen validate sanitize guard prevents path/Traceback leakage"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Verify system-logs composable contract stays stable and test type cleanup keeps the suite clean"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts", "reason": "Verify file-picker upload queue slice stays stable for batching, task state, and enqueue flow"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts", "reason": "Verify file-picker drag/drop slice stays stable for overlay state and drop queueing"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts", "reason": "Verify FilePicker shell slice stays stable for modal wiring and core integration"}
+{"file": "backend/app/services/system/plugin_install_preview_service.py", "reason": "Verify install-preview workflow stays in the service seam and controller exports remain thin"}
+{"file": "backend/tests/services/test_plugin_install_preview_service.py", "reason": "Verify helper validation and upload preview orchestration stay locked at the extracted install-preview service seam"}
+{"file": "backend/tests/test_admin_plugin_install_preview_routes_contract.py", "reason": "Verify marketplace/upload preview routes remain transport-only adapters after the install-preview extraction"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify plugin platform rules now codify the install-preview service seam and controller boundary"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality gates reference install-preview service seam and marketplace preview/confirm sentinel coverage"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin runtime playbook includes install-preview workflow service + transport module separation"}
+{"file": "backend/tests/test_plugin_api_dispatcher_security.py", "reason": "Verify PluginContext facade + context_primitives split keeps DB sandbox checks and security guards stable"}
+{"file": "backend/tests/test_plugin_api_dispatcher_context_safety.py", "reason": "Verify PluginContext facade + context_primitives split keeps request-context safety behavior stable"}
+{"file": "backend/tests/test_plugin_storage_runtime.py", "reason": "Verify namespaced storage proxy extraction keeps plugin storage runtime behavior stable"}
+{"file": "backend/tests/test_plugin_manifest_validation.py", "reason": "Verify manifest helper extraction preserves plugin manifest validation behavior"}
+{"file": "backend/tests/test_plugin_dependency_runtime_model.py", "reason": "Verify manifest helper extraction preserves dependency model validation behavior"}
+{"file": "backend/tests/services/test_admin_dashboard_service.py", "reason": "Verify dashboard facade + parts split keeps admin dashboard behavior and identity enrichment stable"}
+{"file": "backend/tests/services/test_tenant_dashboard_service.py", "reason": "Verify dashboard facade + parts split keeps tenant dashboard behavior and identity enrichment stable"}
+{"file": "backend/tests/services/test_auth_service.py", "reason": "Verify tenant-user auth facade split preserves login, login-code, token, and account flows"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormView.vue", "reason": "Verify WYSIWYG form preview shell now stays thin and type-safe through vue-tsc"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygListView.vue", "reason": "Verify WYSIWYG list preview quick-search typing no longer leaks Record<string, any>"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.ts", "reason": "Verify WX_STYLES aggregation still builds after style-module split"}
+{"file": "backend/app/plugins/manifest_metadata_schemas.py", "reason": "Verify manifest metadata companion extraction keeps PluginManifest import roots, validation, and startup discovery behavior stable"}
+{"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify registry unregister fail-close cleanup purges permission/notification/skill runtime caches even when unregister handlers raise"}
+{"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify tenant-admin workflow rejects empty update payloads instead of silently succeeding"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts", "reason": "Verify preview builders keep fallback columns and first-row default parsing stable for WYSIWYG list preview"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Verify system-log toolbar shell keeps chips and disabled action states stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Verify plugin-config-drawer skips malformed manifest config schema entries while preserving valid fields"}
+{"file": "backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-page.test.ts", "reason": "Verify storage-billing admin page fails closed on malformed shared access-code payloads and still honors wildcard access"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/use-codegen-builder-scope.test.ts", "reason": "Verify builder-scope normalization ignores malformed endpoint entries while preserving valid scope/base-class synchronization"}

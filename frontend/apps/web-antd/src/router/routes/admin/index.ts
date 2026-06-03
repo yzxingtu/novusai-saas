@@ -1,14 +1,13 @@
 /**
+ * Admin (platform management) route module
  * 平台管理端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
-const AuthPageLayout = () => import('#/layouts/auth.vue');
+const AuthPageLayout = () => import('#/layouts/admin-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
-/** 平台管理端认证路由 */
+/** Admin authentication routes / 平台管理端认证路由 */
 const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
@@ -24,13 +23,13 @@ const authRoutes: RouteRecordRaw = {
       path: '/admin/login',
       component: () => import('#/views/admin/authentication/login.vue'),
       meta: {
-        title: $t('page.auth.login'),
+        title: 'page.auth.login',
       },
     },
   ],
 };
 
-/** 平台管理端主布局路由 */
+/** Admin main layout routes / 平台管理端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
@@ -41,6 +40,7 @@ const mainRoutes: RouteRecordRaw = {
   path: '/admin',
   redirect: '/admin/dashboard',
   children: [
+    // Dashboard：固定标签页，必须静态注册
     {
       name: 'AdminDashboard',
       path: 'dashboard',
@@ -48,25 +48,110 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
-        title: $t('page.dashboard.title'),
+        title: 'page.dashboard.title',
+        ai: { mode: 'enabled' as const },
       },
     },
-    // Fallback 静态注册：系统配置（后端菜单动态路由优先生效）
+    // Analytics：数据分析页面
     {
-      name: 'AdminSystemConfigs',
-      path: 'system/configs',
-      component: () => import('#/views/admin/system/configs/list.vue'),
+      name: 'AdminAnalytics',
+      path: 'analytics',
+      component: () => import('#/views/admin/analytics/index.vue'),
+      meta: {
+        icon: 'lucide:bar-chart-3',
+        title: 'admin.analytics.title',
+        ai: { mode: 'enabled' as const },
+      },
+    },
+    // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由
+    {
+      name: 'AdminAISkillPackageDetail',
+      path: 'ai/skill-packages/:id',
+      component: () => import('#/views/admin/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
-        icon: 'lucide:settings',
-        title: $t('admin.system.configs.title'),
+        title: 'admin.ai.skillPackage.detail.title',
+        activePath: '/admin/ai/skill-packages',
       },
     },
+    // 智能体详情页 / Agent detail page
+    {
+      name: 'AdminAIAgentDetail',
+      path: 'ai/agents/:id',
+      component: () => import('#/views/admin/ai/agents/detail.vue'),
+      meta: {
+        hideInMenu: true,
+        title: 'admin.ai.agent.detail.title',
+        activePath: '/admin/ai/agents',
+      },
+    },
+    // 插件市场页：后端不注册此路由 / Plugin marketplace (not from backend menu)
+    {
+      name: 'AdminPluginMarketplace',
+      path: 'plugins/marketplace',
+      component: () => import('#/views/admin/plugins/marketplace/index.vue'),
+      meta: {
+        hideInMenu: true,
+        title: 'admin.plugin.marketplace.title',
+        activePath: '/admin/plugins',
+      },
+    },
+    // 插件详情改为抽屉形式，不再需要独立路由
+    // 代码生成器：DEBUG 模式，静态注册 / Codegen: DEBUG only, static routes
+    {
+      name: 'AdminSystemCodegen',
+      path: 'system/codegen',
+      component: () => import('#/views/admin/system/codegen/index.vue'),
+      meta: {
+        hideInProduction: true,
+        title: 'admin.system.codegen.name',
+        activePath: '/admin/system/codegen',
+        accessCodes: ['codegen:list'],
+      },
+    },
+    {
+      name: 'AdminSystemCodegenNew',
+      path: 'system/codegen/new',
+      component: () => import('#/views/admin/system/codegen/builder.vue'),
+      meta: {
+        hideInMenu: true,
+        hideInProduction: true,
+        title: 'admin.system.codegen.builderNew',
+        activePath: '/admin/system/codegen',
+        accessCodes: ['codegen:create', 'codegen:options'],
+        accessCodesMode: 'all',
+      },
+    },
+    {
+      name: 'AdminSystemCodegenEdit',
+      path: 'system/codegen/:id/edit',
+      component: () => import('#/views/admin/system/codegen/builder.vue'),
+      meta: {
+        hideInMenu: true,
+        hideInProduction: true,
+        title: 'admin.system.codegen.builderEdit',
+        activePath: '/admin/system/codegen',
+        accessCodes: ['codegen:detail', 'codegen:options', 'codegen:update'],
+        accessCodesMode: 'all',
+      },
+    },
+    // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu
+    {
+      name: 'AdminProfile',
+      path: '/admin/profile',
+      component: () => import('#/views/admin/profile/index.vue'),
+      meta: {
+        hideInMenu: true,
+        title: 'page.auth.profile',
+      },
+    },
+    // 全局偏好设置由后端动态菜单注册，无需静态路由
+    // Global preferences registered via backend dynamic menu
   ],
 };
 
-/** 平台管理端路由 */
+/** Admin routes / 平台管理端路由 */
 export const adminRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
-/** 平台管理端路由名称列表（不需要权限拦截） */
+/** Admin core route names (bypass permission checks) / 平台管理端路由名称列表（不需要权限拦截） */
 export const adminCoreRouteNames = ['AdminAuthentication', 'AdminLogin'];

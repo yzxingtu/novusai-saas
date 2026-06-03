@@ -10,9 +10,9 @@ import { useVbenForm } from '#/adapter/form';
 import DocButton from '../doc-button.vue';
 
 const [CustomLayoutForm] = useVbenForm({
-  // 所有表单项共用，可单独在表单内覆盖
+  // 所有表单项共用，可单独在表单内覆盖 / Shared field defaults; override per field
   commonConfig: {
-    // 所有表单项
+    // 所有表单项 / Default props for all fields
     componentProps: {
       class: 'w-full',
     },
@@ -42,7 +42,7 @@ const [CustomLayoutForm] = useVbenForm({
     {
       component: 'InputNumber',
       fieldName: 'field5',
-      // 从第三列开始 相当于中间空了一列
+      // 从第三列开始 相当于中间空了一列 / Start at col 3 (gap before)
       formItemClass: 'col-start-3',
       label: '前面空了一列',
     },
@@ -60,21 +60,21 @@ const [CustomLayoutForm] = useVbenForm({
     {
       component: 'Textarea',
       fieldName: 'field6',
-      // 占满三列空间 基线对齐
+      // 占满三列空间 基线对齐 / Span 3 cols, baseline align
       formItemClass: 'col-span-3 items-baseline',
       label: '占满三列',
     },
     {
       component: 'Input',
       fieldName: 'field7',
-      // 占满2列空间 从第二列开始 相当于前面空了一列
+      // 占满2列空间 从第二列开始 相当于前面空了一列 / Span 2 from col 2 (leading gap)
       formItemClass: 'col-span-2 col-start-2',
       label: '占满2列',
     },
     {
       component: 'Input',
       fieldName: 'field8',
-      // 左右留空
+      // 左右留空 / Center column (side margins)
       formItemClass: 'col-start-2',
       label: '左右留空',
     },
@@ -85,7 +85,7 @@ const [CustomLayoutForm] = useVbenForm({
       label: '字符串',
     },
   ],
-  // 一共三列
+  // 一共三列 / Three-column grid
   wrapperClass: 'grid-cols-3',
 });
 </script>

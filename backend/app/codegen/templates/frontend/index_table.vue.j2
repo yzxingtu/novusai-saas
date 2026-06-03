@@ -1,0 +1,295 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 列表页 (Table 模式)
+ * {{ display_name_en }} List Page (Table mode)
+ */
+{% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
+{% set _fe = _ep.get('frontend') or {} %}
+{% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
+{% set resource_path = route_prefix | path_no_leading_slash or resource_plural %}
+{% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
+{% set _detail_mode = (detail or {}).get('mode') or 'drawer' %}
+{% set _fallback_list = (module | replace('_', '-')) + '/' + (resource | replace('_', '-')) + 's' %}
+{% set _list_path = list_path | default(_fallback_list) %}
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set perm = _ep.get('permission') or {} %}
+{% set perm_resource = perm.get('resource') or resource %}
+{% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
+{% set _recycle_bin = _fe.get('recycle_bin', False) %}
+{% set _export = _fe.get('export', False) %}
+{% set _import = _fe.get('import', False) %}
+{% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+{% set _search_default_open = _fe.get('search_default_open', False) %}
+{% set _quick_search = _fe.get('quick_search', True) %}
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import {
+  get{{ resource | pascal }}ListApi,
+  {% if toggle_field %}toggle{{ resource | pascal }}StatusApi,{% endif %}
+  {% if model.drag_sort | default(false) %}reorder{{ resource | pascal }}sApi,{% endif %}
+  {% if batch and batch.get('delete') %}batchDelete{{ resource | pascal }}sApi,{% endif %}
+  {% if _import %}import{{ resource | pascal }}Api,{% endif %}
+} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _import or (detail and detail.get('enabled')) %}import { ref } from 'vue';
+{% endif %}
+{% if detail and detail.get('enabled') and (detail.get('mode') or 'drawer') == 'page' %}import { useRouter } from 'vue-router';
+{% endif %}
+import { Page } from '@vben/common-ui';
+import { useCrudPage } from '#/adapter/vxe-table';
+{% if model.drag_sort | default(false) %}
+import { useAutoTableDragSort } from '#/adapter/vxe-table';
+{% endif %}
+{% set ns = namespace(has_cell_image=false) %}
+{% for f in (fields or []) if not f.get('divider') %}
+{% if type_registry.get_cell_render(f) == 'CellImage' %}{% set ns.has_cell_image = true %}{% endif %}
+{% endfor %}
+{% set _needs_message = toggle_field or _import %}
+{% set _needs_modal = toggle_field %}
+import { {% if ns.has_cell_image %}Image, {% endif %}{% if _import %}Button, {% endif %}{% if _needs_message %}message, {% endif %}{% if _needs_modal %}Modal{% endif %} } from 'ant-design-vue';
+import { $t } from '#/locales';
+
+import {
+  getFormDefaults,
+  useColumns,
+  useFormSchema,
+  useGridFormSchema,
+} from './data';
+import Form from './modules/form.vue';
+{% if detail and detail.get('enabled') and _detail_mode == 'drawer' %}
+import Detail from './modules/detail.vue';
+{% endif %}
+
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}List' });
+
+{% if detail and detail.get('enabled') %}
+{% if _detail_mode == 'page' %}
+const _router = useRouter();
+const _detailBase = '{{ "/admin/" if api_scope | default("admin") == "admin" else "/tenant/" }}{{ _list_path }}';
+function onViewDetail(row: {{ resource | pascal }}Info) {
+  _router.push(`${_detailBase}/${row.id}`);
+}
+{% else %}
+const detailVisible = ref(false);
+const detailId = ref<number | null>(null);
+function onViewDetail(row: {{ resource | pascal }}Info) {
+  detailId.value = row.id;
+  detailVisible.value = true;
+}
+{% endif %}
+{% endif %}
+
+{% if toggle_field %}
+function onToggleStatus(row: {{ resource | pascal }}Info) {
+  const isDisabling = row.{{ toggle_field | camel }};
+  Modal.confirm({
+    title: isDisabling
+      ? $t('{{ i18n_pre }}.messages.confirmDisable')
+      : $t('{{ i18n_pre }}.messages.confirmEnable'),
+    onOk: async () => {
+      await toggle{{ resource | pascal }}StatusApi(row.id, { {{ toggle_field }}: !isDisabling });
+      message.success($t('{{ i18n_pre }}.messages.toggleSuccess'));
+      onRefresh();
+    },
+  });
+}
+{% endif %}
+
+const createPermission = '{{ perm_resource }}:create';
+{% if _import %}
+const importPermission = createPermission.replace(/:\w+$/, ':import');
+{% endif %}
+const searchSchema = useGridFormSchema();
+const rawQuickSearch = {{ _quick_search | tojson }};
+
+function extractQuickSearchSourceField(fieldName: string): string {
+  const match = fieldName.match(/^filter\[([^\]]+)\]/);
+  return match?.[1] ?? '';
+}
+
+function buildQuickSearchConfig(
+  rawConfig: boolean | { default_field?: string; defaultField?: string; fields?: Array<string | { fieldName?: string; label?: string; placeholder?: string }> },
+  schema: Array<Record<string, unknown>>,
+) {
+  if (rawConfig === false) {
+    return false;
+  }
+
+  const candidates = schema
+    .filter(
+      (field) =>
+        field.component === 'Input' && typeof field.fieldName === 'string',
+    )
+    .map((field) => ({
+      sourceField: extractQuickSearchSourceField(String(field.fieldName)),
+      fieldName: String(field.fieldName),
+    }))
+    .filter((field) => field.sourceField);
+
+  const candidateMap = new Map(
+    candidates.map((field) => [field.sourceField, field.fieldName]),
+  );
+
+  if (rawConfig === true) {
+    return true;
+  }
+
+  const defaultField =
+    typeof rawConfig?.default_field === 'string'
+      ? candidateMap.get(rawConfig.default_field)
+      : typeof rawConfig?.defaultField === 'string'
+        ? candidateMap.get(rawConfig.defaultField)
+      : undefined;
+  const fields = Array.isArray(rawConfig?.fields)
+    ? rawConfig.fields
+        .map((field) => {
+          const fieldConfig =
+            typeof field === 'string' ? { fieldName: field } : field;
+          const mappedField = fieldConfig?.fieldName
+            ? candidateMap.get(String(fieldConfig.fieldName))
+            : undefined;
+          if (!mappedField) {
+            return undefined;
+          }
+
+          return {
+            fieldName: mappedField,
+            ...(fieldConfig?.label ? { label: fieldConfig.label } : undefined),
+            ...(fieldConfig?.placeholder
+              ? { placeholder: fieldConfig.placeholder }
+              : undefined),
+          };
+        })
+        .filter(
+          (
+            field,
+          ): field is {
+            fieldName: string;
+            label?: string;
+            placeholder?: string;
+          } => Boolean(field),
+        )
+    : undefined;
+
+  if (!defaultField && !(fields && fields.length > 0)) {
+    return true;
+  }
+
+  return {
+    ...(defaultField ? { defaultField } : undefined),
+    ...(fields && fields.length > 0
+      ? {
+          fields: fields.map((field) =>
+            field.label || field.placeholder
+              ? field
+              : field.fieldName,
+          ),
+        }
+      : undefined),
+  };
+}
+
+const {
+  FormDrawer,
+  Grid,
+  ExportModal,
+  gridApi,
+  onCreate,
+  onRefresh,
+  openExportModal,
+} = useCrudPage<{{ resource | pascal }}Info>({
+  api: {
+    list: get{{ resource | pascal }}ListApi,
+    resource: '{{ full_path }}',
+    {% if toggle_field %}toggles: { {{ toggle_field }}: toggle{{ resource | pascal }}StatusApi },{% endif %}
+  },
+  columns: useColumns,
+  {% if detail and detail.get('enabled') %}customActions: { detail: onViewDetail },
+  {% endif %}createPermission,
+  defaultSort: '{{ _default_sort }}',
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: '{{ i18n_pre }}',
+  nameField: '{{ name_field | camel }}',
+  recycleBin: {{ _recycle_bin | lower }},
+  search: {
+    defaultOpen: {{ _search_default_open | lower }},
+    quickSearch: buildQuickSearchConfig(rawQuickSearch, searchSchema),
+  },
+  searchSchema,
+  toolbar: { custom: true, export: {{ _export | lower }}, refresh: true, search: true, zoom: true },
+});
+
+function onFormSuccess() {
+  onRefresh();
+}
+
+{% if _import %}
+const inputImportRef = ref<HTMLInputElement | null>(null);
+function onImportClick() {
+  inputImportRef.value?.click();
+}
+async function onImportChange(e: Event) {
+  const el = e.target as HTMLInputElement;
+  const file = el.files?.[0];
+  if (!file) return;
+  try {
+    const result = await import{{ resource | pascal }}Api(file);
+    message.success($t('shared.common.importSuccess', { count: result.imported ?? 0 }));
+    if (result.errors?.length) {
+      message.warning(result.errors.slice(0, 3).join('; '));
+    }
+    onRefresh();
+  } catch (err: unknown) {
+    message.error((err instanceof Error ? err.message : null) || $t('shared.common.importFailed'));
+  } finally {
+    el.value = '';
+  }
+}
+{% endif %}
+{% if model.drag_sort | default(false) %}
+useAutoTableDragSort(() => gridApi.grid, {
+  keyField: 'id',
+  onBatchUpdate: (ids) => reorder{{ resource | pascal }}sApi(ids as number[]),
+});
+{% endif %}
+</script>
+
+<template>
+  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Grid>
+    <template #toolbar-tools>
+      {% if _import %}
+      <Button
+        v-if="!createPermission || $auth.has(importPermission)"
+        type="default"
+        size="small"
+        class="ml-2"
+        @click="onImportClick"
+      >
+        {{ "{{ $t('common.import') }}" }}
+      </Button>
+      {% endif %}
+    </template>
+{% for f in (fields or []) if not f.get('divider') and type_registry.get_cell_render(f) == 'CellImage' %}
+    <template #{{ f.name }}_cell="{ row }">
+      <Image v-if="row.{{ f.name | camel }}" :src="Array.isArray(row.{{ f.name | camel }}) ? row.{{ f.name | camel }}[0] : row.{{ f.name | camel }}" :preview="true" style="max-height: 40px; max-width: 40px; object-fit: cover;" />
+      <span v-else>-</span>
+    </template>
+{% endfor %}
+  </Grid>
+  <FormDrawer @success="onFormSuccess" />
+  {% if detail and detail.get('enabled') and _detail_mode == 'drawer' %}
+  <Detail v-model:visible="detailVisible" :id="detailId" />
+  {% endif %}
+  <ExportModal />
+  {% if _import %}
+  <input
+    ref="inputImportRef"
+    type="file"
+    accept=".xlsx,.xls"
+    class="hidden"
+    @change="onImportChange"
+  />
+  {% endif %}
+  </Page>
+</template>

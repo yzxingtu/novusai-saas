@@ -21,7 +21,7 @@ export async function vue(): Promise<Linter.Config[]> {
     {
       files: ['**/*.vue'],
       languageOptions: {
-        // globals: {
+        // globals: { / Vue 宏全局（已注释）/ Vue macro globals (commented)
         //   computed: 'readonly',
         //   defineEmits: 'readonly',
         //   defineExpose: 'readonly',
@@ -87,7 +87,7 @@ export async function vue(): Promise<Linter.Config[]> {
         'vue/eqeqeq': ['error', 'smart'],
         'vue/html-closing-bracket-newline': 'error',
         'vue/html-indent': 'off',
-        // 'vue/html-indent': ['error', 2],
+        // 'vue/html-indent': ['error', 2], / 可选缩进规则（已注释）/ optional indent rule
         'vue/html-quotes': ['error', 'double'],
         'vue/html-self-closing': [
           'error',

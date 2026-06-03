@@ -1,0 +1,2 @@
+{"command":"rg -n \"use-dict-options|getDictOptionsApi\" backend/app/codegen/templates frontend/apps/web-antd/src/views/admin/system/codegen frontend/apps/web-antd/src/locales/langs -g '!**/__tests__/**'","reason":"Verify no generated/live code still depends on the removed placeholder helper"}
+{"command":"rg -n \"DictSelect|dictCodeHelp\" frontend/apps/web-antd/src/views/admin/system/codegen frontend/apps/web-antd/src/locales/langs -g '!**/__tests__/**'","reason":"Verify remaining builder and copy surfaces are intentional and consistent with runtime truth"}

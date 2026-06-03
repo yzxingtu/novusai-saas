@@ -1,0 +1,10 @@
+{
+  "plugin.qiniu-kodo.title": "Qiniu Kodo Storage",
+  "plugin.qiniu-kodo.description": "Qiniu Kodo object storage driver with imageView2 native image processing",
+  "plugin.qiniu-kodo.config.access_key": "Access Key",
+  "plugin.qiniu-kodo.config.secret_key": "Secret Key",
+  "plugin.qiniu-kodo.config.bucket": "Bucket",
+  "plugin.qiniu-kodo.config.base_url": "CDN Domain",
+  "plugin.qiniu-kodo.config.prefix": "Key Prefix",
+  "plugin.qiniu-kodo.config.is_private": "Private Bucket"
+}

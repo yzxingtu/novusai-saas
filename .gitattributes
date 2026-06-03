@@ -1,0 +1,11 @@
+# 中文: 后端 Python 工具链要求 LF；避免 Windows autocrlf 让 ruff format checkout 后变红。
+# EN: Backend Python tooling expects LF; keep Windows autocrlf from breaking ruff format after checkout.
+backend/**/*.py text eol=lf
+backend/**/*.pyi text eol=lf
+backend/**/*.toml text eol=lf
+backend/**/*.yml text eol=lf
+backend/**/*.yaml text eol=lf
+
+# 中文: Trellis 规范是跨平台文本工件，统一 LF 便于审计 diff。
+# EN: Trellis specs are cross-platform text artifacts; LF keeps review diffs stable.
+.trellis/**/*.md text eol=lf

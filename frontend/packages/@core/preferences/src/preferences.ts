@@ -68,18 +68,18 @@ class PreferenceManager {
    * @param options.overrides - 要覆盖的偏好设置
    */
   initPreferences = async ({ namespace, overrides }: InitialOptions) => {
-    // 防止重复初始化
+    // 防止重复初始化 / Idempotent init
     if (this.isInitialized) {
       return;
     }
 
-    // 使用命名空间初始化存储管理器
+    // 使用命名空间初始化存储管理器 / Namespaced storage keys
     this.cache = new StorageManager({ prefix: namespace });
 
-    // 合并初始偏好设置
+    // 合并初始偏好设置 / Merge overrides with defaults
     this.initialPreferences = merge({}, overrides, defaultPreferences);
 
-    // 加载缓存的偏好设置并与初始配置合并
+    // 加载缓存的偏好设置并与初始配置合并 / Hydrate from cache then merge
     const cachedPreferences = this.loadFromCache() || {};
     const mergedPreference = merge(
       {},
@@ -87,13 +87,13 @@ class PreferenceManager {
       this.initialPreferences,
     );
 
-    // 更新偏好设置
+    // 更新偏好设置 / Apply merged state
     this.updatePreferences(mergedPreference);
 
-    // 设置监听器
+    // 设置监听器 / Watch breakpoints & OS theme
     this.setupWatcher();
 
-    // 初始化平台标识
+    // 初始化平台标识 / data-platform on html
     this.initPlatform();
 
     this.isInitialized = true;
@@ -118,14 +118,14 @@ class PreferenceManager {
    * @param updates - 要更新的偏好设置
    */
   updatePreferences = (updates: DeepPartial<Preferences>) => {
-    // 深度合并更新内容和当前状态
+    // 深度合并更新内容和当前状态 / Deep-merge partial updates
     const mergedState = merge({}, updates, markRaw(this.state));
     Object.assign(this.state, mergedState);
 
-    // 根据更新的值执行更新
+    // 根据更新的值执行更新 / Side effects (theme, color modes)
     this.handleUpdates(updates);
 
-    // 保存到缓存
+    // 保存到缓存 / Debounced persistence
     this.debouncedSave(this.state);
   };
 
@@ -184,7 +184,7 @@ class PreferenceManager {
       return;
     }
 
-    // 监听断点，判断是否移动端
+    // 监听断点，判断是否移动端 / Tailwind md breakpoint → isMobile
     const breakpoints = useBreakpoints(breakpointsTailwind);
     const isMobile = breakpoints.smaller('md');
 
@@ -198,17 +198,17 @@ class PreferenceManager {
       { immediate: true },
     );
 
-    // 监听系统主题偏好设置变化
+    // 监听系统主题偏好设置变化 / OS dark-mode media query
     window
       .matchMedia('(prefers-color-scheme: dark)')
       .addEventListener('change', ({ matches: isDark }) => {
-        // 仅在自动模式下跟随系统主题
+        // 仅在自动模式下跟随系统主题 / Follow system only when mode is auto
         if (this.state.theme.mode === 'auto') {
-          // 先应用实际的主题
+          // 先应用实际的主题 / Apply resolved light/dark
           this.updatePreferences({
             theme: { mode: isDark ? 'dark' : 'light' },
           });
-          // 再恢复为 auto 模式，保持跟随系统的状态
+          // 再恢复为 auto 模式，保持跟随系统的状态 / Then keep selector on auto
           this.updatePreferences({
             theme: { mode: 'auto' },
           });

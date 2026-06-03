@@ -24,12 +24,14 @@ dependencies = [
     # Web Framework
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
-    "python-multipart>=0.0.6",
+    "python-multipart>=0.0.27",
     
     # Database
     "sqlalchemy>=2.0.25",
     "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
     "alembic>=1.13.1",
+    "greenlet>=3.0.0",
     
     # Redis
     "redis>=5.0.1",
@@ -44,36 +46,91 @@ dependencies = [
     
     # Authentication
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    "ecdsa>=0.19.2",
+    "bcrypt>=4.0.0",
     
     # HTTP Client
     "httpx>=0.26.0",
-    
+    "requests>=2.33.0,<3.0.0",
+    "chardet<6.0.0",
+
+    # Storage
+    "boto3>=1.35.0",
+    "oss2>=2.18.6",
+
+    # AI
+    "openai>=1.12.0",
+    "sqlparse>=0.5.0",
+
+    # RAG / Knowledge Base
+    "pgvector>=0.3.0",
+    "PyMuPDF>=1.24.0",
+    "python-docx>=1.0.0",
+    "python-pptx>=0.6.23",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "beautifulsoup4>=4.12.0",
+    "nh3>=0.2.18",
+    "lxml>=6.1.0",
+    "pypdf>=6.10.2",
+    "mako>=1.3.12",
+    "pyasn1>=0.6.3",
+    "xhtml2pdf>=0.2.13",
+    "jsonschema>=4.21.0",
+
+    # Real-time
+    "python-socketio>=5.11.0",
+
+    # Logging
+    "loguru>=0.7.2",
+    "prometheus-client>=0.20.0",
+
+    # SSL / ACME
+    "acme>=2.0.0",
+    "josepy>=1.14.0",
+    "cryptography>=46.0.7",
+
+    # Template
+    "jinja2>=3.1.3",
+
+    # Image Processing
+    "Pillow>=12.2.0",
+
     # Utils
+    "filelock>=3.13.0",
     "python-dotenv>=1.0.0",
     "orjson>=3.9.12",
-    
+    "captcha>=0.5.0",
+
     # DNS
     "dnspython>=2.4.0",
+
+    # YAML parsing
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest>=7.4.4",
+    "pytest>=9.0.3",
+    "pygments>=2.20.0",
     "pytest-asyncio>=0.23.3",
     "pytest-cov>=4.1.0",
-    "httpx>=0.26.0",
-    
+    "locust>=2.43.4",
+
     # Linting & Formatting
     "ruff>=0.1.14",
     "mypy>=1.8.0",
+    "pip-audit>=2.10.0",
+    "bandit>=1.9.4",
     
     # Type stubs
     "types-redis>=4.6.0",
-    "types-passlib>=1.7.7",
     "types-python-jose>=3.3.4",
 ]
+
+[project.scripts]
+novusai = "app.cli:cli"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -95,6 +152,7 @@ exclude = [
     "__pycache__",
     "migrations/versions",
     ".ruff_cache",
+    "plugins/.backups",
 ]
 
 [tool.ruff.lint]
@@ -123,7 +181,7 @@ known-first-party = ["app"]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
-line-ending = "auto"
+line-ending = "lf"
 
 # ============================================
 # MyPy Configuration
@@ -155,6 +213,7 @@ addopts = [
     "--strict-markers",
     "--tb=short",
     "-ra",
+    "--basetemp=.pytest-tmp",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

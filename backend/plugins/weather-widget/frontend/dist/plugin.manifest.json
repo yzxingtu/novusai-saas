@@ -1,0 +1,7 @@
+{
+  "format": "novus.plugin.release.v1",
+  "entry": "index.js",
+  "global_var": "NovusPlugin_weather_widget",
+  "css": [],
+  "assets": []
+}

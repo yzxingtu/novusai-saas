@@ -1,0 +1,1601 @@
+{
+  "title": "AI Gateway Management",
+  "monitor": {
+    "title": "Monitoring & Analytics",
+    "knowledge-bases": "Knowledge Bases"
+  },
+  "guide": {
+    "title": "Quick Start",
+    "subtitle": "Follow these steps to configure AI Gateway",
+    "totalTime": "~8 min",
+    "showGuide": "Show Guide",
+    "summary": {
+      "current": "Module",
+      "flow": "Flow",
+      "eta": "Estimated time",
+      "stepsLabel": "steps"
+    },
+    "step1": {
+      "title": "Add Provider",
+      "time": "~2 min"
+    },
+    "step2": {
+      "title": "Configure API Key",
+      "time": "~2 min"
+    },
+    "step3": {
+      "title": "Add Model",
+      "time": "~3 min"
+    },
+    "step4": {
+      "title": "Health Check",
+      "time": "~1 min"
+    }
+  },
+  "provider": {
+    "title": "Provider Management",
+    "pageDesc": "Manage AI provider connections including adapter type, API endpoint, protocol, and status. Drag to adjust priority.",
+    "name": "Provider Name",
+    "code": "Provider Code",
+    "type": "Adapter Type",
+    "connectionMode": "Connection Mode",
+    "baseUrl": "API URL",
+    "wireApi": "API Protocol",
+    "description": "Description",
+    "icon": "Icon",
+    "isActive": "Status",
+    "sortOrder": "Sort Order",
+    "modelCount": "Model Count",
+    "config": "Configuration",
+    "create": "Add Provider",
+    "placeholder": {
+      "searchName": "Search provider name",
+      "inputName": "Enter provider name",
+      "inputCode": "Enter provider code",
+      "selectType": "Select adapter type",
+      "inputBaseUrl": "Enter API URL",
+      "selectWireApi": "Select API protocol",
+      "inputDescription": "Enter description"
+    },
+    "wireApiOptions": {
+      "chat_completions": "Chat Completions",
+      "responses": "Responses"
+    },
+    "type_options": {
+      "openai_compatible": "OpenAI Compatible",
+      "anthropic": "Anthropic"
+    },
+    "iconPicker": {
+      "searchPlaceholder": "Search icons...",
+      "preset": "Preset",
+      "browse": "Browse",
+      "search": "Search",
+      "icons": "icons",
+      "noResults": "No matching icons found",
+      "searchTip": "Type keywords to search icons"
+    },
+    "validation": {
+      "baseUrlInvalid": "Enter a valid API URL starting with http:// or https://",
+      "baseUrlEndpointNotAllowed": "OpenAI-compatible provider API URL must not include /responses or /chat/completions. Enter the base URL only and choose the API protocol separately",
+      "baseUrlLikelyMissingVersion": "This URL does not look like an OpenAI-compatible API root. A common correct format ends with /v1, so verify it manually against the provider docs."
+    },
+    "help": {
+      "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; configure the URL and protocol separately",
+      "wireApi": "Prefer Chat Completions for legacy integrations, simple chat, and full per-request control; prefer Responses for tool use, multi-step agents, GPT-5 / o-series reasoning, and less client-side state handling. For new integrations, Responses is usually the better default to evaluate first. The chosen wire API will not auto-fix the base URL, which must be entered manually as the provider's API root.",
+      "type": "This field selects the integration adapter / compatibility format, not the vendor brand. The platform currently connects primarily through the OpenAI-compatible format, which covers many providers and compatible Azure-style endpoints.",
+      "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
+    },
+    "summary": {
+      "total": "Total Providers",
+      "active": "Active",
+      "models": "Total Models"
+    },
+    "messages": {
+      "toggleSuccess": "Provider status updated",
+      "confirmEnable": "Are you sure to enable this provider?",
+      "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail.",
+      "deleteSuccess": "Provider deleted successfully"
+    }
+  },
+  "model": {
+    "title": "Model Management",
+    "pageDesc": "Add and manage AI models. Auto-fill from remote when creating. Fallback models take over when primary is offline.",
+    "name": "Model Name",
+    "code": "Model Code",
+    "type": "Model Type",
+    "providerId": "Provider",
+    "providerName": "Provider",
+    "contextWindow": "Total Context Budget (Input + Output)",
+    "maxOutputTokens": "Per-Reply Max Output Tokens",
+    "inputPrice": "Input Price ($/1K)",
+    "outputPrice": "Output Price ($/1K)",
+    "functionCalling": "Function Calling",
+    "vision": "Vision",
+    "supportsAudio": "Supports Audio",
+    "supportsVideo": "Supports Video",
+    "streaming": "Streaming",
+    "maxImageCount": "Max Image Count",
+    "maxImageSizeMb": "Max Image Size (MB)",
+    "isActive": "Status",
+    "tier": "Model Tier",
+    "fallbackModel": "Fallback Model",
+    "rpmLimit": "RPM Limit",
+    "tpmLimit": "TPM Limit",
+    "reasoningEffort": "Reasoning Effort (GPT-5 / o-series)",
+    "test": "Test Connectivity",
+    "testing": "Testing connectivity...",
+    "testSuccess": "Connectivity test passed, latency: {latency}ms",
+    "testFailed": "Connectivity test failed: {error}",
+    "testResultTitle": "Model Test Details",
+    "create": "Add Model",
+    "section": {
+      "basic": "Basic Info",
+      "runtimeOverrides": "Advanced Runtime Parameters",
+      "pricing": "Pricing",
+      "rateLimit": "Rate Limits",
+      "capability": "Capabilities",
+      "failover": "Failover",
+      "routing": "Routing Policy"
+    },
+    "fetchRemote": "Fetch Remote Models",
+    "fetchRemoteLoading": "Fetching...",
+    "fetchRemoteSuccess": "Fetched {count} models",
+    "fetchRemoteFailed": "Failed to fetch remote models",
+    "fetchRemoteTip": "Please select a provider first",
+    "selectRemoteModel": "Select Remote Model",
+    "tier_options": {
+      "fast": "Fast (low latency)",
+      "standard": "Standard (balanced)",
+      "premium": "Premium (highest capability)"
+    },
+    "placeholder": {
+      "searchName": "Search model name",
+      "inputName": "Enter model name",
+      "inputCode": "Enter model code",
+      "selectReasoningEffort": "Select reasoning effort (optional)",
+      "selectType": "Select model type",
+      "selectProvider": "Select provider",
+      "selectRemoteModel": "Select a remote model to auto-fill",
+      "allProviders": "All Providers",
+      "allTypes": "All Types",
+      "inputContextWindow": "e.g. 128000 total per-request budget (input + output)",
+      "inputMaxOutput": "e.g. 4096 output tokens for one reply",
+      "inputPrice": "e.g. 0.015",
+      "outputPrice": "e.g. 0.03",
+      "inputRpmLimit": "Requests per minute limit (leave empty for unlimited)",
+      "inputTpmLimit": "Tokens per minute limit (leave empty for unlimited)",
+      "selectFallback": "Select fallback model (optional)",
+      "selectTier": "Select model tier (optional)",
+      "inputMaxImageCount": "e.g. 5",
+      "inputMaxImageSizeMb": "e.g. 10"
+    },
+    "type_options": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "image": "Image"
+    },
+    "reasoningEffortOptions": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "XHigh"
+    },
+    "help": {
+      "code": "Enter the upstream model ID actually accepted by the provider API, such as gpt-4 or gpt-5.4. Legacy alias rows are normalized automatically when edited.",
+      "reasoningEffort": "Only applies to GPT-5 / o-series style reasoning models. Models like Claude will neither show nor send this parameter.",
+      "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
+      "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first.",
+      "maxOutputTokens": "Maximum generated tokens per request. This only limits how much the model can output in one reply and does not increase input context capacity",
+      "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",
+      "tier": "Model tier for multi-model routing. Fast = simple tasks, Premium = complex analysis. Leave unset to opt out of auto-routing",
+      "fallbackModel": "Automatically switches to fallback model when current model is unavailable, ensuring service continuity",
+      "rpmLimit": "Maximum requests per minute. Requests exceeding this limit are throttled to protect the provider API",
+      "tpmLimit": "Maximum tokens per minute. Controls the total token consumption rate",
+      "maxImageCount": "Maximum number of images per conversation upload (1-20)",
+      "maxImageSizeMb": "Maximum size per image in MB. Images exceeding this will be rejected"
+    },
+    "testDetails": {
+      "provider": "Provider",
+      "wireApi": "Wire API",
+      "upstreamModel": "Effective Upstream Model",
+      "reasoningEffort": "Effective Reasoning Effort",
+      "appliedOverrides": "Applied Overrides",
+      "ignoredOverrides": "Ignored Overrides",
+      "ignoreReasons": "Ignore Reasons",
+      "traceId": "Trace ID",
+      "latency": "Latency",
+      "error": "Error Summary",
+      "responsePreview": "Response Preview"
+    },
+    "messages": {
+      "toggleSuccess": "Model status updated",
+      "confirmEnable": "Are you sure to enable this model?",
+      "confirmDisable": "Are you sure to disable this model? It will no longer be available for calls.",
+      "deleteSuccess": "Model deleted successfully"
+    }
+  },
+  "apiKey": {
+    "title": "API Key Management",
+    "pageDesc": "Manage AI provider API keys. Use scope to control key availability: Admin Only keys are reserved for admin AI calls; All Tenants keys are shared across tenants or assigned to a specific tenant. Tenant calls prefer dedicated keys, falling back to platform shared keys.",
+    "name": "Key Name",
+    "providerId": "Provider",
+    "providerName": "Provider",
+    "providerModels": "{count} models",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "apiKey": "API Key",
+    "keyPreview": "Key Preview",
+    "isActive": "Status",
+    "isAvailable": "Available",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "usageLimit": "Usage Limit",
+    "usageCount": "Used Count",
+    "lastUsedAt": "Last Used",
+    "lastUsedRecent": "Last used",
+    "lastUsedNever": "Never used",
+    "expiresAt": "Expires At",
+    "create": "Add API Key",
+    "placeholder": {
+      "searchName": "Search key name",
+      "inputName": "Enter key name",
+      "inputApiKey": "Enter API Key",
+      "selectProvider": "Select provider",
+      "allProviders": "All Providers",
+      "inputUsageLimit": "Leave empty for unlimited"
+    },
+    "help": {
+      "apiKey": "The API secret key from the provider. Stored encrypted. Cannot be viewed in full after creation",
+      "scope": "One of five resource scopes; admin_only is admin-side only. Other scopes use owner_tenant_id and resource_tenant_assignments (RTA) as documented in the form.",
+      "usageLimit": "Maximum call count for this key. Automatically marked unavailable when reached. Leave empty for unlimited",
+      "isActive": "When manually disabled, this key is excluded from load balancing. Useful for temporarily pausing a key"
+    },
+    "summary": {
+      "total": "Total Keys",
+      "active": "Active",
+      "expiringSoon": "Expiring Soon",
+      "expired": "Expired"
+    },
+    "messages": {
+      "toggleSuccess": "API Key status updated",
+      "confirmEnable": "Are you sure to enable this API Key?",
+      "confirmDisable": "Are you sure to disable this API Key? AI calls using this key will fail.",
+      "copy": "Copy Key",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Copy failed",
+      "deleteSuccess": "API Key deleted successfully"
+    }
+  },
+  "callLog": {
+    "name": "Call Logs",
+    "title": "Call Logs",
+    "pageDesc": "View both admin and tenant AI call records, including token usage, cost, and response time.",
+    "requestType": "Request Type",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "cost": "Cost",
+    "latency": "Latency (ms)",
+    "status": "Status",
+    "source": "Source",
+    "tenantName": "Tenant",
+    "platformTenant": "Admin Console",
+    "callerName": "Caller",
+    "agentName": "Agent",
+    "conversationId": "Conversation ID",
+    "modelName": "Model",
+    "providerName": "Provider",
+    "traceId": "Trace ID",
+    "userId": "User ID",
+    "errorMessage": "Error Message",
+    "routedModel": "Routed Model",
+    "createdAt": "Created At",
+    "placeholder": {
+      "allStatuses": "All Statuses",
+      "allModels": "All Models",
+      "searchAgentName": "Search agent name",
+      "searchTrace": "Search trace ID",
+      "searchConversation": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
+    },
+    "status_options": {
+      "success": "Success",
+      "failed": "Failed",
+      "timeout": "Timeout"
+    },
+    "source_options": {
+      "platform": "Admin Call",
+      "tenant": "Tenant Call"
+    },
+    "summary": {
+      "totalCalls": "Total Calls",
+      "successRate": "Success Rate",
+      "avgLatency": "Avg Latency",
+      "totalCost": "Total Cost"
+    },
+    "viewDetail": "View Detail",
+    "detail": {
+      "title": "Call Log Detail",
+      "requestData": "Request Data",
+      "responseData": "Response Data"
+    },
+    "export": {
+      "button": "Export CSV",
+      "success": "Export successful",
+      "failed": "Export failed",
+      "noData": "No data to export"
+    }
+  },
+  "usage": {
+    "name": "Usage Statistics",
+    "title": "Usage Statistics",
+    "pageDesc": "Daily statistics of calls, token consumption, and costs by tenant and model.",
+    "statDate": "Date",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "modelId": "Model",
+    "modelName": "Model",
+    "requestType": "Request Type",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "callCount": "Calls",
+    "successCount": "Success",
+    "failedCount": "Failed",
+    "successRate": "Success Rate",
+    "totalCost": "Total Cost",
+    "avgLatency": "Avg Latency (ms)",
+    "maxLatency": "Max Latency (ms)",
+    "type_options": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "image": "Image"
+    },
+    "placeholder": {
+      "selectTenant": "All Tenants",
+      "selectModel": "All Models",
+      "startDate": "Start Date",
+      "endDate": "End Date"
+    },
+    "summary": {
+      "totalCalls": "Total Calls",
+      "totalTokens": "Total Tokens",
+      "totalCost": "Total Cost",
+      "successRate": "Success Rate"
+    },
+    "chart": {
+      "dailyTrend": "Daily Usage Trend",
+      "modelDistribution": "Model Usage Distribution"
+    },
+    "accessChannel": {
+      "title": "Access Channel",
+      "subtitle": "This page already includes platform, tenant-admin, and end-user calls, then breaks them down by call source",
+      "topChannelLabel": "Top traffic channel",
+      "calls": "Calls",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "admin_internal": "Platform / internal",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "unknown": "Unlabeled channel"
+    },
+    "metrics": {
+      "successCalls": "Success",
+      "failedCalls": "Failed",
+      "inputTokens": "Input",
+      "outputTokens": "Output",
+      "avgCostPerCall": "Avg / call",
+      "avgTokensPerCall": "Avg tokens / call"
+    },
+    "snapshot": {
+      "title": "Window and distribution snapshot",
+      "days": "days",
+      "rangeDays": "Time span",
+      "coveredModels": "Models covered",
+      "coveredChannels": "Channels covered",
+      "topModel": "Top model",
+      "busiestDay": "Peak day",
+      "customRange": "Custom range",
+      "platformScope": "Platform admin",
+      "tenantScope": "Current tenant",
+      "empty": "No data"
+    },
+    "list": {
+      "empty": "No statistics in the selected range"
+    },
+    "monitoring": {
+      "topModels": "Top Models",
+      "topAgents": "Top Agents",
+      "topUsers": "Top Users",
+      "topTenants": "Top Tenants"
+    },
+    "dateRange": "Date Range",
+    "thisMonth": "This Month",
+    "last7Days": "Last 7 Days",
+    "last30Days": "Last 30 Days"
+  },
+  "quota": {
+    "name": "Quota",
+    "title": "Quota Management",
+    "pageDesc": "Inspect the real runtime state, usage, and over-limit behavior of tenant quotas and rate limits.",
+    "entityDescription": "AI quota and rate limit management",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "modelId": "Model",
+    "modelName": "Model",
+    "period": "Period",
+    "limit": "Quota Limit",
+    "quotaType": "Quota Type",
+    "warningThreshold": "Warning Threshold (%)",
+    "isActive": "Status",
+    "description": "Description",
+    "create": "Add Quota",
+    "globalQuota": "Global Quota",
+    "refresh": "Refresh Diagnostics",
+    "scope": "Scope",
+    "usage": "Current Usage",
+    "remaining": "Remaining",
+    "runtime": "Runtime Status",
+    "response": "Over-limit Response",
+    "latestRule": "Effective Rule",
+    "shadowedRule": "Legacy Rule",
+    "warningReached": "Warning Threshold Reached",
+    "summary": {
+      "activeRules": "Active Quota Rules",
+      "blockRules": "Hard-Block Rules",
+      "riskRules": "Quota Risk Rules",
+      "rateLimitRules": "Active Rate Limits"
+    },
+    "aiOps": {
+      "refreshDescription": "Refresh AI quota and rate-limit diagnostics",
+      "openCreateDescription": "Open the quota creation form"
+    },
+    "helper": {
+      "hardLimit": "Hard quotas reject requests immediately after exhaustion and return HTTP 429 / business code 4291.",
+      "softLimit": "Soft quotas never block requests, but usage continues to accumulate and warnings can be triggered.",
+      "globalFallback": "Global quotas only apply when no model-specific quota exists for the same period; model-specific rules take precedence."
+    },
+    "scopeType": {
+      "global": "Global Quota",
+      "model": "Model Specific"
+    },
+    "runtimeStatus": {
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "exceeded": "Exceeded",
+      "inactive": "Inactive"
+    },
+    "section": {
+      "basic": "Basic Info",
+      "config": "Quota Configuration"
+    },
+    "period_options": {
+      "daily": "Daily",
+      "monthly": "Monthly"
+    },
+    "type_options": {
+      "soft": "Soft Limit",
+      "hard": "Hard Limit"
+    },
+    "placeholder": {
+      "selectTenant": "Select tenant",
+      "selectModel": "Select model (leave empty for global quota)",
+      "selectPeriod": "Select period",
+      "selectType": "Select quota type",
+      "inputLimit": "Token limit",
+      "inputThreshold": "e.g. 80",
+      "inputDescription": "Enter description",
+      "allTenants": "All Tenants",
+      "allPeriods": "All Periods",
+      "allTypes": "All Types",
+      "allStatus": "All Statuses"
+    }
+  },
+  "rateLimit": {
+    "title": "Rate Limits",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "tenantLabel": "Tenant",
+    "modelId": "Model",
+    "rpmLimit": "RPM Limit",
+    "tpmLimit": "TPM Limit",
+    "description": "Description",
+    "isActive": "Status",
+    "create": "Add Rate Limit",
+    "noLimit": "No Limit",
+    "configured": "Configured Override",
+    "effective": "Runtime Effective",
+    "modelDefault": "Model Default",
+    "currentRpm": "Current RPM",
+    "currentTpm": "Current TPM",
+    "response": "Over-limit Response",
+    "latestRule": "Effective Rule",
+    "shadowedRule": "Legacy Rule",
+    "helper": {
+      "deny": "Rate limits reject requests immediately after exhaustion and return HTTP 429 / business code 4292.",
+      "inherit": "Blank RPM / TPM fields now inherit model defaults instead of clearing them."
+    },
+    "aiOps": {
+      "openTabDescription": "Switch to the rate-limit diagnostics tab",
+      "openCreateDescription": "Open the rate-limit creation form with optional defaults",
+      "openEditDescription": "Open the edit drawer for a rate-limit rule by ID",
+      "deleteDescription": "Delete a rate-limit rule by ID",
+      "ruleId": "Rate-limit rule ID"
+    },
+    "source": {
+      "tenant": "Tenant Override",
+      "model": "Model Default",
+      "none": "Unconfigured"
+    },
+    "confirmDelete": "Confirm deleting this rate limit?",
+    "placeholder": {
+      "selectTenant": "Select tenant",
+      "selectModel": "Select model",
+      "inputRpm": "Max requests per minute",
+      "inputTpm": "Max tokens per minute",
+      "inputDescription": "Enter description"
+    }
+  },
+  "agent": {
+    "title": "Agent Management",
+    "entityDescription": "Manage AI agent configuration, skill bindings and publish status",
+    "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
+    "skillBindings": "Skill Bindings",
+    "detail": {
+      "title": "Agent Detail",
+      "overview": "Overview",
+      "modelParams": "Model Parameters",
+      "chatConfig": "Chat Config",
+      "skillBindings": "Skill Bindings",
+      "quota": "Quota",
+      "routing": "Smart Routing",
+      "basicInfo": "Basic Info",
+      "saveSuccess": "Saved successfully",
+      "chatConfigPromptHint": "Variable Reference",
+      "noQuotaLimit": "0 means no limit",
+      "noSkills": "No skills in this package",
+      "ragHint": "Agent-level RAG config is the runtime retrieval entry point. Multi-KB retrieval recalls per knowledge base first, then fuses the results.",
+      "knowledgeBases": "Knowledge Bases",
+      "kbWeight": "Weight",
+      "kbEnabled": "Enabled",
+      "skillEnabled": "Enabled",
+      "kbDocCount": "Documents",
+      "kbEmbeddingModel": "Embedding Model",
+      "kbEmbeddingDimensions": "Vector Dimensions",
+      "kbChunkStrategy": "Chunk Strategy",
+      "kbCreatorTenant": "Created by",
+      "kbOwnerPlatform": "Platform",
+      "kbWeightFusionHint": "Weight now participates in multi-KB fusion as a prior signal and does not hard override relevance.",
+      "uploadAvatar": "Upload avatar",
+      "removeAvatar": "Remove avatar",
+      "knowledgeBasesGlobalHint": "Bindings here are platform-global: every tenant that can use this agent will include these knowledge bases in chat RAG by default. A tenant may opt out per knowledge base on the tenant console; that only affects that tenant and does not change this configuration."
+    },
+    "knowledgeBase": {
+      "title": "Knowledge Base (RAG)",
+      "topK": "Retrieval Count (Top-K)",
+      "scoreThreshold": "Score Threshold",
+      "searchMode": "Search Mode",
+      "searchModeOptions": {
+        "vector": "Vector Search",
+        "keyword": "Keyword Search",
+        "hybrid": "Hybrid Search"
+      },
+      "rewriteStrategy": "Query Rewrite Strategy",
+      "rewriteOptions": {
+        "none": "None",
+        "multi": "Multi-Query Rewrite",
+        "hyde": "Hypothetical Document Embedding"
+      },
+      "rerankerEnabled": "Enable Reranker",
+      "rerankerEnabledHelp": "Re-ranks retrieval results for improved accuracy",
+      "contextTokenRatio": "Context Token Ratio"
+    },
+    "memory": {
+      "title": "Session Memory",
+      "desc": "Controls session memory for this agent on AI chat pages. If platform default is off, memory is forced off.",
+      "platformDefault": "Platform Default",
+      "agentSwitch": "Agent Switch",
+      "effective": "Effective",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "saveSuccess": "Memory switch updated"
+    },
+    "routing": {
+      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and estimated token count, balancing performance and cost.",
+      "enableRouting": "Enable Smart Routing",
+      "maxTier": "Cost Limit",
+      "maxTierHelp": "Limits the maximum model tier the router can use; automatically downgrades if exceeded",
+      "visionModel": "Vision Model",
+      "audioModel": "Audio Model",
+      "videoModel": "Video Model",
+      "longContextModel": "Long-Context Model",
+      "longContextThreshold": "Long-Context Threshold (Estimated Input Tokens)",
+      "longContextThresholdHelp": "Automatically switches to the long-context model when estimated input tokens (history + user input + RAG context, excluding this reply's output cap) exceed this threshold",
+      "autoSelect": "Auto Select",
+      "noLimit": "No Limit",
+      "statusEnabled": "Smart Routing On",
+      "statusDisabled": "Routing Off",
+      "visionModelHelp": "Routes to this model when image attachments are present",
+      "audioModelHelp": "Routes to this model when audio attachments are present",
+      "videoModelHelp": "Routes to this model when video attachments are present",
+      "longContextModelHelp": "Switches to this model when tokens exceed the threshold",
+      "tier": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "premium": "Premium"
+      }
+    },
+    "system": "System",
+    "systemAgent": "System Agent",
+    "systemAgentDesc": "System agents are platform built-in. Core fields cannot be modified, and they cannot be deleted or disabled.",
+    "sourcePluginDisabled": "Source plugin disabled",
+    "sourcePluginManagedDesc": "This system agent is managed by its source plugin. Editing selected tenants here updates both the plugin and the agent distribution.",
+    "sourcePluginScopeLocked": "Scope is controlled by the source plugin and cannot be changed here.",
+    "systemFieldLocked": "This field cannot be modified for system agents",
+    "isSystem": "System",
+    "name": "Agent Name",
+    "avatar": "Avatar",
+    "description": "Description",
+    "status": "Status",
+    "scopeLabel": "Resource scope",
+    "ownerType": {
+      "label": "Owner",
+      "platform": "Platform",
+      "tenant": "Tenant"
+    },
+    "targetAudience": "Target Audience",
+    "executionMode": "Execution Mode",
+    "modelName": "Model",
+    "tenantId": "Tenant",
+    "versionLabel": "Version",
+    "systemPrompt": "System Prompt",
+    "temperature": "Temperature",
+    "maxTokens": "Per-Reply Max Output Tokens (Output Only)",
+    "topP": "Top P",
+    "welcomeMessage": "Welcome Message",
+    "suggestedQuestions": "Starter Questions",
+    "inputVariables": {
+      "title": "Input Variables",
+      "label": "Variable Definitions (JSON)"
+    },
+    "contextConfig": {
+      "title": "Chat History Context",
+      "maxHistoryMessages": "History Messages Sent as Context",
+      "maxHistoryTokens": "History Token Budget Sent as Context",
+      "longTermMemoryEnabled": "Long-term memory (cross-session)",
+      "longTermMemoryHint": "When enabled, durable insights are captured into MemoryRecord and recalled progressively; requires session memory to be on for the same agent."
+    },
+    "skillPackageBindings": "Skill Package Bindings",
+    "skillPicker": {
+      "title": "Select skill bindings",
+      "subtitle": "Search by skill, package, and source, then manage the current agent's granted skills in one pass.",
+      "searchPlaceholder": "Search skill name, key, description, or package",
+      "packageFilter": "Filter by package",
+      "onlyActive": "Active skills only",
+      "loadMorePackages": "Load more packages",
+      "refresh": "Refresh",
+      "candidates": "Available skills",
+      "selected": "Selected",
+      "packages": "Packages",
+      "matches": "Matches",
+      "filtered": "Filters applied",
+      "resultSummary": "{skills} matched skills across {packages} packages",
+      "candidateHint": "Browse candidate skills on the left. Click the whole row to select or deselect. There are {count} matches right now.",
+      "packageMatches": "{count} items",
+      "selectedBadge": "Selected",
+      "selectionSummary": "{skills} skills / {packages} packages",
+      "selectionHint": "Selected skills stay here across pages so you can review the exact list before saving.",
+      "formEmptyHint": "No skills are configured for this agent yet. It is usually better to grant at least one directly runnable skill.",
+      "detailEmptyHint": "This agent currently has no granted skills. Use the button above to filter by package, browse pages, and save in one pass.",
+      "replaceNotice": "Saving replaces the current skill grants as a whole, so review the selected skills on the right before confirming.",
+      "paginationTotal": "{count} items",
+      "emptyCandidates": "No matching skills",
+      "emptySelected": "No skills selected",
+      "remove": "Remove",
+      "openPicker": "Choose skills",
+      "manageBindings": "Manage skill bindings",
+      "selectedCount": "{count} selected"
+    },
+    "kbPicker": {
+      "title": "Select knowledge base bindings",
+      "subtitle": "Search candidate knowledge bases by name, description, and scope, then save the agent's binding set in one pass.",
+      "searchPlaceholder": "Search knowledge base name, description, or ID",
+      "scopeFilter": "Filter by scope",
+      "refresh": "Refresh",
+      "candidates": "Available knowledge bases",
+      "selected": "Selected knowledge bases",
+      "scopes": "Scopes",
+      "matches": "Matches",
+      "filtered": "Filters applied",
+      "resultSummary": "{count} matched knowledge bases across {scopes} scopes",
+      "candidateHint": "Browse candidate knowledge bases on the left. Click the whole row to select or deselect. There are {count} matches right now.",
+      "selectedBadge": "Selected",
+      "selectionSummary": "{count} knowledge bases / {scopes} scopes",
+      "selectionHint": "Selected knowledge bases stay here, and confirming will replace the current binding set as a whole.",
+      "detailEmptyHint": "This agent currently has no knowledge base bindings. Use the button above to filter candidates by scope and save them in one pass.",
+      "replaceNotice": "Saving will replace the current knowledge base bindings as a whole, so confirm the list on the right before continuing.",
+      "emptyCandidates": "No matching knowledge bases",
+      "emptySelected": "No knowledge bases selected",
+      "remove": "Remove",
+      "creatorLabel": "Created by",
+      "platformOwner": "Platform",
+      "ownerFallback": "Tenant #{id}",
+      "manageBindings": "Manage knowledge base bindings",
+      "selectedCount": "{count} selected"
+    },
+    "quotaConfig": {
+      "conversationsPerDay": "Daily Conversation Limit",
+      "tokensPerDay": "Daily Token Limit",
+      "tokensPerMonth": "Monthly Token Limit",
+      "maxTurnsPerConversation": "Max Turns Per Conversation",
+      "maxConcurrent": "Max Concurrent",
+      "userConversationsPerDay": "User Daily Conversation Limit"
+    },
+    "create": "Create Agent",
+    "noDescription": "No description",
+    "viewDetail": "View Detail",
+    "status_options": {
+      "draft": "Draft",
+      "published": "Published",
+      "disabled": "Disabled"
+    },
+    "mode_options": {
+      "conversation": "Conversation",
+      "task": "Task",
+      "batch": "Batch",
+      "api": "API"
+    },
+    "audience_options": {
+      "all": "All Portals",
+      "admin_only": "Admin Only",
+      "admin_tenant": "Admin + Tenant"
+    },
+    "placeholder": {
+      "searchName": "Search agent name",
+      "allStatuses": "All Statuses",
+      "allModes": "All Modes",
+      "allTenants": "All Tenants",
+      "tenantId": "Enter tenant ID",
+      "allTypes": "All Types",
+      "selectSkills": "Select skills to grant",
+      "selectSkillPackages": "Select skill packages to bind",
+      "inputSystemPrompt": "Enter a system prompt to define the agent's role and behavior",
+      "inputWelcomeMessage": "Welcome message shown before the first turn starts",
+      "inputSuggestedQuestions": "One question per line, JSON array is also supported",
+      "selectOrgNodes": "Select organization nodes",
+      "inputUserIds": "Enter user IDs, separated by commas",
+      "inputRoleIds": "Enter role IDs, separated by commas",
+      "selectRoles": "Select organization nodes",
+      "inputTemperature": "0-2, higher values produce more random output",
+      "inputMaxTokens": "Per-reply max generated tokens (output only)",
+      "inputTopP": "0-1, used together with temperature"
+    },
+    "help": {
+      "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
+      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget. ~2 tokens per Chinese character",
+      "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
+      "skillBindings": "Select the skills this agent can invoke. Skills are the direct runtime grant unit, while skill packages are only used for grouping and management",
+      "skillPackageBindings": "Select skill packages this agent can invoke",
+      "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
+      "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "Per-reply max output tokens cannot exceed the selected model limit {limit}"
+    },
+    "type_options": {
+      "system": "System Agent",
+      "custom": "Custom Agent"
+    },
+    "summary": {
+      "total": "Total",
+      "published": "Published",
+      "draft": "Draft",
+      "disabled": "Disabled",
+      "system": "System"
+    },
+    "actions": {
+      "publish": "Publish",
+      "versions": "Version History",
+      "access": "Access Config"
+    },
+    "versionHistory": "Version History",
+    "version": {
+      "title": "Version History",
+      "current": "Current",
+      "rollback": "Rollback",
+      "rollbackSuccess": "Agent rolled back successfully",
+      "diff": "Compare",
+      "diffTitle": "Version Compare: v{v1} ↔ v{v2}",
+      "noDiff": "Both versions have identical config",
+      "noVersions": "No version history",
+      "selectVersion": "Select version to compare"
+    },
+    "accessConfig": "Access Configuration",
+    "visibility": "Visibility",
+    "accessType": "Access Type",
+    "orgNodes": "Organization Nodes",
+    "specificUsers": "Specific Users",
+    "roleAccess": "Role Access Control",
+    "adminRoleAccess": "Admin Organization Access",
+    "tenantRoleAccess": "Tenant Role Access",
+    "userRoleAccess": "User Role Access",
+    "roleMode": {
+      "all": "All Allowed",
+      "specific": "Specific Organization Nodes"
+    },
+    "visibility_options": {
+      "public": "Public",
+      "private": "Private"
+    },
+    "access_type_options": {
+      "all_users": "All Users",
+      "org_node": "By Organization",
+      "specific_users": "Specific Users",
+      "api_only": "API Only"
+    },
+    "messages": {
+      "toggleSuccess": "Agent status updated",
+      "confirmPublish": "Are you sure to publish this agent?",
+      "confirmDisable": "Are you sure to disable this agent? It will no longer be available.",
+      "publishTitle": "Publish Agent",
+      "publishDesc": "Publishing will freeze the current config as a new version. You can rollback anytime.",
+      "publishSuccess": "Agent published successfully",
+      "changeLogPlaceholder": "Enter change log (optional)",
+      "rollbackConfirm": "Are you sure to rollback to this version? Current config will be overwritten.",
+      "rollback": "Rollback",
+      "accessUpdated": "Access config updated",
+      "visibilityPublicHint": "All users can see and use this agent",
+      "visibilityPrivateHint": "Only authorized users can see and use this agent",
+      "accessRoleHint": "Control which admins can use this agent by organization node. Select 'All Allowed' to remove organization-based restrictions.",
+      "noAdminAccess": "This agent's target audience does not include admin portal. No admin organization-node config is needed."
+    }
+  },
+  "conversation": {
+    "name": "Conversation Management",
+    "title": "Conversation Management",
+    "pageDesc": "Monitor all tenant AI conversations with detail view and cost statistics.",
+    "agentName": "Agent",
+    "conversationId": "Conversation ID",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "providerName": "Provider",
+    "modelName": "Model",
+    "user": "User",
+    "status": "Status",
+    "totalCalls": "Total Calls",
+    "tokenCount": "Token Count",
+    "cost": "Cost",
+    "createdAt": "Created At",
+    "lastCallAt": "Last Call At",
+    "viewDetail": "View Detail",
+    "messageList": "Messages",
+    "tabMessages": "Message flow",
+    "tabModelCalls": "Model calls",
+    "modelCallsEmpty": "No related model call records",
+    "thinkingBlock": "Reasoning",
+    "ragRefs": "Knowledge base references",
+    "toolCalls": "Tool calls",
+    "toolOk": "OK",
+    "toolFailed": "Failed",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "Latency",
+    "messageCount": "Message Count",
+    "conversationTitle": "Conversation Title",
+    "detailTitle": "Conversation Detail",
+    "runtimeDiagnostics": "Runtime Diagnostics",
+    "diagnosticsEmpty": "No runtime diagnostics recorded",
+    "diagnosticNotes": "Stop-Loss Notes",
+    "executionPath": "Execution Path",
+    "failureKind": "Failure Kind",
+    "budgetStatus": "Budget Status",
+    "budgetExitReason": "Budget Exit Reason",
+    "partialExitReason": "Partial Exit Reason",
+    "intentPlan": "Intent Plan",
+    "candidateTools": "Candidate Tools",
+    "providerEvents": "Provider Events",
+    "retryEvents": "Retry Events",
+    "requiredCapabilities": "Required Capabilities",
+    "allowedTools": "Allowed Tools",
+    "selectedTools": "Selected Tools",
+    "completedTools": "Completed Tools",
+    "unfinishedReason": "Unfinished Reason",
+    "executionPathOptions": {
+      "fast": "Fast",
+      "normal": "Normal",
+      "deep": "Deep"
+    },
+    "failureKindOptions": {
+      "none": "None",
+      "provider_failure": "Provider Failure",
+      "tool_failure": "Tool Failure",
+      "orchestration_failure": "Orchestration Failure",
+      "budget_exit": "Budget Exit",
+      "server_interrupt": "Server Interrupt",
+      "no_answer_quality_evidence": "No Answer-Quality Evidence"
+    },
+    "budgetStatusOptions": {
+      "ok": "OK",
+      "within_budget": "Within Budget",
+      "budget_exit": "Budget Exit",
+      "exceeded": "Exceeded"
+    },
+    "actorType": {
+      "platform_admin": "Platform admin",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "admin": "Admin",
+      "user": "User",
+      "unknown": "Unknown actor"
+    },
+    "status_options": {
+      "active": "Active",
+      "archived": "Archived",
+      "closed": "Closed",
+      "completed": "Completed",
+      "failed": "Failed",
+      "partial": "Partial",
+      "unknown": "Unknown"
+    },
+    "placeholder": {
+      "searchTitle": "Search conversation title",
+      "agentId": "Agent ID",
+      "allStatuses": "All Statuses",
+      "allTenants": "All Tenants",
+      "searchConversationId": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
+    }
+  },
+  "executionDecision": {
+    "title": "Execution Decisions",
+    "name": "Execution Decisions",
+    "pageDesc": "Inspect consent and confirmation decisions resolved during AI conversations.",
+    "detailTitle": "Execution Decision Detail",
+    "id": "ID",
+    "createdAt": "Created At",
+    "decisionType": "Decision Type",
+    "status": "Status",
+    "subjectType": "Subject Type",
+    "decisionScope": "Decision Scope",
+    "toolName": "Tool Name",
+    "actionName": "Action Name",
+    "toolCallId": "Tool Call ID",
+    "riskLevel": "Risk Level",
+    "conversationId": "Conversation",
+    "operatorId": "Operator",
+    "autoApproved": "Auto Approved",
+    "correlationKey": "Correlation Key",
+    "reason": "Reason",
+    "evidence": "Evidence",
+    "viewDetail": "View Detail",
+    "noDetailData": "No detail data available",
+    "typeOptions": {
+      "consent": "Consent",
+      "confirmation": "Confirmation"
+    },
+    "statusOptions": {
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "autoApproved": "Auto Approved",
+      "pending": "Pending",
+      "expired": "Expired"
+    },
+    "placeholder": {
+      "searchTool": "Search tool name",
+      "allTypes": "All Types",
+      "allStatuses": "All Statuses"
+    }
+  },
+  "agentAssignments": {
+    "entityDescription": "System agent assignment management"
+  },
+  "health": {
+    "name": "Health Status",
+    "title": "Health Status",
+    "pageDesc": "Real-time monitoring of AI provider connectivity, response times, and failure counts.",
+    "entityDescription": "AI provider health status monitoring",
+    "providers": "providers",
+    "monitoringItems": "monitors",
+    "refresh": "Refresh",
+    "agentIdPlaceholder": "Agent ID (optional)",
+    "runtimeDoctor": "Runtime Doctor",
+    "runtimeSmoke": "Runtime Smoke",
+    "runtimeCapabilities": "Runtime Capabilities",
+    "serviceLayer": "Service",
+    "ttfb": "TTFB",
+    "latest": "LATEST",
+    "availabilityOneHour": "Availability (1h)",
+    "history": "HISTORY ({count} PTS)",
+    "historyPast": "PAST",
+    "historyNow": "NOW",
+    "success": "success",
+    "noSample": "No sample",
+    "historyLoadFailed": "History unavailable",
+    "historyTimeout": "History request timed out",
+    "responseTime": "Response Time",
+    "failures": "Consecutive Failures",
+    "wireApi": "Wire API",
+    "baseConnectivity": "Base Connectivity",
+    "toolProbe": "Tool Probe",
+    "toolProbeModel": "Tool Probe Model",
+    "lastCheck": "Last Check",
+    "noData": "No health check data",
+    "checks": {
+      "pass": "Pass",
+      "fail": "Fail",
+      "skipped": "Skipped"
+    },
+    "status": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable"
+    }
+  },
+  "chat": {
+    "title": "AI Chat",
+    "pageDesc": "Test conversations with published agents. Select an agent to start or continue a chat.",
+    "selectAgent": "Select Agent",
+    "noAgents": "No published agents available",
+    "newConversation": "New Chat",
+    "history": "History",
+    "noHistory": "No conversation history",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "sending": "Sending...",
+    "thinking": "Thinking...",
+    "deleteConversation": "Delete conversation",
+    "confirmDelete": "Are you sure to delete this conversation? This action cannot be undone.",
+    "welcomeTitle": "Start a Conversation",
+    "welcomeDesc": "Select an agent on the left to start chatting",
+    "stopGeneration": "Stop generating",
+    "copySuccess": "Copied",
+    "toolSuccess": "Done",
+    "toolFailed": "Failed",
+    "generating": "Generating response...",
+    "addAttachment": "Add Attachment",
+    "uploadFailed": "File upload failed",
+    "file": "File"
+  },
+  "skillPackage": {
+    "title": "Skill Package Management",
+    "pageDesc": "Manage platform-wide skill packages. Packages provide grouping, source attribution, and catalog display, while runtime authorization is decided by direct agent skill grants.",
+    "runtimeTruthHint": "Skill packages are for grouping, source attribution, and catalog display. Runtime capability delivery now comes from direct skill grants rather than package-level auto-binding.",
+    "system": "System",
+    "name": "Package Name",
+    "description": "Description",
+    "avatar": "Icon",
+    "isRecommended": "Recommended",
+    "isActive": "Status",
+    "packageRole": "Package Role",
+    "sourceSummary": "Source Summary",
+    "runtimeBinding": "Runtime Authorization",
+    "skillCount": "Skills",
+    "sortOrder": "Sort Order",
+    "create": "New Skill Package",
+    "createGuide": "A skill package is the grouping and source unit for skills. After creating it, you can maintain multiple skills inside it and expose it as a catalog entry, while runtime access still follows direct skill grants.",
+    "placeholder": {
+      "searchName": "Search package name",
+      "inputName": "Enter package name",
+      "inputDescription": "Enter description"
+    },
+    "tenantId": "Tenant",
+    "sourcePlugin": "Plugin",
+    "uploadZip": "Upload Skill Package",
+    "uploadDragText": "Click or drag a ZIP file here to upload",
+    "uploadDesc": "Supports standard skill package ZIP files containing SKILL.md",
+    "exportBtn": "Export",
+    "cloneBtn": "Clone",
+    "importBtn": "Import Package",
+    "importDragText": "Click or drag a JSON file here",
+    "importDesc": "Supports JSON files generated by the export function",
+    "importConflictMode": "Name Conflict",
+    "importConflictSkip": "Skip (don't import)",
+    "importConflictRename": "Auto Rename",
+    "roleOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog",
+      "tenant_owned": "Tenant Owned",
+      "plugin_managed": "Plugin Managed"
+    },
+    "runtimeBindingOptions": {
+      "direct_agent_skill_grant": "Direct Skill Grant"
+    },
+    "sourceSummaryOptions": {
+      "platform_system": "Platform System",
+      "platform_catalog": "Platform Catalog"
+    },
+    "sourceSummaryValue": {
+      "plugin": "Plugin: {plugin}",
+      "tenant": "Tenant #{tenantId}"
+    },
+    "messages": {
+      "toggleSuccess": "Package status updated",
+      "confirmEnable": "Confirm enable this package?",
+      "confirmDisable": "Confirm disable this package?",
+      "selectPackageFirst": "Please select a skill package first",
+      "uploadSuccess": "Skill package uploaded successfully",
+      "uploading": "Uploading...",
+      "exportSuccess": "Skill package exported, JSON downloaded",
+      "importSuccess": "Skill package imported: {name}, {count} skills created",
+      "cloneSuccess": "Cloned as {name}",
+      "importSkipped": "Package already exists, import skipped",
+      "importFailed": "Import failed, please check file format"
+    },
+    "detail": {
+      "title": "Package Details",
+      "overview": "Overview",
+      "basicInfo": "Basic Info",
+      "skills": "Skills in Package",
+      "empty": "No skills yet, click the button above to add",
+      "noDescription": "No description",
+      "updatedAt": "Updated At",
+      "isSystem": "System Built-in",
+      "yes": "Yes",
+      "no": "No",
+      "sourcePlugin": "Source Plugin",
+      "tenantName": "Tenant",
+      "platformManaged": "Platform Managed",
+      "skillName": "Skill Name",
+      "skillType": "Skill Type",
+      "skillTimeout": "Timeout",
+      "skillStatus": "Status",
+      "skillDescription": "Description",
+      "backToList": "Back to List",
+      "openWorkspace": "Open Workspace",
+      "tools": "Tool Definitions",
+      "noTools": "No tool definitions",
+      "toolParams": "Parameters",
+      "envVars": "Env Vars",
+      "configured": "Configured",
+      "resolution": {
+        "degraded": "Catalog resolution has {count} issue(s). Resolved tools can still be previewed. First reason: {reason}",
+        "unavailable": "Catalog resolution is unavailable and produced no executable tools. First reason: {reason}"
+      },
+      "runtimeTruthHint": "SkillPackage provides grouping, source attribution, and catalog display; the agent runtime actually receives capabilities through direct skill grants, not package-level auto-binding."
+    },
+    "richTextAi": {
+      "tab": "Document Writing Assistant",
+      "configBtn": "Document Writing Assistant",
+      "runtimeHint": "Document Writing Assistant uses system.ai_writing",
+      "runtimeDescription": "Rich-text right-click writing always calls /ai/rich-text/operations/{action} through the agent bound to system.ai_writing in agent assignments. Preview, chat, and writeback stay inside the editor surface. Configure the document writing assistant on the feature assignment page.",
+      "noAgent": "No agent bound",
+      "stats": {
+        "contextActions": "Context Actions",
+        "backendActions": "Backend Actions",
+        "formatPresets": "Format Presets",
+        "assignedAgent": "Assigned Agent"
+      },
+      "assignmentTitle": "Agent Assignment",
+      "assignmentDesc": "Bind an agent to system.ai_writing on the feature assignment page. The document writing assistant uses the resolved agent for continuation, rewriting, and content expansion.",
+      "featureCode": "Feature Code",
+      "primaryFeature": "Runtime Feature",
+      "resolvedFeature": "Resolved Feature",
+      "assignedAgent": "Current Assigned Agent",
+      "configureAgent": "Configure Agent",
+      "contractTitle": "Backend Contract",
+      "contractDesc": "Shared frontend types keep action/type names aligned with the backend ai_writing service and do not use editor DOM or page-runtime tools.",
+      "endpointPattern": "Example Endpoint",
+      "requestFields": "Request Fields",
+      "runtimeBoundary": "Runtime Boundary",
+      "noPageRuntime": "Do not inject page_context, page_session_id, ui_*, or pageop_* tools. Selected text, cursor before/after context, and bounded history are submitted explicitly to the editor-domain endpoint without relying on the global side panel.",
+      "actionsTitle": "Default Action Templates",
+      "actionsDesc": "These templates can be reused by rich text context menus or future editor integrations. Runtime enablement is decided by the caller's permissions and editor state.",
+      "requiresSelection": "Requires Selection",
+      "selectionOptional": "Selection Optional",
+      "supportsFormat": "Supports Format",
+      "notInContextMenu": "Not in Context Menu",
+      "formatTitle": "Format Requirement Templates",
+      "formatDesc": "format_instruction is sent with the writing request to constrain formatted insertion, lists, headings, and plain-text output.",
+      "assignmentStatus": {
+        "active_assigned": "Active + Assigned",
+        "inactive": "Assignment Inactive",
+        "unassigned": "Unassigned",
+        "unresolved": "Resolve Failed"
+      },
+      "operationKinds": {
+        "assist": "Assist Chat",
+        "format": "Format",
+        "insert": "Insert/Add",
+        "summarize": "Summarize",
+        "transform": "Transform",
+        "translate": "Translate"
+      },
+      "applyModes": {
+        "append_to_document": "Append to Document",
+        "copy_only": "Copy Only",
+        "insert_after_selection": "Insert After Selection",
+        "insert_at_cursor": "Insert at Cursor",
+        "replace_selection": "Replace Selection"
+      },
+      "actions": {
+        "continue": {
+          "label": "Continue",
+          "description": "Naturally continues from surrounding context and can be used as the default add-after-selection action.",
+          "prompt": "Sends before_text, after_text, and context_title by default; backend action=continue."
+        },
+        "insert": {
+          "label": "Insert Content",
+          "description": "Creates new editor-ready content at the cursor from an explicit instruction.",
+          "prompt": "Requires instruction by default and may include before_text/after_text; backend action=insert."
+        },
+        "format": {
+          "label": "Add Formatting",
+          "description": "Applies requested headings, lists, quotes, or structured formatting to selected text without adding unsupported facts.",
+          "prompt": "Requires format_instruction or instruction by default; backend action=format."
+        },
+        "optimize": {
+          "label": "Optimize",
+          "description": "Improves clarity, concision, and readability while preserving meaning.",
+          "prompt": "Uses selected_text as the primary input; backend action=optimize."
+        },
+        "proofread": {
+          "label": "Proofread",
+          "description": "Fixes grammar, spelling, punctuation, and obvious wording mistakes without restructuring by default.",
+          "prompt": "Replaces the original selection by default; backend action=proofread."
+        },
+        "translate": {
+          "label": "Translate",
+          "description": "Translates selected text to the target language while preserving terms, numbers, and URLs.",
+          "prompt": "Uses target_lang to control output language; backend action=translate."
+        },
+        "summarize": {
+          "label": "Summarize",
+          "description": "Extracts key points from selected text and is suitable for insertion after the source content.",
+          "prompt": "Defaults to one-line summary plus bullet points; backend action=summarize."
+        },
+        "expand": {
+          "label": "Expand",
+          "description": "Adds details, examples, or arguments while preserving the original style.",
+          "prompt": "Replaces the original selection by default; backend action=expand."
+        },
+        "rewrite": {
+          "label": "Rewrite",
+          "description": "Rephrases selected text with different wording while preserving core meaning and similar length.",
+          "prompt": "Replaces the original selection by default; backend action=rewrite."
+        },
+        "custom": {
+          "label": "Custom Instruction",
+          "description": "Processes selection or context according to the user's instruction.",
+          "prompt": "Sends selected_text and instruction by default; backend action=custom."
+        },
+        "chat": {
+          "label": "Writing Chat",
+          "description": "Supports sidebar or conversational writing advice and is not in the context menu by default.",
+          "prompt": "Uses instruction and history by default; backend action=chat."
+        }
+      },
+      "formatPresets": {
+        "preserve_structure": {
+          "label": "Preserve Structure",
+          "description": "Keeps original paragraphs, lists, and heading hierarchy as much as possible.",
+          "instruction": "Preserve the original paragraph, list, heading, and emphasis structure."
+        },
+        "plain_text": {
+          "label": "Plain Text",
+          "description": "Outputs plain text without extra Markdown or HTML decoration.",
+          "instruction": "Output plain text only, without Markdown, HTML, or extra explanation."
+        },
+        "bullet_list": {
+          "label": "Bullet List",
+          "description": "Organizes the result as a concise bullet list.",
+          "instruction": "Use a bullet list; keep every item concise and actionable."
+        },
+        "structured_sections": {
+          "label": "Section Headings",
+          "description": "Outputs structured paragraphs with headings, suitable for expansion or plans.",
+          "instruction": "Use clear section headings and short paragraphs with consistent hierarchy."
+        }
+      }
+    },
+    "valves": {
+      "configBtn": "Env Config",
+      "title": "Environment Variable Configuration",
+      "description": "Configure the environment variables required by this skill package. Fields marked in red are required. Sensitive values (like secrets) are displayed as password fields.",
+      "required": "Required",
+      "sensitiveHint": "Sensitive information, keep it safe",
+      "noSchema": "This skill package has no configurable environment variables",
+      "saveSuccess": "Environment variable configuration saved",
+      "resetDefaults": "Reset to Defaults",
+      "secretConfigured": "Configured (click to clear)"
+    }
+  },
+  "skillRegistry": {
+    "badge": "Distribution Layer Beta",
+    "title": "Skill Registry",
+    "pageDesc": "Browse distributable skill packages and install them into the platform catalog from registry sources. Installed packages still require explicit AgentSkillGrant before they can enter any agent runtime.",
+    "runtimeTruthHint": "Registry install only lands in the SkillPackage + Skill catalog layer. No agent receives runtime access automatically.",
+    "searchPlaceholder": "Search by package name, description, or tag",
+    "sortDownloads": "Sort by downloads",
+    "sortRating": "Sort by rating",
+    "sortUpdated": "Sort by updated time",
+    "total": "Registry packages",
+    "installed": "Installed",
+    "rated": "Rated",
+    "version": "Version",
+    "downloads": "Downloads",
+    "rating": "Rating",
+    "install": "Install",
+    "installOfficialStarterPacks": "Install Official Starter Packs",
+    "installSuccess": "Installed as {name}",
+    "installConfirmTitle": "Confirm skill package install",
+    "upgradeResultTitle": "Batch upgrade result",
+    "upgradeRequested": "Requested",
+    "upgradeSucceeded": "Succeeded",
+    "upgradeFailed": "Failed",
+    "viewDetail": "View detail",
+    "readme": "README",
+    "noReadme": "No README / changelog available",
+    "unknownAuthor": "Unknown author",
+    "empty": "No registry packages are available yet. Configure a registry source or provide a local registry.json fallback first.",
+    "emptyDescription": "No description"
+  },
+  "memoryDebug": {
+    "title": "Memory Debug",
+    "pageDesc": "Inspect long-term memory records and profile snapshots to verify recall, scope, and profile aggregation behavior.",
+    "tabs": {
+      "records": "Memory Records",
+      "profiles": "Profile Snapshots"
+    },
+    "scopeType": "Scope",
+    "memoryType": "Memory Type",
+    "status": "Status",
+    "id": "ID",
+    "summary": "Summary",
+    "recordCount": "Source Records",
+    "contentKind": "Content Kind"
+  },
+  "skill": {
+    "title": "Skill Management",
+    "pageDesc": "Manage platform-wide skills including HTTP, email, code, knowledge base and more.",
+    "system": "System",
+    "name": "Skill Name",
+    "description": "Description",
+    "avatar": "Icon",
+    "type": "Skill Type",
+    "scope": "Scope",
+    "isActive": "Active",
+    "tenantId": "Tenant",
+    "timeout": "Timeout (s)",
+    "sortOrder": "Sort Order",
+    "create": "Add Skill",
+    "type_options": {
+      "toolkit": "Toolkit",
+      "knowledge_base": "Knowledge Base",
+      "builtin": "Built-in",
+      "http": "HTTP Request",
+      "email": "Email",
+      "code_execution": "Code Execution"
+    },
+    "filter": {
+      "adminOnly": "Admin only",
+      "tenantOnly": "Tenant only"
+    },
+    "typeDesc": {
+      "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each public method is auto-registered as an LLM-callable tool. Supports Valves env config and .zip upload.\nUse cases: Call 3rd-party APIs (weather/search/translate), custom business logic, data conversion, etc.\nTip: Method docstrings and :param annotations are shown to the LLM — write clear descriptions.",
+      "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases for automatic semantic retrieval and context injection during conversations.\nUse cases: Product docs Q&A, internal knowledge search, contract/policy consultation, etc.\nTip: Adjust Top K and score threshold to balance recall and precision.",
+      "builtin": "Built-in Tools: System-predefined capabilities like image generation and other platform tools. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
+      "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
+      "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
+      "code_execution": "Code Execution: Let the agent run Python code in a secure sandbox and return results.\nUse cases: Math calculations, data processing, text format conversion, CSV/JSON parsing, etc.\nTip: Code runs in an isolated environment with module allowlist restrictions."
+    },
+    "httpConfig": {
+      "title": "HTTP Request Config",
+      "url": "Request URL",
+      "urlPlaceholder": "https://api.example.com/v1/data",
+      "urlHelp": "Supports template variables (e.g. variable), auto-filled by LLM",
+      "method": "Method",
+      "headers": "Headers",
+      "headersPlaceholder": "JSON format request headers",
+      "bodyTemplate": "Body Template",
+      "bodyTemplatePlaceholder": "JSON format request body",
+      "bodyTemplateHelp": "Use double-brace variable names as placeholders — LLM extracts them as tool parameters",
+      "queryParams": "Query Params",
+      "queryParamsPlaceholder": "JSON format query parameters",
+      "authType": "Auth Type",
+      "authTypeOptions": {
+        "none": "None",
+        "bearer": "Bearer Token",
+        "api_key": "API Key",
+        "basic": "Basic Auth"
+      },
+      "authToken": "Token",
+      "authTokenPlaceholder": "Bearer Token value",
+      "authKeyName": "Key Name",
+      "authKeyNamePlaceholder": "e.g. X-API-Key",
+      "authKeyValue": "Key Value",
+      "authUsername": "Username",
+      "authPassword": "Password",
+      "responsePath": "Response Path",
+      "responsePathPlaceholder": "$.data.result (JSONPath, leave empty for full response)",
+      "responsePathHelp": "Use JSONPath syntax to extract specific fields from the response"
+    },
+    "emailConfig": {
+      "title": "Email Config",
+      "subjectPrefix": "Subject Prefix",
+      "subjectPrefixPlaceholder": "e.g. [NovusAI]",
+      "subjectPrefixHelp": "Auto-prepended to every email subject",
+      "allowedDomains": "Allowed Domains",
+      "allowedDomainsPlaceholder": "e.g. example.com (comma-separated, empty = no restriction)",
+      "allowedDomainsHelp": "Restrict sending to specific email domains only",
+      "maxRecipients": "Max Recipients",
+      "maxRecipientsHelp": "Maximum recipients per email (including CC)",
+      "requireConfirmation": "Require Confirmation",
+      "requireConfirmationHelp": "When enabled, AI asks user to confirm before sending",
+      "allowCc": "Allow CC",
+      "smtpHint": "Email skill requires platform SMTP configuration. Ensure email service is set up in system settings."
+    },
+    "codeExecutionConfig": {
+      "title": "Code Execution Config",
+      "language": "Language",
+      "languageOptions": {
+        "python": "Python"
+      },
+      "memoryLimitMb": "Memory Limit (MB)",
+      "memoryLimitHelp": "Maximum memory for code execution",
+      "allowedModules": "Allowed Modules",
+      "allowedModulesPlaceholder": "Comma-separated, e.g. math,json,datetime,re",
+      "allowedModulesHelp": "Python module allowlist for import statements",
+      "sandboxHint": "Code runs in a secure sandbox. File operations, network requests, and system calls are blocked."
+    },
+    "knowledgeBaseConfig": {
+      "title": "Knowledge Base Config",
+      "selectKb": "Knowledge Bases",
+      "selectKbPlaceholder": "Select knowledge bases",
+      "selectKbHelp": "Select knowledge bases this skill can access, multiple allowed",
+      "ragEnabled": "Enable RAG",
+      "topK": "Top K",
+      "scoreThreshold": "Score Threshold",
+      "searchMode": "Search Mode",
+      "rewriteStrategy": "Rewrite Strategy",
+      "rerankerEnabled": "Enable Reranker",
+      "contextTokenRatio": "Context Token Ratio",
+      "searchModeOptions": {
+        "vector": "Vector Search",
+        "keyword": "Keyword Search",
+        "hybrid": "Hybrid Search"
+      },
+      "rewriteOptions": {
+        "none": "None",
+        "multi": "Multi-Query Rewrite",
+        "hyde": "Hypothetical Document Embedding"
+      }
+    },
+    "builtinTools": {
+      "title": "Built-in Tools",
+      "hint": "Built-in tools are system-defined and read-only. Tool list is shown below.",
+      "toolList": "Tool List"
+    },
+    "pluginTools": {
+      "toolList": "Plugin Tools",
+      "managedBy": "This skill is managed by plugin \"{plugin}\". Tool definitions are in the plugin code and cannot be edited here."
+    },
+    "toolkitEditor": {
+      "title": "Toolkit Editor",
+      "sourceCode": "Source",
+      "preview": "Parse Preview",
+      "tools": "Tool Methods",
+      "valves": "Valves Config",
+      "noTools": "No tool methods detected",
+      "noValves": "No Valves config defined",
+      "parameters": "Parameters",
+      "required": "Required",
+      "optional": "Optional",
+      "async": "Async",
+      "type": "Type",
+      "default": "Default",
+      "errors": "Parse Errors",
+      "parsing": "Parsing...",
+      "templateBlank": "Blank Template",
+      "templateExample": "Example Template",
+      "uploadFile": "Upload File",
+      "properties": "Properties",
+      "requiredFields": "Required Fields",
+      "onlyPyFiles": "Only .py files are supported",
+      "networkError": "Network request failed"
+    },
+    "placeholder": {
+      "searchName": "Search skill name",
+      "allTypes": "All types",
+      "allScopes": "All scopes",
+      "allTenants": "All tenants",
+      "inputName": "Enter skill name",
+      "inputDescription": "Enter description",
+      "selectType": "Select skill type",
+      "selectScope": "Select scope",
+      "selectTenant": "Select tenant",
+      "inputTimeout": "Timeout in seconds",
+      "inputConfig": "Skill configuration in JSON format",
+      "inputSchema": "Input parameter definition in JSON format"
+    },
+    "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
+    "help": {
+      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Builtin: system-predefined tools",
+      "scope": "Platform skills are globally available, tenant skills are limited to their tenant",
+      "config": "Runtime configuration for the skill",
+      "inputSchema": "Define the parameter structure the skill accepts",
+      "timeout": "Maximum execution time for the skill"
+    },
+    "testBtn": "Test",
+    "exportBtn": "Export",
+    "importBtn": "Import",
+    "messages": {
+      "toggleSuccess": "Skill status updated",
+      "confirmEnable": "Are you sure you want to enable this skill?",
+      "confirmDisable": "Are you sure you want to disable this skill?",
+      "testSuccess": "Test Passed",
+      "testFailed": "Test request failed, please try again later",
+      "exportSuccess": "Skills exported successfully",
+      "exportFailed": "Failed to export skills",
+      "noSkillsToExport": "No skills to export",
+      "importConfirm": "Import {count} skills? Duplicate names will be skipped.",
+      "importResult": "Import complete: {created} created, {skipped} skipped",
+      "importFailed": "Failed to import skills",
+      "importInvalid": "Invalid file format, please upload a valid JSON file"
+    }
+  },
+  "agentAssignment": {
+    "title": "AI Feature Assignment",
+    "pageDesc": "Assign a driving agent to each AI feature module. Changes take effect immediately across the platform. Only platform-level globally shared agents are allowed (scope Admin+All Tenants or All Tenants), and audience cannot be Admin-only.",
+    "hero": {
+      "description": "Manage the default execution agents for built-in AI capabilities and plugin extensions, with every update applied platform-wide immediately.",
+      "metrics": {
+        "features": "Features",
+        "publishedAgents": "Published Agents",
+        "enabled": "Enabled",
+        "assigned": "Assigned"
+      },
+      "chips": {
+        "scope": "Platform-wide immediate impact",
+        "publishedAgents": "{count} shared candidate agents",
+        "plugins": "{count} plugin capabilities",
+        "pending": "{count} bindings still pending",
+        "ready": "All features are assigned"
+      }
+    },
+    "selectAgent": "Select agent",
+    "typePlugin": "Plugin",
+    "globalDefault": "Global default: {name}",
+    "stats": {
+      "total": "{count} features",
+      "active": "{count} enabled",
+      "assigned": "{count} assigned"
+    },
+    "saveSuccess": "Binding updated",
+    "noAgent": "Not assigned",
+    "toggleActiveConfirm": "Are you sure to {action} this feature binding? This will affect all tenants.",
+    "columns": {
+      "featureName": "Feature",
+      "featureCode": "Code",
+      "agent": "Bound Agent",
+      "status": "Status"
+    },
+    "features": {
+      "data_analysis": {
+        "name": "Data Analysis",
+        "description": "AI-driven data querying and visual analytics"
+      },
+      "general_chat": {
+        "name": "General AI Chat",
+        "description": "Built-in general-purpose AI chat assistant"
+      },
+      "default_chat": {
+        "name": "Default Chat Assistant",
+        "description": "Default AI chat assistant used when no specific route is matched"
+      },
+      "translation": {
+        "name": "AI Translation",
+        "description": "Multi-language text translation (e.g. i18n field auto-translation)"
+      },
+      "system": {
+        "ai_writing": {
+          "name": "Document Writing Assistant",
+          "description": "AI writing agent for rich text editors. Supports continue, optimize, proofread, translate, summarize, expand, and rewrite operations."
+        }
+      }
+    }
+  }
+}

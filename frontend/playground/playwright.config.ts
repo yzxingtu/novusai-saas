@@ -6,7 +6,7 @@ import { devices } from '@playwright/test';
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
  */
-// require('dotenv').config();
+// require('dotenv').config(); / 可选：从 .env 加载变量 / optional: load dotenv
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -31,6 +31,7 @@ const config: PlaywrightTestConfig = {
         ...devices['Desktop Chrome'],
       },
     },
+    // 桌面 Firefox / WebKit（注释样例）/ Desktop Firefox & WebKit (commented sample)
     // {
     //   name: 'firefox',
     //   use: {
@@ -45,6 +46,7 @@ const config: PlaywrightTestConfig = {
     // },
 
     /* Test against mobile viewports. */
+    // 移动端视口（注释样例）/ Mobile viewports (commented sample)
     // {
     //   name: 'Mobile Chrome',
     //   use: {
@@ -59,6 +61,7 @@ const config: PlaywrightTestConfig = {
     // },
 
     /* Test against branded browsers. */
+    // 品牌浏览器通道（注释样例）/ Branded channels (commented sample)
     // {
     //   name: 'Microsoft Edge',
     //   use: {

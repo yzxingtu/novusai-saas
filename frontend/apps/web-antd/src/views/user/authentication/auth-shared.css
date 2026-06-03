@@ -1,0 +1,24 @@
+/**
+ * 用户端认证页面共享样式
+ * 统一 input/button 圆角和高度，避免各页面重复声明
+ */
+/* stylelint-disable-next-line selector-pseudo-class-no-unknown */
+.auth-input :deep(.ant-input),
+/* stylelint-disable-next-line selector-pseudo-class-no-unknown */
+.auth-input :deep(.ant-input-password) {
+  height: 44px;
+  border-radius: 10px;
+}
+
+/* stylelint-disable-next-line selector-pseudo-class-no-unknown */
+.auth-input :deep(.ant-input-affix-wrapper) {
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+.auth-btn {
+  height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+}

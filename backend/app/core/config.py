@@ -1,152 +1,304 @@
 """
-应用配置模块
+应用配置模块 / Application Configuration Module
 
 使用 pydantic-settings 管理应用配置，支持环境变量和 .env 文件
+Manages application configuration using pydantic-settings, supports environment variables and .env files.
 """
 
+import json
 from functools import lru_cache
-from typing import Any
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from pydantic import PostgresDsn, RedisDsn, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# env_file 固定为 backend/.env，避免 cwd 不同导致加载失败
+# Fix env_file to backend/.env so it loads regardless of startup directory
+_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _CONFIG_DIR / ".env"
+
+# 显式加载 .env 到 os.environ（pydantic-settings 有时未正确加载）
+# Explicitly load .env into os.environ when pydantic-settings may not load it
+if _ENV_FILE.exists():
+    from dotenv import load_dotenv
+
+    load_dotenv(_ENV_FILE, override=False)
 
 
 class Settings(BaseSettings):
-    """应用配置类"""
+    """应用配置类 / Application Configuration Class"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE) if _ENV_FILE.exists() else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
     # ========================================
-    # 应用基础配置
+    # 应用基础配置 / Application Basic Configuration
     # ========================================
     APP_NAME: str = "NovusAI SaaS"
     APP_VERSION: str = "0.1.0"
-    APP_ENV: str = "development"  # development, staging, production
-    DEBUG: bool = True
-    
-    # 时区配置（用于后端和数据库）
+    APP_ENV: str = "development"  # development, staging, production / 运行环境
+    DEBUG: bool = False
+    # 中文: 生产镜像由独立 migrate 容器执行迁移，API 启动只做连接校验。
+    # EN: Production images run migrations in a dedicated migrate container; API startup only checks connectivity.
+    RUN_MIGRATIONS_ON_STARTUP: bool = True
+
+    # 时区配置（用于后端和数据库） / Timezone config (for backend and database)
     TIMEZONE: str = "Asia/Shanghai"
-    
-    # API 配置
+
+    # API 配置 / API Configuration
     API_V1_PREFIX: str = "/api/v1"
-    
-    # 跨域配置
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
-    
+    # 后端自访问基础 URL（用于 LLM 多模态拉取本系统相对附件路径；生产填公网或内网网关地址）
+    # Base URL for server-side HTTP fetch of relative attachment paths (LLM vision); set in production
+    APP_INTERNAL_BASE_URL: str = "http://127.0.0.1:8000"
+    # 允许跨域的前端 Origin（支持 JSON 数组或逗号分隔）
+    # Allowed frontend CORS origins (supports JSON array or comma-separated values)
+    CORS_ORIGINS: str = ""
+
     # ========================================
-    # 安全配置
+    # 安全配置 / Security Configuration
     # ========================================
     SECRET_KEY: str = "your-secret-key-change-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours / 访问令牌过期（分钟）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
-    
+    # Dev-only bootstrap auth: long-lived local secret that mints normal short-lived tokens
+    DEV_BOOTSTRAP_AUTH_ENABLED: bool = False
+    DEV_BOOTSTRAP_ALLOWED_HOSTS: str = "localhost,127.0.0.1,::1,.local"
+    DEV_ADMIN_BOOTSTRAP_SECRET: str = ""
+    DEV_ADMIN_BOOTSTRAP_USERNAME: str = ""
+    DEV_TENANT_BOOTSTRAP_SECRET: str = ""
+    DEV_TENANT_BOOTSTRAP_USERNAME: str = ""
+    DEV_TENANT_BOOTSTRAP_TENANT_CODE: str = ""
+    DEV_TENANT_USER_BOOTSTRAP_SECRET: str = ""
+
     # ========================================
-    # 数据库配置
+    # 数据库配置 / Database Configuration
     # ========================================
     DATABASE_HOST: str = "localhost"
     DATABASE_PORT: int = 5432
     DATABASE_USER: str = "postgres"
     DATABASE_PASSWORD: str = "postgres"
     DATABASE_NAME: str = "novusai_saas"
-    
-    # 连接池配置
+
+    # 连接池配置 / Connection Pool Configuration
     DATABASE_POOL_SIZE: int = 5
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_POOL_TIMEOUT: int = 30
-    
+
     @property
     def DATABASE_URL(self) -> str:
-        """构建数据库连接 URL"""
+        """构建数据库连接 URL / Build database connection URL"""
         return (
             f"postgresql+asyncpg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
         )
-    
+
     @property
     def DATABASE_URL_SYNC(self) -> str:
-        """同步数据库连接 URL (用于 Alembic)"""
+        """同步数据库连接 URL / Sync database connection URL (for Alembic)"""
         return (
             f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
         )
-    
+
     # ========================================
-    # Redis 配置
+    # Redis 配置 / Redis Configuration
     # ========================================
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""
     REDIS_DB: int = 0
-    
+
     @property
     def REDIS_URL(self) -> str:
-        """构建 Redis 连接 URL"""
+        """构建 Redis 连接 URL / Build Redis connection URL"""
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-    
+
     # ========================================
-    # Celery 配置
+    # Celery 配置 / Celery Configuration
     # ========================================
     CELERY_BROKER_URL: str = ""
     CELERY_RESULT_BACKEND: str = ""
-    
-    @field_validator("CELERY_BROKER_URL", mode="before")
-    @classmethod
-    def set_celery_broker(cls, v: str, info: Any) -> str:
-        if v:
-            return v
-        # 默认使用 Redis 作为 Celery broker
-        return ""  # 在运行时从 REDIS_URL 获取
-    
+    CELERY_TASK_SERIALIZER: str = "json"
+    CELERY_RESULT_SERIALIZER: str = "json"
+    CELERY_ACCEPT_CONTENT: list[str] = ["json"]
+    CELERY_TASK_TRACK_STARTED: bool = True
+    CELERY_TASK_TIME_LIMIT: int = 3600
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 3300
+    CELERY_WORKER_CONCURRENCY: int = 4
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+
+    @property
+    def celery_broker_url(self) -> str:
+        return self.CELERY_BROKER_URL or self.REDIS_URL
+
+    @property
+    def celery_result_backend(self) -> str:
+        return self.CELERY_RESULT_BACKEND or self.REDIS_URL
+
     # ========================================
-    # 日志配置
+    # AI 缓存配置 / AI Cache Configuration
+    # ========================================
+    AI_CACHE_TTL: int = 3600  # AI 响应缓存 TTL（秒）/ AI response cache TTL (seconds), only effective when temperature=0
+
+    # ========================================
+    # 日志配置 / Logging Configuration
     # ========================================
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_DIR: str = "logs"
-    
+    # 是否在终端打印 SQL（category=db）；默认 False，SQL 仅写入 logs/db.log，避免 novusai run / celery 刷屏
+    # Whether to print SQLAlchemy SQL to stdout; default False (writes to logs/db.log only)
+    LOG_DB_TO_CONSOLE: bool = False
+    # 是否在终端隐藏 uvicorn/websockets 的 WebSocket 握手 INFO（仍写入 app.log）；调连接问题时可设 False
+    # Hide WebSocket handshake INFO on stdout (still in app.log); set False when debugging connectivity
+    LOG_QUIET_WEBSOCKET_HANDSHAKE: bool = True
+
     # ========================================
-    # 分页配置
+    # 分页配置 / Pagination Configuration
     # ========================================
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
-    
+
     # ========================================
-    # 租户域名配置
+    # 回收站配置 / Recycle Bin Configuration
     # ========================================
-    # 租户子域名后缀，如 .app.novusai.com
-    # 租户访问地址为: {tenant_code}.app.novusai.com
+    RECYCLE_BIN_MODULE_RETENTION_DAYS: int = 30
+    RECYCLE_BIN_GLOBAL_RETENTION_DAYS: int = 30
+
+    # ========================================
+    # 域名配置 / Domain Configuration
+    # ========================================
+    # 平台管理端域名列表 / Platform admin domain list (comma-separated), for frontend domain detection
+    # 例如 / Example: "admin.novusai.com,manage.novusai.com"
+    PLATFORM_DOMAINS: str = ""
+
+    # 企业子域名后缀 / Tenant subdomain suffix, e.g. .app.novusai.com
+    # 企业访问地址 / Tenant URL: {tenant_code}.app.novusai.com
     TENANT_DOMAIN_SUFFIX: str = ".app.novusai.com"
-    
-    # 是否允许租户绑定自定义域名
+
+    # 是否允许企业绑定自定义域名 / Whether to allow tenants to bind custom domains
     ALLOW_CUSTOM_DOMAIN: bool = True
-    
-    # 租户域名验证前缀（用于 DNS TXT 记录验证）
+
+    # 企业域名验证前缀 / Tenant domain verification prefix (for DNS TXT record verification)
     DOMAIN_VERIFICATION_PREFIX: str = "_novusai-verification"
-    
+
+    @property
+    def platform_domains_list(self) -> list[str]:
+        """解析平台管理端域名列表 / Parse platform admin domain list"""
+        if not self.PLATFORM_DOMAINS:
+            return []
+        return [d.strip() for d in self.PLATFORM_DOMAINS.split(",") if d.strip()]
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """解析允许跨域的 Origin 列表 / Parse allowed CORS origins list."""
+        raw = self.CORS_ORIGINS.strip()
+        if not raw:
+            return []
+
+        values: list[object]
+        try:
+            parsed = json.loads(raw)
+            values = parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            values = raw.split(",")
+
+        return [str(item).strip() for item in values if str(item).strip()]
+
+    @property
+    def dev_bootstrap_allowed_hosts_list(self) -> list[str]:
+        """解析开发环境 bootstrap host 白名单 / Parse dev bootstrap allowed hosts."""
+        if not self.DEV_BOOTSTRAP_ALLOWED_HOSTS:
+            return []
+        return [
+            host.strip().lower()
+            for host in self.DEV_BOOTSTRAP_ALLOWED_HOSTS.split(",")
+            if host.strip()
+        ]
+
+    # ========================================
+    # SSL 证书管理 / SSL Certificate Management
+    # ========================================
+    # 私钥加密密钥 / Private key encryption key (Fernet key, for encrypting stored SSL private keys)
+    SSL_PRIVATE_KEY_ENCRYPTION_KEY: str = ""
+    # ACME 目录 URL（生产环境） / ACME directory URL (production)
+    ACME_DIRECTORY_URL: str = "https://acme-v02.api.letsencrypt.org/directory"
+    # ACME 目录 URL（测试环境） / ACME directory URL (staging)
+    ACME_STAGING_URL: str = "https://acme-staging-v02.api.letsencrypt.org/directory"
+    # ACME 注册邮箱 / ACME account email
+    ACME_ACCOUNT_EMAIL: str = ""
+    # 是否使用 staging 环境 / Use staging environment (set True for dev/test)
+    ACME_USE_STAGING: bool = True
+    # 自动续期提前天数 / Auto-renewal advance days
+    SSL_AUTO_RENEW_DAYS: int = 30
+
+    # ========================================
+    # 插件市场配置 / Plugin Marketplace Configuration
+    # ========================================
+    PLUGIN_REGISTRY_URL: str = ""
+    PLUGIN_REGISTRY_MIRROR: str = "github"  # github / gitee / 插件市场镜像源
+    GITHUB_PROXY: str = ""
+    GITHUB_TOKEN: str = ""
+    GITEE_TOKEN: str = ""
+    PLUGIN_REGISTRY_CACHE_TTL: int = 3600
+    PLUGIN_MAX_PACKAGE_SIZE: int = 50 * 1024 * 1024
+    PLUGIN_MAX_UNCOMPRESSED_SIZE: int = 200 * 1024 * 1024
+    PLUGIN_MAX_ARCHIVE_FILES: int = 2000
+    PLUGIN_MAX_ARCHIVE_SINGLE_FILE_SIZE: int = 50 * 1024 * 1024
+    PLUGIN_MAX_COMPRESSION_RATIO: float = 100.0
+    PLUGIN_ASSETS_ENABLED_ONLY: bool = True
+
     @property
     def tz(self) -> ZoneInfo:
-        """获取时区对象"""
+        """获取时区对象 / Get timezone object"""
         return ZoneInfo(self.TIMEZONE)
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _parse_debug(cls, value: object) -> bool:
+        """兼容常见布尔字符串，避免外部环境变量污染导致启动失败。 / Compatible with common boolean strings to prevent startup failures from env var pollution."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            truthy = {"1", "true", "yes", "on", "debug", "dev", "development"}
+            falsy = {
+                "0",
+                "false",
+                "no",
+                "off",
+                "release",
+                "prod",
+                "production",
+                "staging",
+            }
+            if normalized in truthy:
+                return True
+            if normalized in falsy:
+                return False
+        raise ValueError("DEBUG must be a boolean-like value")
 
 
 @lru_cache
 def get_settings() -> Settings:
     """
-    获取应用配置单例
-    
+    获取应用配置单例 / Get application configuration singleton
+
     使用 lru_cache 确保只创建一个 Settings 实例
+    Uses lru_cache to ensure only one Settings instance is created.
     """
     return Settings()
 
 
-# 导出配置实例
+# 导出配置实例 / Export configuration instance
 settings = get_settings()

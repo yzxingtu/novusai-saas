@@ -45,11 +45,11 @@ async function viteLicensePlugin(
         for (const [, fileContent] of Object.entries(bundle)) {
           if (fileContent.type === 'chunk' && fileContent.isEntry) {
             const chunkContent = fileContent as OutputChunk;
-            // 插入版权信息
+            // 插入版权信息 / prepend license banner
             const content = chunkContent.code;
             const updatedContent = `${copyrightText}${EOL}${content}`;
 
-            // 更新bundle
+            // 更新bundle / write back chunk code
             (fileContent as OutputChunk).code = updatedContent;
           }
         }

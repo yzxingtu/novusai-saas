@@ -1,0 +1,44 @@
+{
+  "id": "codex-capability-pack-startup-owner",
+  "name": "codex-capability-pack-startup-owner",
+  "title": "Codex capability pack startup owner convergence",
+  "description": "Finish converging installed skills and connectors into one startup/live capability-pack owner chain without catalog metadata leaking back into live routing truth.",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": "2026-04-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/app/ai/skills/resolver.py",
+    "backend/app/ai/skills/turn_activation.py",
+    "backend/app/ai/runtime/context_assembler.py",
+    "backend/app/ai/runtime/manifest.py",
+    "backend/app/services/ai/runtime_inventory_service.py",
+    "backend/app/services/ai/runtime_inventory_service_support.py",
+    "backend/app/tasks/agent_batch.py",
+    "backend/tests/services/test_runtime_inventory_service.py",
+    "backend/tests/tasks/test_agent_batch.py"
+  ],
+  "notes": "This workstream should land first because later runtime-core cleanup depends on stable catalog-vs-live capability ownership. Current active slice explicitly marks runtime inventory read-models as non-live inventory snapshots and removes the last broad eager-resolve batch warmup seam so capability-reporting and batch startup stop looking like live routing owners.",
+  "meta": {}
+}

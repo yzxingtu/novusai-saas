@@ -1,0 +1,88 @@
+{
+  "_name": "{{ display_name_en }}",
+    "list": "{{ display_name_en }} List",
+    "create": "Create {{ display_name_en | replace(' Management', '') }}",
+    "edit": "Edit {{ display_name_en | replace(' Management', '') }}",
+    "detail": "{{ display_name_en }} Detail",
+    "id": "ID",
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+    "{{ f.name | camel }}": "{{ f.get('comment_en') or (f.name | replace('_', ' ') | replace('-', ' ') | title) }}",
+{% endfor %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) | camel %}
+    "{{ rel_name }}Name": "{{ rel_name }} Name",
+{% endfor %}
+    "messages": {
+      "createSuccess": "{{ display_name_en | replace(' Management', '') }} created successfully",
+      "updateSuccess": "{{ display_name_en | replace(' Management', '') }} updated successfully",
+      "deleteConfirm": "Are you sure to delete \"{name}\"?",
+      "deleteSuccess": "Deleted successfully",
+      "confirmDisable": "Are you sure to disable \"{name}\"?",
+      "confirmEnable": "Are you sure to enable \"{name}\"?",
+      "toggleSuccess": "Status toggled successfully"
+    },
+    "placeholder": {
+      "search": "Search by keyword",
+      "select": "Please select",
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+      "{{ f.name | camel }}": "Enter {{ f.get('comment_en') or f.name }}",
+{% endfor %}
+      "parentId": "Select parent"
+    },
+    "action": {
+      "list": "List",
+      "detail": "Detail",
+      "create": "Create",
+      "update": "Edit",
+      "delete": "Delete",
+      "select": "Select",
+      "tree": "Tree",
+      "reorder": "Reorder",
+      "batch_delete": "Batch delete",
+      "toggle_status": "Toggle status",
+      "import": "Import",
+      "clone": "Clone",
+      "transition": "Transition"
+    }
+{% set enum_fields = (fields | default([])) | selectattr('enum_values') | list %}
+{% if enum_fields %}
+    ,"enum": {
+{% for f in enum_fields %}
+{% set floop = loop %}
+{% for v in f.enum_values %}
+      "{{ v.value if v is mapping else v }}": "{{ (v.label_en if v is mapping else v) | default(v.label_zh if v is mapping else v) | default(v.value if v is mapping else v) }}"{% if not (floop.last and loop.last) %},{% endif %}
+
+{% endfor %}
+{% endfor %}
+    }
+{% endif %}
+{% set _has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
+{% set _has_workflow = workflow and workflow.get('transitions') %}
+{% set _has_unique = (fields | selectattr('unique') | list | length > 0) %}
+{% if _has_unique or _has_unique_together or _has_workflow %}
+    ,"validation": {
+{% for f in fields if f.get('unique') and not f.get('divider') %}
+      "{{ f.name }}_exists": "{{ f.get('comment_en') or f.get('comment') or f.name }} already exists"{% if not loop.last or _has_unique_together or _has_workflow %},{% endif %}
+
+{% endfor %}
+{% if _has_unique_together %}
+      "unique_together_violation": "Combination already exists"{% if _has_workflow %},{% endif %}
+
+{% endif %}
+{% if _has_workflow %}
+      "workflow_invalid_transition": "Invalid status transition",
+      "workflow_comment_required": "Comment is required for this transition"
+{% endif %}
+    }
+{% endif %}
+{% set _ws = workflow_states_derived if workflow_states_derived is defined and workflow_states_derived else (workflow.states if (workflow and workflow.states) else []) %}
+{% if _ws %}
+    ,
+    "status": {
+{% for s in _ws %}
+      "{{ s.name }}": "{{ s.label_en | default(s.label | default(s.name)) }}"{% if not loop.last %},{% endif %}
+
+{% endfor %}
+    }
+{% endif %}
+}

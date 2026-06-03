@@ -1,21 +1,44 @@
 """
-系统模块模型
+系统模块模型 / System Module Models
 
 平台级别的模型定义
+Platform-level model definitions.
 """
 
 from app.models.system.admin import Admin
+from app.models.system.agent_assignment import SystemAgentAssignment
+from app.models.system.codegen_config import CodegenConfig
+from app.models.system.codegen_config_version import CodegenConfigVersion
 from app.models.system.config import (
-    SystemConfigGroup,
     SystemConfig,
+    SystemConfigGroup,
     SystemConfigValue,
 )
+from app.models.system.email_log import EmailLog
 from app.models.system.operation_log import OperationLog
+from app.models.system.plugin import Plugin
+from app.models.system.plugin_license import PluginLicense
+from app.models.system.plugin_version import PluginVersion
+from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+from app.models.system.task_definition import TaskDefinition
+from app.models.system.task_run import TaskRun
+from app.models.system.tenant_task_binding import TenantTaskBinding
 
 __all__ = [
     "Admin",
+    "CodegenConfig",
+    "CodegenConfigVersion",
     "SystemConfigGroup",
     "SystemConfig",
     "SystemConfigValue",
     "OperationLog",
+    "TaskDefinition",
+    "TenantTaskBinding",
+    "TaskRun",
+    "SystemAgentAssignment",
+    "EmailLog",
+    "Plugin",
+    "PluginVersion",
+    "PluginLicense",
+    "ResourceTenantAssignment",
 ]

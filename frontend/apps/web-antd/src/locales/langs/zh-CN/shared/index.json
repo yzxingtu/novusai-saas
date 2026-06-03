@@ -1,4 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
-  "$description": "共享翻译索引 - 通过各模块文件导入"
+  "$description": "共享翻译索引 - 通过各模块文件导入",
+  "imports": [
+    "./auth.json",
+    "./common.json",
+    "./config.json",
+    "./filePicker.json",
+    "./filePreview.json",
+    "./identity.json",
+    "./knowledgeDocPicker.json",
+    "./page.json",
+    "./profile.json",
+    "./toolAction.json"
+  ]
 }

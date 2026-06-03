@@ -1,0 +1,43 @@
+{
+  "id": "ai-turn-flow-deepseek-rewrite",
+  "name": "ai-turn-flow-deepseek-rewrite",
+  "title": "AI dialogue turn-flow DeepSeek rewrite",
+  "description": "Rewrite AI chat thinking/tool flow into unified turn-flow contract and shared timeline/evidence UI across admin tenant user",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-16",
+  "completedAt": "2026-04-16",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "04-16-turn-flow-backend-runtime-contract",
+    "04-16-turn-flow-backend-projection-monitoring",
+    "04-16-turn-flow-frontend-chat-state",
+    "04-16-turn-flow-frontend-shared-message-ui",
+    "04-16-turn-flow-slide-panel-shell-integration",
+    "04-16-turn-flow-user-monitoring-surfaces",
+    "04-16-turn-flow-regression-closeout-1213"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

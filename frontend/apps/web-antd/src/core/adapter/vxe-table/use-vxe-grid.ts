@@ -1,7 +1,7 @@
 import type { GridOptionsConfig } from './types';
 
 /**
- * 表格 Hook 和配置工厂
+ * Table hooks and config factories / 表格 Hook 和配置工厂
  */
 import type { VbenFormSchema } from '#/adapter/form';
 
@@ -10,25 +10,25 @@ import { useVbenVxeGrid as useGrid } from '@vben/plugins/vxe-table';
 import { exportToExcel } from './extensions';
 
 /**
- * 增强版 useVbenVxeGrid
- * - 添加 exportExcel 方法
+ * Enhanced useVbenVxeGrid - adds exportExcel method
+ * 增强版 useVbenVxeGrid - 添加 exportExcel 方法
  *
  * @example
  * ```ts
  * const [Grid, gridApi] = useVbenVxeGrid({ gridOptions });
  *
- * // 导出 Excel
+ * // Export Excel / 导出 Excel
  * gridApi.exportExcel({ filename: '用户列表' });
  * ```
  */
 export function useVbenVxeGrid(options: Parameters<typeof useGrid>[0]) {
-  // 调用原始的 useGrid
+  // Call original useGrid / 调用原始的 useGrid
   const result = useGrid(options);
 
-  // 扩展 gridApi，添加导出方法
+  // Extend gridApi, add export method / 扩展 gridApi，添加导出方法
   const [Grid, originalGridApi] = result;
 
-  // 添加导出方法到原始 API
+  // Add export method to original API / 添加导出方法到原始 API
   (originalGridApi as any).exportExcel = (
     exportOptions?: Parameters<typeof exportToExcel>[1],
   ) => {
@@ -39,12 +39,14 @@ export function useVbenVxeGrid(options: Parameters<typeof useGrid>[0]) {
 }
 
 /**
+ * Standard list search form options
  * 标准列表搜索表单配置
  *
+ * For list page search forms, provides unified config:
  * 用于列表页面的搜索表单，提供统一的配置：
- * - 启用输入即搜索 (submitOnChange)
- * - 隐藏搜索按钮（因为已启用输入即搜索）
- * - 重置按钮使用文字样式，与收起按钮一致
+ * - Enables search-on-change (submitOnChange) / 启用输入即搜索
+ * - Hides search button (since submitOnChange is enabled) / 隐藏搜索按钮
+ * - Reset button uses ghost style, consistent with collapse button / 重置按钮使用文字样式
  *
  * @param schema 表单 schema
  * @returns formOptions 配置对象
@@ -61,11 +63,11 @@ export function useGridSearchFormOptions(schema: VbenFormSchema[]) {
   return {
     schema,
     submitOnChange: true,
-    // 隐藏搜索按钮（因为已启用 submitOnChange）
+    // Hide search button (submitOnChange enabled) / 隐藏搜索按钮
     submitButtonOptions: {
       show: false,
     },
-    // 重置按钮使用文字样式，与收起按钮一致
+    // Reset button ghost style, consistent with collapse button / 重置按钮使用文字样式
     resetButtonOptions: {
       variant: 'ghost' as const,
       size: 'sm' as const,
@@ -74,8 +76,10 @@ export function useGridSearchFormOptions(schema: VbenFormSchema[]) {
 }
 
 /**
+ * Grid options factory - minimizes table configuration
  * 表格配置工厂函数 - 极简化表格配置
  *
+ * Provides sensible defaults, users only need to pass required config
  * 提供合理的默认值，用户只需传入必要配置
  *
  * @example

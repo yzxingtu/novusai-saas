@@ -1,0 +1,53 @@
+{#
+子表模型 / Sub-table Model
+用于主子表预设，子表含 FK 指向主表
+For sub-form preset, sub table with FK to main table.
+#}
+"""
+{{ sub_display_name }}模型 / {{ sub_display_name_en }} Model
+子表，关联 {{ main_resource | pascal }}
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+{% if sub_fields | selectattr('type', 'equalto', 'JSON') | list %}
+from sqlalchemy.dialects.postgresql import JSON
+{% endif %}
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.base_model import {{ model.base_class | default('TenantModel') }}
+
+
+{% set main_table = main_resource_plural %}
+{% set sub_table = sub_resource_plural %}
+class {{ sub_resource | pascal }}({{ model.base_class | default('TenantModel') }}):
+    """{{ sub_display_name }} / {{ sub_display_name_en }}"""
+
+    __tablename__ = "{{ sub_table }}"
+
+    # 外键指向主表 / FK to main table
+    {{ main_fk }}: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("{{ main_table }}.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="{{ main_resource | pascal }} ID",
+    )
+
+{% for f in sub_fields if f.name != main_fk and not f.get('divider') %}
+{% set nullable = f.get('nullable', not f.get('required', true)) %}
+    {{ f.name }}: {{ type_registry.get_mapped_annotation(f.type | default('String'), nullable) }} = mapped_column(
+        {{ get_column_args(f, type_registry) }}
+    )
+
+{% endfor %}
+    # 关系 / Relationship
+    {{ main_resource }}: Mapped["{{ main_resource | pascal }}"] = relationship(
+        "{{ main_resource | pascal }}",
+        back_populates="{{ sub_resource_plural }}",
+        lazy="selectin",
+    )
+
+
+__all__ = ["{{ sub_resource | pascal }}"]

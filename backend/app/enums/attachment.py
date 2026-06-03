@@ -1,3 +1,10 @@
+"""
+附件相关枚举 / Attachment Enums
+
+定义附件可见性、状态、来源枚举
+Defines attachment visibility, status, source enums.
+"""
+
 from app.enums.base import StrEnum
 
 

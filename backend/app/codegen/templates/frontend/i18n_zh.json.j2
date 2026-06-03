@@ -1,0 +1,88 @@
+{
+  "_name": "{{ display_name }}",
+    "list": "{{ display_name }}列表",
+    "create": "新增{{ display_name | replace('管理', '') }}",
+    "edit": "编辑{{ display_name | replace('管理', '') }}",
+    "detail": "{{ display_name }}详情",
+    "id": "ID",
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+    "{{ f.name | camel }}": "{{ f.get('comment') or (f.name | replace('_', ' ') | replace('-', ' ') | title) }}",
+{% endfor %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) | camel %}
+    "{{ rel_name }}Name": "{{ rel_name }}名称",
+{% endfor %}
+    "messages": {
+      "createSuccess": "{{ display_name | replace('管理', '') }}创建成功",
+      "updateSuccess": "{{ display_name | replace('管理', '') }}更新成功",
+      "deleteConfirm": "确定要删除「{name}」吗？",
+      "deleteSuccess": "删除成功",
+      "confirmDisable": "确定要停用「{name}」吗？",
+      "confirmEnable": "确定要启用「{name}」吗？",
+      "toggleSuccess": "状态切换成功"
+    },
+    "placeholder": {
+      "search": "输入关键词搜索",
+      "select": "请选择",
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+      "{{ f.name | camel }}": "请输入{{ f.get('comment') or f.name }}",
+{% endfor %}
+      "parentId": "请选择上级"
+    },
+    "action": {
+      "list": "列表",
+      "detail": "详情",
+      "create": "新建",
+      "update": "编辑",
+      "delete": "删除",
+      "select": "选择",
+      "tree": "树形",
+      "reorder": "排序",
+      "batch_delete": "批量删除",
+      "toggle_status": "切换状态",
+      "import": "导入",
+      "clone": "克隆",
+      "transition": "状态流转"
+    }
+{% set enum_fields = (fields | default([])) | selectattr('enum_values') | list %}
+{% if enum_fields %}
+    ,"enum": {
+{% for f in enum_fields %}
+{% set floop = loop %}
+{% for v in f.enum_values %}
+      "{{ v.value if v is mapping else v }}": "{{ (v.label_zh if v is mapping else v) | default(v.value if v is mapping else v) }}"{% if not (floop.last and loop.last) %},{% endif %}
+
+{% endfor %}
+{% endfor %}
+    }
+{% endif %}
+{% set _has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
+{% set _has_workflow = workflow and workflow.get('transitions') %}
+{% set _has_unique = (fields | selectattr('unique') | list | length > 0) %}
+{% if _has_unique or _has_unique_together or _has_workflow %}
+    ,"validation": {
+{% for f in fields if f.get('unique') and not f.get('divider') %}
+      "{{ f.name }}_exists": "{{ f.get('comment') or f.name }}已存在"{% if not loop.last or _has_unique_together or _has_workflow %},{% endif %}
+
+{% endfor %}
+{% if _has_unique_together %}
+      "unique_together_violation": "组合已存在，请勿重复"{% if _has_workflow %},{% endif %}
+
+{% endif %}
+{% if _has_workflow %}
+      "workflow_invalid_transition": "无效的状态流转",
+      "workflow_comment_required": "请填写流转备注"
+{% endif %}
+    }
+{% endif %}
+{% set _ws = workflow_states_derived if workflow_states_derived is defined and workflow_states_derived else (workflow.states if (workflow and workflow.states) else []) %}
+{% if _ws %}
+    ,
+    "status": {
+{% for s in _ws %}
+      "{{ s.name }}": "{{ s.label | default(s.name) }}"{% if not loop.last %},{% endif %}
+
+{% endfor %}
+    }
+{% endif %}
+}

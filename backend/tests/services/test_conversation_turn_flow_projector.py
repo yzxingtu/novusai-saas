@@ -1,0 +1,910 @@
+"""
+Test type: behavioral
+Scope: Conversation turn-flow projection, failure states, and invalid runtime metadata
+diagnostic scrubbing.
+Mock strategy: no external services; projector logic runs directly.
+"""
+
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+
+
+def test_project_from_metadata_maps_elapsed_budget_exit_to_failed_terminal() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "elapsed_budget_exceeded",
+            "turn_record": {
+                "turn_outcome": "partial",
+            },
+        },
+        content="部分结果",
+    )
+
+    assert turn_flow["completion_reason"] == "elapsed_budget_exceeded"
+    assert turn_flow["timeline"][-1]["type"] == "failed"
+    assert turn_flow["timeline"][-1]["status"] == "error"
+    answer_assembly = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+    )
+    assert answer_assembly["status"] == "error"
+
+
+def test_project_from_metadata_ignores_legacy_thinking_content_without_turn_flow() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "thinking_content": (
+                "Searching for Opus 4.7 news and official release info.\n"
+                "I should also inspect secondary reports and compare timestamps."
+            ),
+        },
+    )
+
+    assert [stage["type"] for stage in turn_flow["timeline"]] == ["completed"]
+    assert turn_flow["evidence"] == []
+
+
+def test_project_from_metadata_ignores_legacy_rag_sources_without_turn_flow() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "rag_sources": [
+                {
+                    "kind": "knowledge_base",
+                    "title": "Legacy retrieval source",
+                    "source_ref": "legacy-retrieval",
+                }
+            ],
+        },
+        content="已读取旧消息证据。",
+    )
+
+    assert turn_flow["evidence"] == []
+    assert "retrieval" not in {stage["type"] for stage in turn_flow["timeline"]}
+
+
+def test_project_from_metadata_preserves_knowledge_base_evidence_identity() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "answer_card": {
+                    "source_chip_ids": ["kb-chunk-301"],
+                    "summary": "NovusAI 平台支持知识库 RAG。",
+                },
+                "completion_reason": "completed",
+                "evidence": [
+                    {
+                        "chunk_id": 301,
+                        "doc_id": 21,
+                        "doc_name": "test_doc.txt",
+                        "id": "kb-chunk-301",
+                        "kind": "knowledge_base",
+                        "knowledge_base_id": 1,
+                        "knowledge_base_name": "测试知识库",
+                        "score": 0.82,
+                        "snippet": "NovusAI 平台支持知识库 RAG。",
+                        "source_kind": "formal_kb",
+                        "title": "test_doc.txt",
+                    }
+                ],
+                "timeline": [
+                    {
+                        "id": "retrieval",
+                        "source_refs": ["kb-chunk-301"],
+                        "status": "completed",
+                        "type": "retrieval",
+                    }
+                ],
+            }
+        },
+        content="NovusAI 平台支持知识库 RAG。",
+    )
+
+    evidence = turn_flow["evidence"][0]
+    assert evidence["kind"] == "knowledge_base"
+    assert evidence["knowledge_base_id"] == 1
+    assert evidence["knowledge_base_name"] == "测试知识库"
+    assert evidence["doc_id"] == 21
+    assert evidence["doc_name"] == "test_doc.txt"
+    assert evidence["chunk_id"] == 301
+    assert evidence["source_kind"] == "formal_kb"
+
+
+def test_project_from_metadata_does_not_treat_source_kind_as_kb_citation() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "answer_card": {
+                    "source_chip_ids": ["kb-capability-only"],
+                    "summary": "未检索到知识库证据。",
+                },
+                "evidence": [
+                    {
+                        "id": "kb-capability-only",
+                        "kind": "knowledge_base",
+                        "source_kind": "formal_kb",
+                        "title": "Source",
+                    }
+                ],
+                "timeline": [
+                    {
+                        "id": "retrieval",
+                        "source_refs": ["kb-capability-only"],
+                        "status": "completed",
+                        "type": "retrieval",
+                    }
+                ],
+            }
+        },
+        content="未检索到知识库证据。",
+    )
+
+    assert turn_flow["evidence"] == []
+    assert turn_flow["answer_card"]["source_chip_ids"] == []
+    retrieval_stage = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "retrieval"
+    )
+    assert retrieval_stage["status"] == "skipped"
+    assert retrieval_stage["source_refs"] == []
+
+
+def test_project_from_metadata_ignores_unknown_provider_progress() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_record": {
+                "metadata": {
+                    "stream_progress_kinds": ["provider_lookup_in_progress"],
+                },
+            },
+            "provider_events": [{"kind": "provider_lookup_in_progress"}],
+        },
+        content="",
+    )
+
+    stage_types = [stage["type"] for stage in turn_flow["timeline"]]
+    assert "tool_execution" not in stage_types
+    assert "retrieval" not in stage_types
+    assert stage_types == ["completed"]
+
+
+def test_project_from_metadata_sanitizes_existing_raw_thinking_stage_summary() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "thinking",
+                        "type": "thinking",
+                        "status": "completed",
+                        "title": "已思考",
+                        "summary": "**Considering user compliance**",
+                        "detail_lines": ["**Considering user compliance**"],
+                    }
+                ],
+                "evidence": [],
+                "answer_card": {
+                    "summary": "THREAD_OK_0418W",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+            },
+        },
+        content="THREAD_OK_0418W",
+    )
+
+    thinking_stage = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "thinking"
+    )
+    assert thinking_stage["summary"] == "已完成思考与规划"
+    assert thinking_stage["detail_lines"] == []
+
+
+def test_project_from_metadata_marks_untrusted_final_output_source_as_failed() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "completed",
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+            },
+        },
+        content="Fetched reddit.json",
+    )
+
+    assert turn_flow["timeline"][-1]["type"] == "failed"
+    assert turn_flow["timeline"][-1]["status"] == "error"
+    assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] is None
+    assert turn_flow["answer_card"]["sections"] == []
+
+
+def test_project_from_metadata_scrubs_invalid_runtime_metadata_without_reclassifying_turn() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "completed",
+                        "title": "答案生成",
+                        "summary": "已生成最终答复",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "evidence": [],
+                "answer_card": {
+                    "summary": "我先整理已有信息。",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "context_diagnostics": {
+                "conversation_outcome": "success",
+                "turn_outcome": "success",
+                "continuation_source": "data_ops",
+                "tool_planner": {
+                    "intent": "page_search",
+                    "family": "data_ops",
+                },
+                "intent_plan": [
+                    {
+                        "intent_id": "intent-1",
+                        "kind": "page_search",
+                        "family": "data_ops",
+                        "status": "completed",
+                        "completed_by_tool_names": ["crm_list_actions"],
+                    }
+                ],
+                "candidate_tool_names": [
+                    "crm_read_record",
+                    "crm_list_actions",
+                    "crm_update_record",
+                ],
+                "selected_tool_names": [],
+            },
+        },
+        content="我先整理已有信息。",
+    )
+
+    assert turn_flow["completion_reason"] == "completed"
+    assert turn_flow["timeline"][-1]["type"] == "completed"
+    assert turn_flow["timeline"][-1]["status"] == "completed"
+    assert turn_flow["error_surface"] is None
+    answer_assembly = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+    )
+    assert answer_assembly["status"] == "completed"
+
+
+def test_normalize_turn_flow_keeps_missing_answer_placeholder_for_untrusted_final_output() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "completed",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "completed",
+                        "title": "答案生成",
+                        "summary": "已生成最终答复",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+            },
+        },
+        content="Fetched reddit.json",
+    )
+
+    assert turn_flow["timeline"][-1]["type"] == "failed"
+    assert turn_flow["timeline"][-1]["status"] == "error"
+    assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]
+
+
+def test_normalize_turn_flow_surfaces_safe_untrusted_fallback_output() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "completed",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+            },
+            "stripped_untrusted_final_output": True,
+            "untrusted_final_output_fallback_applied": True,
+        },
+        content="这次处理没有成功生成最终答复，请再试一次。",
+    )
+
+    assert (
+        turn_flow["answer_card"]["summary"]
+        == "这次处理没有成功生成最终答复，请再试一次。"
+    )
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "这次处理没有成功生成最终答复，请再试一次。",
+        }
+    ]
+
+
+def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_message_turn_flow() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "completed",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "Fetched reddit.json",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "Fetched reddit.json",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+                "metadata": {
+                    "turn_flow": {
+                        "timeline": [
+                            {
+                                "id": "answer_assembly",
+                                "type": "answer_assembly",
+                                "status": "error",
+                                "title": "答案生成",
+                                "summary": "答复生成失败",
+                            },
+                            {
+                                "id": "terminal",
+                                "type": "failed",
+                                "status": "error",
+                                "title": "本轮失败",
+                                "summary": "completed",
+                            },
+                        ],
+                        "answer_card": {
+                            "summary": "No trusted assistant final answer.",
+                            "sections": [
+                                {
+                                    "title": "Answer",
+                                    "content": "No trusted assistant final answer.",
+                                }
+                            ],
+                            "source_chip_ids": [],
+                        },
+                        "completion_reason": "completed",
+                    }
+                },
+            },
+        },
+        content="Fetched reddit.json",
+    )
+
+    assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]
+
+
+def test_normalize_turn_flow_supplements_existing_tool_evidence_from_tool_calls() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "tool_execution",
+                        "type": "tool_execution",
+                        "status": "completed",
+                        "title": "工具执行",
+                        "summary": "执行了 1 个工具调用",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "evidence": [],
+                "answer_card": {
+                    "summary": "北京当前天气如下。",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+        },
+        content="北京当前天气如下。",
+        tool_calls=[
+            {
+                "id": "tc_weather_1",
+                "name": "get_current_weather",
+                "display_name": "天气查询",
+                "function": {"arguments": '{"city":"北京"}'},
+                "output": "北京晴，18°C",
+                "success": True,
+                "summary": "北京晴，18°C",
+                "summary_payload": {"temperature_c": 18},
+            }
+        ],
+    )
+
+    assert turn_flow["evidence"] == [
+        {
+            "id": "ev_tool_tc_weather_1",
+            "kind": "tool",
+            "title": "天气查询",
+            "url": None,
+            "snippet": "北京晴，18°C",
+            "badge": None,
+            "score": None,
+            "tool_call_id": "tc_weather_1",
+            "source_ref": "get_current_weather",
+            "tool_name": "get_current_weather",
+            "status": "success",
+            "arguments": {"city": "北京"},
+            "display_name": "天气查询",
+            "output": "北京晴，18°C",
+            "summary_payload": {"temperature_c": 18},
+        }
+    ]
+    tool_execution = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
+    )
+    assert tool_execution["tool_call_ids"] == ["tc_weather_1"]
+
+
+def test_normalize_turn_flow_preserves_existing_tool_evidence_detail_fields() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "tool_execution",
+                        "type": "tool_execution",
+                        "status": "completed",
+                        "title": "工具执行",
+                        "summary": "执行了 1 个工具调用",
+                        "tool_call_ids": ["tc_weather_1"],
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "evidence": [
+                    {
+                        "id": "ev_tool_tc_weather_1",
+                        "kind": "tool",
+                        "title": "天气查询",
+                        "tool_call_id": "tc_weather_1",
+                        "source_ref": "get_current_weather",
+                        "tool_name": "get_current_weather",
+                        "status": "success",
+                        "arguments": {"city": "北京"},
+                        "display_name": "天气查询",
+                        "output": "北京晴，18°C",
+                        "summary_payload": {"temperature_c": 18},
+                    }
+                ],
+                "answer_card": {
+                    "summary": "北京当前天气如下。",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+        },
+        content="北京当前天气如下。",
+    )
+
+    assert turn_flow["evidence"][0]["tool_name"] == "get_current_weather"
+    assert turn_flow["evidence"][0]["status"] == "success"
+    assert turn_flow["evidence"][0]["arguments"] == {"city": "北京"}
+    assert turn_flow["evidence"][0]["output"] == "北京晴，18°C"
+    assert turn_flow["evidence"][0]["summary_payload"] == {"temperature_c": 18}
+
+
+def test_project_from_metadata_ignores_legacy_canonical_tool_calls_without_turn_flow() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "metadata": {
+                    "canonical_tool_calls": [
+                        {
+                            "id": "tc_weather_1",
+                            "name": "get_current_weather",
+                            "display_name": "天气查询",
+                            "function": {"arguments": '{"city":"北京"}'},
+                            "output": "北京晴，18°C",
+                            "success": True,
+                            "summary": "北京晴，18°C",
+                            "summary_payload": {"temperature_c": 18},
+                        }
+                    ]
+                },
+            },
+        },
+        content="北京当前天气如下。",
+    )
+
+    assert turn_flow["evidence"] == []
+    assert "tool_execution" not in {stage["type"] for stage in turn_flow["timeline"]}
+
+
+def test_project_from_message_payload_rejects_legacy_fields_without_canonical_turn_flow() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_message_payload(
+        {
+            "role": "assistant",
+            "content": "最终答复",
+            "tool_calls": [
+                {
+                    "id": "tc_legacy",
+                    "name": "query_records",
+                    "summary": "legacy tool projection",
+                }
+            ],
+            "metadata": {
+                "thinking_content": "raw reasoning must not become a stage",
+                "rag_sources": [
+                    {
+                        "source": "KB",
+                        "chunk_id": "legacy-kb",
+                        "title": "Legacy KB",
+                    }
+                ],
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "completed",
+                    "metadata": {
+                        "canonical_tool_calls": [
+                            {
+                                "id": "tc_nested_legacy",
+                                "name": "query_records",
+                            }
+                        ]
+                    },
+                },
+            },
+        }
+    )
+
+    assert turn_flow is None
+
+
+def test_normalize_turn_flow_does_not_use_legacy_canonical_tool_calls_when_canonical_turn_flow_exists() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "tool_execution",
+                        "type": "tool_execution",
+                        "status": "completed",
+                        "title": "工具执行",
+                        "summary": "执行了 1 个工具调用",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "evidence": [],
+                "answer_card": {
+                    "summary": "北京当前天气如下。",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "metadata": {
+                    "canonical_tool_calls": [
+                        {
+                            "id": "tc_weather_1",
+                            "name": "get_current_weather",
+                            "display_name": "天气查询",
+                            "summary": "北京晴，18°C",
+                            "success": True,
+                        }
+                    ]
+                },
+            },
+        },
+        content="北京当前天气如下。",
+    )
+
+    assert turn_flow["evidence"] == []
+    tool_execution = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
+    )
+    assert tool_execution["tool_call_ids"] == []
+
+
+def test_normalize_turn_flow_replaces_missing_answer_placeholder_with_public_error_surface_message() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "error": True,
+            "error_message": "AI 供应商服务端错误",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                    "confidence_label": "low",
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "provider_http_5xx",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "AI 供应商服务端错误",
+        }
+    ]
+    assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"
+
+
+def test_normalize_turn_flow_keeps_placeholder_when_only_default_error_surface_exists() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "stream_execution_error",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]
+
+
+def test_project_from_metadata_strips_trace_id_suffix_from_public_error_message() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "error": True,
+            "error_message": "AI 供应商服务端错误 [trace_id=test-trace]",
+            "friendly_message": "AI 供应商服务端错误 [trace_id=test-trace]",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                    "confidence_label": "low",
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "provider_http_5xx",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
+    assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"

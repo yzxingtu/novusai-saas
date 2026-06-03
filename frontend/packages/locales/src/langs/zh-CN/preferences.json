@@ -33,7 +33,7 @@
   "copyPreferences": "复制偏好设置",
   "copyPreferencesSuccessTitle": "复制成功",
   "copyPreferencesSuccess": "复制成功，请在 app 下的 `src/preferences.ts`内进行覆盖",
-  "clearAndLogout": "清空缓存 & 退出登录",
+  "clearAndLogout": "清除缓存",
   "mode": "模式",
   "general": "通用",
   "language": "语言",
@@ -41,6 +41,10 @@
   "watermark": "水印",
   "watermarkContent": "请输入水印文案",
   "checkUpdates": "定时检查更新",
+  "ai": {
+    "plainTextInputAssist": "输入框选中文字 AI 辅助",
+    "plainTextInputAssistTip": "只影响普通 input/textarea 选中文字后的原地 AI 菜单，不影响富文本编辑器 AI。"
+  },
   "position": {
     "title": "偏好设置位置",
     "header": "顶栏",

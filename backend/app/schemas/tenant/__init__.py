@@ -1,99 +1,181 @@
 """
-租户 Schema 模块
+企业 Schema 模块 / Tenant Schema Module
 
-导出租户相关的 Schema
+导出企业相关的 Schema
+Exports tenant related schemas.
 """
 
 from app.schemas.tenant.admin import (
+    TenantAdminChangePasswordRequest,
+    TenantAdminCreateRequest,
     TenantAdminLoginRequest,
     TenantAdminResponse,
-    TenantAdminCreateRequest,
+    TenantAdminUpdateProfileRequest,
     TenantAdminUpdateRequest,
-    TenantAdminChangePasswordRequest,
 )
-from app.schemas.tenant.user import (
-    TenantUserLoginRequest,
-    TenantUserResponse,
-    TenantUserCreateRequest,
-    TenantUserUpdateRequest,
-    TenantUserChangePasswordRequest,
-)
-from app.schemas.tenant.role import (
-    TenantAdminRoleResponse,
-    TenantAdminRoleDetailResponse,
-    TenantAdminRoleTreeNode,
-    TenantAdminRoleCreateRequest,
-    TenantAdminRoleUpdateRequest,
-    TenantAdminRolePermissionsRequest,
-    TenantAdminRoleMoveRequest,
-    TenantAdminRoleSetLeaderRequest,
-    TenantAdminRoleAddMemberRequest,
-    TenantAdminRoleCreateMemberRequest,
-    TenantAdminRoleUpdateMemberRequest,
-    TenantAdminRoleResetPasswordRequest,
-    TenantAdminRoleToggleStatusRequest,
-    TenantAdminRoleMemberResponse,
-)
-from app.schemas.tenant.domain import (
-    TenantDomainSimpleResponse,
-    TenantDomainVerificationInfo,
-    TenantDomainResponse,
-    TenantDomainCreateRequest,
-    TenantDomainUpdateRequest,
-    TenantDomainVerifyRequest,
-    TenantSettingsResponse,
-    TenantSettingsUpdateRequest,
-)
-from app.schemas.tenant.plan import (
-    QuotaSchema,
-    FeaturesSchema,
-    TenantPlanResponse,
-    TenantPlanDetailResponse,
-    PermissionSimpleResponse,
-    TenantPlanCreateRequest,
-    TenantPlanUpdateRequest,
-    TenantPlanPermissionsRequest,
+from app.schemas.tenant.announcement import (
+    AdminAnnouncementResponse,
+    AnnouncementAnswerSubmit,
+    AnnouncementCreate,
+    AnnouncementDeliveryResponse,
+    AnnouncementFormField,
+    AnnouncementFormOption,
+    AnnouncementSubmitResult,
+    AnnouncementUpdate,
+    CurrentAnnouncementResponse,
+    PendingAnnouncementResponse,
+    TenantAnnouncementResponse,
 )
 from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
+from app.schemas.tenant.domain import (
+    DevHostDomainStatus,
+    DevHostMutationResponse,
+    DevHostsRuntimeInfo,
+    DevHostsStatusResponse,
+    DevHostsSyncAllResponse,
+    TenantDomainCreateRequest,
+    TenantDomainResponse,
+    TenantDomainSimpleResponse,
+    TenantDomainUpdateRequest,
+    TenantDomainVerificationInfo,
+    TenantDomainVerifyRequest,
+)
+from app.schemas.tenant.plan import (
+    FeaturesSchema,
+    PermissionSimpleResponse,
+    QuotaSchema,
+    TenantPlanCreateRequest,
+    TenantPlanDetailResponse,
+    TenantPlanPermissionsRequest,
+    TenantPlanResponse,
+    TenantPlanUpdateRequest,
+)
+from app.schemas.tenant.ssl import (
+    SslAutoRenewRequest,
+    SslCertificateResponse,
+    SslCertificateUploadRequest,
+    SslReplaceRequest,
+)
+from app.schemas.tenant.tenant_org_node import (
+    TenantOrgNodeAssignMemberRequest,
+    TenantOrgNodeAuthorityPolicyRequest,
+    TenantOrgNodeCreateMemberRequest,
+    TenantOrgNodeCreateRequest,
+    TenantOrgNodeDetailResponse,
+    TenantOrgNodeLeaderResponse,
+    TenantOrgNodeMemberResponse,
+    TenantOrgNodeMoveRequest,
+    TenantOrgNodeResetPasswordRequest,
+    TenantOrgNodeResponse,
+    TenantOrgNodeSetLeaderRequest,
+    TenantOrgNodeToggleStatusRequest,
+    TenantOrgNodeType,
+    TenantOrgNodeUpdateMemberRequest,
+    TenantOrgNodeUpdateRequest,
+)
+from app.schemas.tenant.tenant_permission_role import (
+    TenantPermissionRoleCreateRequest,
+    TenantPermissionRoleDetailResponse,
+    TenantPermissionRolePermissionsRequest,
+    TenantPermissionRoleResponse,
+    TenantPermissionRoleUpdateRequest,
+)
+from app.schemas.tenant.user import (
+    ForgotPasswordRequest,
+    LoginByCodeRequest,
+    ResetPasswordRequest,
+    SendLoginCodeRequest,
+    TenantUserChangePasswordRequest,
+    TenantUserCreateRequest,
+    TenantUserDevBootstrapRequest,
+    TenantUserLoginRequest,
+    TenantUserProfileUpdateRequest,
+    TenantUserRegisterRequest,
+    TenantUserResponse,
+    TenantUserUpdateRequest,
+)
+from app.schemas.tenant.user_role import (
+    TenantUserRoleCreateRequest,
+    TenantUserRoleDetailResponse,
+    TenantUserRolePermissionsRequest,
+    TenantUserRoleResponse,
+    TenantUserRoleUpdateRequest,
+)
 
 __all__ = [
-    # TenantAdmin
+    # TenantAdmin / 企业管理员
     "TenantAdminLoginRequest",
     "TenantAdminResponse",
     "TenantAdminCreateRequest",
     "TenantAdminUpdateRequest",
     "TenantAdminChangePasswordRequest",
-    # TenantUser
+    "TenantAdminUpdateProfileRequest",
+    # Announcement / 公告
+    "AdminAnnouncementResponse",
+    "AnnouncementAnswerSubmit",
+    "AnnouncementCreate",
+    "AnnouncementDeliveryResponse",
+    "AnnouncementFormField",
+    "AnnouncementFormOption",
+    "AnnouncementSubmitResult",
+    "AnnouncementUpdate",
+    "CurrentAnnouncementResponse",
+    "PendingAnnouncementResponse",
+    "TenantAnnouncementResponse",
+    # TenantUser / 企业用户
     "TenantUserLoginRequest",
+    "TenantUserDevBootstrapRequest",
+    "SendLoginCodeRequest",
+    "LoginByCodeRequest",
     "TenantUserResponse",
     "TenantUserCreateRequest",
     "TenantUserUpdateRequest",
     "TenantUserChangePasswordRequest",
-    # Role
-    "TenantAdminRoleResponse",
-    "TenantAdminRoleDetailResponse",
-    "TenantAdminRoleTreeNode",
-    "TenantAdminRoleCreateRequest",
-    "TenantAdminRoleUpdateRequest",
-    "TenantAdminRolePermissionsRequest",
-    "TenantAdminRoleMoveRequest",
-    "TenantAdminRoleSetLeaderRequest",
-    "TenantAdminRoleAddMemberRequest",
-    "TenantAdminRoleCreateMemberRequest",
-    "TenantAdminRoleUpdateMemberRequest",
-    "TenantAdminRoleResetPasswordRequest",
-    "TenantAdminRoleToggleStatusRequest",
-    "TenantAdminRoleMemberResponse",
-    # Domain
+    "TenantUserRegisterRequest",
+    "TenantUserProfileUpdateRequest",
+    "ForgotPasswordRequest",
+    "ResetPasswordRequest",
+    # TenantOrgNode / 企业组织节点
+    "TenantOrgNodeResponse",
+    "TenantOrgNodeDetailResponse",
+    "TenantOrgNodeCreateRequest",
+    "TenantOrgNodeUpdateRequest",
+    "TenantOrgNodeAuthorityPolicyRequest",
+    "TenantOrgNodeMoveRequest",
+    "TenantOrgNodeSetLeaderRequest",
+    "TenantOrgNodeAssignMemberRequest",
+    "TenantOrgNodeCreateMemberRequest",
+    "TenantOrgNodeUpdateMemberRequest",
+    "TenantOrgNodeResetPasswordRequest",
+    "TenantOrgNodeToggleStatusRequest",
+    "TenantOrgNodeMemberResponse",
+    "TenantOrgNodeLeaderResponse",
+    "TenantOrgNodeType",
+    # TenantPermissionRole / 企业权限角色
+    "TenantPermissionRoleResponse",
+    "TenantPermissionRoleDetailResponse",
+    "TenantPermissionRoleCreateRequest",
+    "TenantPermissionRoleUpdateRequest",
+    "TenantPermissionRolePermissionsRequest",
+    # TenantUserRole / 企业用户角色
+    "TenantUserRoleResponse",
+    "TenantUserRoleDetailResponse",
+    "TenantUserRoleCreateRequest",
+    "TenantUserRoleUpdateRequest",
+    "TenantUserRolePermissionsRequest",
+    # Domain / 域名
     "TenantDomainSimpleResponse",
     "TenantDomainVerificationInfo",
     "TenantDomainResponse",
+    "DevHostsRuntimeInfo",
+    "DevHostDomainStatus",
+    "DevHostsStatusResponse",
+    "DevHostMutationResponse",
+    "DevHostsSyncAllResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",
-    "TenantSettingsResponse",
-    "TenantSettingsUpdateRequest",
-    # Plan
+    # Plan / 套餐
     "QuotaSchema",
     "FeaturesSchema",
     "TenantPlanResponse",
@@ -103,4 +185,9 @@ __all__ = [
     "TenantPlanUpdateRequest",
     "TenantPlanPermissionsRequest",
     "AttachmentAccessUrlResponse",
+    # SSL / 证书
+    "SslCertificateResponse",
+    "SslCertificateUploadRequest",
+    "SslAutoRenewRequest",
+    "SslReplaceRequest",
 ]

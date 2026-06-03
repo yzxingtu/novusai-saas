@@ -1,6 +1,15 @@
 {
   "admin": "Admin",
   "tenant": "Tenant",
+  "enable": "Enable",
+  "disable": "Disable",
+  "notAssigned": "Not Assigned",
+  "basicInfo": "Basic Info",
+  "contactInfo": "Contact Info",
+  "permissionSettings": "Permission Settings",
+  "accountStatus": "Account Status",
+  "operationSuccess": "Operation successful",
+  "operationFailed": "Operation failed",
   "user": "User",
   "dashboard": "Dashboard",
   "settings": "Settings",
@@ -13,6 +22,7 @@
   "save": "Save",
   "edit": "Edit",
   "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete?",
   "create": "Create",
   "detail": "Detail",
   "actions": "Actions",
@@ -23,5 +33,12 @@
   "loading": "Loading...",
   "success": "Success",
   "failed": "Failed",
-  "noData": "No data"
+  "noData": "No data",
+  "prev": "Previous",
+  "next": "Next",
+  "createdAt": "Created At",
+  "deletedAt": "Deleted At",
+  "tenantAdmin": "Tenant Admin",
+  "noPlan": "No plan assigned",
+  "noPlanDesc": "Unable to use any features. Please contact the platform administrator to assign a plan."
 }

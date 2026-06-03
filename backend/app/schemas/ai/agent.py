@@ -1,0 +1,242 @@
+"""
+智能体相关 Schema / Agent Schema
+
+定义智能体的请求和响应数据结构
+Defines agent request and response data structures.
+"""
+
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.base_schema import (
+    BaseCreateSchema,
+    BaseUpdateSchema,
+    TenantResponseSchema,
+)
+from app.core.i18n import _
+
+# ============================================
+# Shared field mixins / 共享字段混入
+# ============================================
+
+
+class _AgentOptionalFields(BaseModel):
+    """Agent 共享可选字段（Create/Update/Response 通用） / Agent shared optional fields (Create/Update/Response)."""
+
+    description: str | None = Field(None, description=_("enum.agent_model.description"))
+    avatar: str | None = Field(
+        None, max_length=255, description=_("enum.agent_model.avatar")
+    )
+    max_tokens: int | None = Field(
+        None, ge=1, description=_("enum.agent_model.max_tokens")
+    )
+    top_p: float | None = Field(
+        None, ge=0.0, le=1.0, description=_("enum.agent_model.top_p")
+    )
+    input_variables: list | None = Field(
+        None, description=_("enum.agent_model.input_variables")
+    )
+    welcome_message: str | None = Field(
+        None, description=_("enum.agent_model.welcome_message")
+    )
+    suggested_questions: list | None = Field(
+        None, description=_("enum.agent_model.suggested_questions")
+    )
+    rag_config: dict | None = Field(None, description=_("enum.agent_model.rag_config"))
+    context_config: dict | None = Field(
+        None, description=_("enum.agent_model.context_config")
+    )
+    output_schema: list | None = Field(
+        None, description=_("enum.agent_model.output_schema")
+    )
+    quota_config: dict | None = Field(
+        None, description=_("enum.agent_model.quota_config")
+    )
+    routing_config: dict | None = Field(
+        None, description=_("enum.agent_model.routing_config")
+    )
+    memory_enabled: bool | None = Field(
+        None, description=_("enum.agent_model.memory_enabled")
+    )
+
+
+# ============================================
+# Tenant schemas / 企业端 Schema
+# ============================================
+
+
+class AgentCreate(_AgentOptionalFields, BaseCreateSchema):
+    """创建智能体请求 / Create agent request."""
+
+    name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
+    system_prompt: str | None = Field(
+        "", description=_("enum.agent_model.system_prompt")
+    )
+
+    @field_validator("system_prompt", mode="before")
+    @classmethod
+    def _coerce_prompt(cls, v: object) -> str:
+        return v if isinstance(v, str) else ""
+
+    model_id: int = Field(..., description=_("enum.agent_model.model_id"))
+    temperature: float = Field(
+        0.7, ge=0.0, le=2.0, description=_("enum.agent_model.temperature")
+    )
+    execution_mode: str = Field(
+        "conversation", description=_("enum.agent_model.execution_mode")
+    )
+    visibility: str = Field("public", description=_("enum.agent_model.visibility"))
+
+
+class AgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
+    """更新智能体请求 / Update agent request."""
+
+    name: str | None = Field(
+        None, max_length=100, description=_("enum.agent_model.name")
+    )
+    system_prompt: str | None = Field(
+        None, description=_("enum.agent_model.system_prompt")
+    )
+    model_id: int | None = Field(None, description=_("enum.agent_model.model_id"))
+    temperature: float | None = Field(
+        None, ge=0.0, le=2.0, description=_("enum.agent_model.temperature")
+    )
+    # NOTE: status removed - use publish/rollback endpoints to change status / 已移除 status，请用发布/回滚接口变更状态
+    execution_mode: str | None = Field(
+        None, description=_("enum.agent_model.execution_mode")
+    )
+    visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
+
+
+# ============================================
+# Admin schemas / 管理端 Schema
+# ============================================
+
+
+class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
+    """管理端创建智能体请求 / Admin create agent request."""
+
+    name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
+    scope: str = Field(
+        "global_shared",
+        description="资源作用域 ResourceScopeEnum（五类）/ Unified resource scope",
+    )
+    tenant_ids: list[int] | None = Field(
+        None,
+        description="分配的企业 ID 列表（selected_tenants / admin_and_selected_tenants 时使用）",
+    )
+    system_prompt: str | None = Field(
+        "", description=_("enum.agent_model.system_prompt")
+    )
+
+    @field_validator("system_prompt", mode="before")
+    @classmethod
+    def _coerce_prompt(cls, v: object) -> str:
+        return v if isinstance(v, str) else ""
+
+    model_id: int = Field(..., description=_("enum.agent_model.model_id"))
+    temperature: float = Field(
+        0.7, ge=0.0, le=2.0, description=_("enum.agent_model.temperature")
+    )
+    execution_mode: str = Field(
+        "conversation", description=_("enum.agent_model.execution_mode")
+    )
+    visibility: str = Field("public", description=_("enum.agent_model.visibility"))
+
+
+class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
+    """管理端更新智能体请求 / Admin update agent request."""
+
+    name: str | None = Field(
+        None, max_length=100, description=_("enum.agent_model.name")
+    )
+    scope: str | None = Field(
+        None,
+        description="资源作用域 ResourceScopeEnum（五类）/ Unified resource scope",
+    )
+    tenant_ids: list[int] | None = Field(
+        None,
+        description="分配的企业 ID 列表（selected_tenants / admin_and_selected_tenants 时使用）",
+    )
+    system_prompt: str | None = Field(
+        None, description=_("enum.agent_model.system_prompt")
+    )
+    model_id: int | None = Field(None, description=_("enum.agent_model.model_id"))
+    temperature: float | None = Field(
+        None, ge=0.0, le=2.0, description=_("enum.agent_model.temperature")
+    )
+    execution_mode: str | None = Field(
+        None, description=_("enum.agent_model.execution_mode")
+    )
+    visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
+    status: str | None = Field(None, description=_("enum.agent_model.status"))
+
+
+class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
+    """智能体详情响应 / Agent detail response."""
+
+    name: str = Field(..., description=_("enum.agent_model.name"))
+    system_prompt: str = Field(..., description=_("enum.agent_model.system_prompt"))
+    model_id: int = Field(..., description=_("enum.agent_model.model_id"))
+    temperature: float = Field(..., description=_("enum.agent_model.temperature"))
+    status: str = Field(..., description=_("enum.agent_model.status"))
+    execution_mode: str = Field(..., description=_("enum.agent_model.execution_mode"))
+    published_version: int | None = Field(
+        None, description=_("enum.agent_model.published_version")
+    )
+    visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
+    owner_tenant_id: int | None = Field(None, description="Owner tenant ID")
+    scope: str = Field(..., description="Resource scope ResourceScopeEnum")
+    source_plugin: str | None = Field(None, description="Source plugin slug")
+    source_plugin_display_name: str | None = Field(
+        None, description="Source plugin display name"
+    )
+    source_plugin_enabled: bool | None = Field(
+        None, description="Whether source plugin is enabled"
+    )
+    source_plugin_scope: str | None = Field(
+        None, description="Source plugin scope ResourceScopeEnum"
+    )
+    is_system: bool = Field(False, description=_("enum.agent_model.is_system"))
+    # 关联字段 / Related fields
+    model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))
+    model_code: str | None = Field(None, description=_("enum.agent_model.model_code"))
+    effective_memory_enabled: bool | None = Field(
+        None,
+        description=_("enum.agent_model.effective_memory_enabled"),
+    )
+    memory_disabled_by_tenant: bool | None = Field(
+        None,
+        description=_("enum.agent_model.memory_disabled_by_tenant"),
+    )
+
+
+class AgentListItem(TenantResponseSchema):
+    """智能体列表项响应（精简字段） / Agent list item response (reduced fields)."""
+
+    name: str = Field(..., description=_("enum.agent_model.name"))
+    avatar: str | None = Field(None, description=_("enum.agent_model.avatar"))
+    description: str | None = Field(None, description=_("enum.agent_model.description"))
+    status: str = Field(..., description=_("enum.agent_model.status"))
+    execution_mode: str = Field(..., description=_("enum.agent_model.execution_mode"))
+    is_system: bool = Field(False, description=_("enum.agent_model.is_system"))
+    model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))
+    source_plugin: str | None = Field(None, description="Source plugin slug")
+    source_plugin_display_name: str | None = Field(
+        None, description="Source plugin display name"
+    )
+    source_plugin_enabled: bool | None = Field(
+        None, description="Whether source plugin is enabled"
+    )
+    source_plugin_scope: str | None = Field(
+        None, description="Source plugin scope ResourceScopeEnum"
+    )
+
+
+__all__ = [
+    "AgentCreate",
+    "AgentUpdate",
+    "AdminAgentCreate",
+    "AdminAgentUpdate",
+    "AgentResponse",
+    "AgentListItem",
+]

@@ -1,9 +1,236 @@
 {
+  "home": {
+    "title": "AI Service Portal",
+    "heroTitle": "AI-Powered SaaS Platform",
+    "heroDesc": "An all-in-one AI integration solution for enterprises, empowering digital transformation",
+    "heroDescExtended": "Ready-to-use AI-driven SaaS framework with multi-tenancy, RAG, agents, and plugin extensions.",
+    "aboutTitle": "About This Project",
+    "aboutIntro": "NovusAI SaaS is a ready-to-use AI-driven SaaS framework with three portals: Platform Admin, Tenant Admin, and User Portal. Platform admins manage tenants, plans, AI providers and model quotas; tenant admins configure org structure, agents, knowledge bases and user permissions; end users leverage AI chat and Q&A for productive workflows.",
+    "techStackTitle": "Tech Stack",
+    "techBackend": "Python 3.10+ / FastAPI / SQLAlchemy 2 / PostgreSQL / Redis / Celery",
+    "techFrontend": "Vue 3 / TypeScript / Vite / Ant Design Vue / Pinia / Socket.IO",
+    "capabilitiesTitle": "Core Capabilities",
+    "capabilitiesIntro": "Enterprise-grade features out of the box",
+    "adminLogin": "Platform Admin",
+    "adminLoginDesc": "Sign in to platform management",
+    "tenantLogin": "Tenant Admin",
+    "tenantLoginDesc": "Sign in to tenant management",
+    "userLogin": "User Login",
+    "userLoginDesc": "Sign in to your workspace",
+    "userRegister": "Register",
+    "userRegisterDesc": "Create a new account",
+    "welcomeTo": "Welcome to {name}",
+    "tenantDesc": "Sign in or register to access your workspace",
+    "signIn": "Sign In",
+    "signUp": "Register",
+    "tenantAdmin": "Admin Portal",
+    "features": "Core Capabilities",
+    "featureAI": "AI Agents",
+    "featureAIDesc": "Smart conversations, knowledge base Q&A, automated workflows",
+    "featureMultiTenant": "Multi-Tenant Architecture",
+    "featureMultiTenantDesc": "Tenant isolation, independent configuration, flexible scaling",
+    "featureSecurity": "Enterprise Security",
+    "featureSecurityDesc": "RBAC permissions, audit logs, data encryption",
+    "featureRAG": "Knowledge Base RAG",
+    "featureRAGDesc": "Document parsing, vector retrieval, smart Q&A, multi-format support with chunk strategies",
+    "featurePlugin": "Plugin Extension",
+    "featurePluginDesc": "UMD dynamic loading, menu registration, frontend and backend extensions",
+    "featureDomain": "Custom Domains",
+    "featureDomainDesc": "Tenant-specific domains, SSL certificates, multi-tenant domain isolation",
+    "platformFooter": "© {year} {name}"
+  },
+  "portal": {
+    "heroBadge": "AI Service Portal",
+    "greetingEyebrow": "{brand} AI workspace",
+    "greetingTitle": "Hello, {name}",
+    "greetingDesc": "Start from a real portal: browse agents, resume recent conversations, and understand the most useful capabilities without hunting through admin-style pages.",
+    "primaryCta": "Browse agent plaza",
+    "secondaryCta": "Open AI workspace",
+    "helpCta": "Help center",
+    "tenantWelcomeFallback": "Sign in to access tenant-specific agents, knowledge-enhanced conversations, and branded AI services.",
+    "platformWelcomeFallback": "A unified AI SaaS foundation for platform teams, tenant operators, and end users.",
+    "metrics": {
+      "agents": "Available agents",
+      "sessions": "Recent sessions",
+      "vision": "Vision-ready",
+      "starters": "Starter prompts"
+    },
+    "recommendedAgentsTitle": "Recommended agents",
+    "recommendedAgentsDesc": "Surface recently used agents first, then highlight services with multimodal support and curated starter questions.",
+    "viewAllAgents": "View all agents",
+    "recommendedQuestions": "Suggested opening prompts",
+    "openWorkspace": "Open chat workspace",
+    "recentSessionsTitle": "Recent conversations",
+    "recentSessionsDesc": "Resume where you left off with preserved context instead of starting from scratch.",
+    "quickStartTitle": "Quick start",
+    "quickStartDesc": "Pick an agent, jump into chat, then complete profile and security setup for long-term use.",
+    "helpSnapshotTitle": "Help snapshot",
+    "helpSnapshotDesc": "Collect first-run guidance, attachment handling, conversation history, and export tips in one place.",
+    "viewHelpCenter": "Open help center",
+    "stepLabel": "Step {index}",
+    "tenantBadge": "Tenant AI portal",
+    "tenantHeroTitle": "Welcome to {brand}'s AI service portal",
+    "tenantQuickStartDesc": "After sign-in, users can access tenant-visible agents and continue existing sessions from a single branded front door.",
+    "tenantHelpSnapshotDesc": "The help center and quick links explain how to get started, upload files, and continue previous conversations.",
+    "platformBadge": "Platform capability overview",
+    "platformHint": "The final root-path ownership will be resolved by the entry contract. This page keeps the platform overview available for integration and demos in the meantime.",
+    "platformOverviewTitle": "Portal capability overview",
+    "platformOverviewDesc": "Dynamic menus, tenant branding, and AI entry points work together to turn backend power into an end-user product experience.",
+    "platformNextTitle": "What to connect next",
+    "platformNextDesc": "When you are integrating the tenant-facing domain, start with the help center, agent plaza, and chat entry points.",
+    "capabilityBands": {
+      "agent": {
+        "title": "Demo-ready AI services",
+        "desc": "From recommended agents to recent sessions, every entry point is organized around what the user can do right now."
+      },
+      "workflow": {
+        "title": "Chat, files, and knowledge in one loop",
+        "desc": "Keep the existing conversation, attachment, Memory, and knowledge-base chain instead of inventing new backend flows."
+      },
+      "help": {
+        "title": "Guidance built into the front stage",
+        "desc": "Put onboarding, common issues, and high-frequency links into a lightweight help center to reduce first-use friction."
+      }
+    },
+    "badges": {
+      "vision": "Vision-ready",
+      "knowledge": "{count} knowledge sources",
+      "platform": "Platform shared",
+      "tenant": "Tenant ready",
+      "workflow": "Workflow"
+    },
+    "agentFallbackDescription": "Published and ready for direct use in chat, file-assisted tasks, or knowledge retrieval scenarios.",
+    "agentModelLabel": "Model: {model}",
+    "agentReady": "Ready to chat",
+    "openAgent": "Start chat",
+    "emptyAgents": "No agents are available to showcase yet",
+    "emptySessions": "No recent conversations yet. Start with an agent first.",
+    "untitledConversation": "Untitled conversation",
+    "agentFallbackName": "Agent"
+  },
   "dashboard": {
-    "title": "Home",
+    "title": "Workspace",
     "welcome": "Welcome back",
-    "recentOrders": "Recent Orders",
-    "notifications": "Notifications"
+    "greeting": "Hello, {name}",
+    "greetingDesc": "Welcome back to your workspace. Have a great day!",
+    "neverLoggedIn": "Never logged in",
+    "lastLoginAt": "Last Login",
+    "role": "Role",
+    "noRole": "No role assigned",
+    "memberSince": "Member Since",
+    "quickActions": "Quick Actions",
+    "aiChat": "AI Chat",
+    "aiChatDesc": "Chat with AI assistant",
+    "myProfile": "My Profile",
+    "myProfileDesc": "View and edit your profile",
+    "changePassword": "Change Password",
+    "changePasswordDesc": "Update your login password"
+  },
+  "agents": {
+    "badge": "Agent plaza",
+    "title": "Agent plaza",
+    "description": "Collect published agents the current user can access into a searchable directory with fast filters and direct chat entry points.",
+    "primaryCta": "Open AI workspace",
+    "secondaryCta": "Use help center",
+    "directoryTitle": "Browse by service capability",
+    "directoryDesc": "Use capability tags and recent-usage hints to find the best agent for the job.",
+    "searchPlaceholder": "Search by agent name, summary, or model",
+    "lastUsed": "Recently used",
+    "empty": "No agents match the current search or filter",
+    "guestTitle": "Sign in to view the full agent directory",
+    "guestDesc": "The plaza is filtered dynamically by user permissions, tenant assignments, and published status.",
+    "guestCta": "Sign in to user portal",
+    "pagination": "Page {current} / {total}",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "filters": {
+      "all": "All",
+      "recent": "Recent",
+      "vision": "Vision-ready",
+      "knowledge": "Knowledge-enabled",
+      "tenant": "Tenant ready"
+    },
+    "stats": {
+      "agents": "Agents in plaza",
+      "recent": "Used recently",
+      "vision": "Vision support",
+      "starter": "Starter prompts"
+    }
+  },
+  "helpCenter": {
+    "badge": "Help center",
+    "title": "Help center",
+    "description": "Bring onboarding steps, common questions, high-frequency links, and practical usage advice into one lightweight support page.",
+    "primaryCta": "Go to agent plaza",
+    "secondaryCta": "Open AI workspace",
+    "loginCta": "Sign in to user portal",
+    "getStartedTitle": "Get started",
+    "getStartedDesc": "For a first-time user, this is the recommended order to complete the full portal experience.",
+    "bestPracticesTitle": "Recommended practices",
+    "bestPracticesDesc": "These habits help users get faster, more reusable, and more traceable AI results.",
+    "faqTitle": "Frequently asked questions",
+    "faqDesc": "Answer common questions about agent selection, attachments, history, memory, and exports in one place.",
+    "askAiCta": "Ask in AI workspace",
+    "journeys": {
+      "discover": {
+        "title": "Start by browsing the plaza",
+        "desc": "Use cards, capability tags, and starter prompts to decide which agent fits the task before entering chat."
+      },
+      "chat": {
+        "title": "Open the workspace and chat",
+        "desc": "Continue from empty state, starter prompts, or recent sessions while keeping attachments, Memory, and export tools available."
+      },
+      "settings": {
+        "title": "Finish profile and security setup",
+        "desc": "Keep profile details and password updates in one place so the first login has a clear closing step."
+      }
+    },
+    "resources": {
+      "agents": {
+        "title": "Agent directory",
+        "desc": "See which AI services this user can access and jump directly into a specific agent."
+      },
+      "workspace": {
+        "title": "AI workspace",
+        "desc": "Continue history, upload files, inspect Memory, or export conversation records."
+      },
+      "profile": {
+        "title": "Account and security",
+        "desc": "Profile editing and password updates are gathered here as the post-login home for account setup."
+      }
+    },
+    "faqs": {
+      "agent": {
+        "question": "Should I pick an agent first or open chat directly?",
+        "answer": "If you already know which agent should handle the task, go straight from the plaza. If not, open the AI workspace first and begin from starter prompts or recent conversations."
+      },
+      "upload": {
+        "question": "What happens after I upload an attachment?",
+        "answer": "Attachments continue through the existing upload and AI chat flow. The chat page keeps the file list, knowledge hints, and context without forcing users into a different screen."
+      },
+      "history": {
+        "question": "How do I continue a previous conversation?",
+        "answer": "The portal home shows recent sessions, and the chat page keeps a full history list in the sidebar. Selecting any item reopens the original context instead of creating a duplicate thread."
+      },
+      "memory": {
+        "question": "What is the Memory panel for?",
+        "answer": "It shows the preferences, constraints, and facts the current conversation has retained. That makes long-running chats easier to audit and reset when needed."
+      },
+      "export": {
+        "question": "Can I export the chat history?",
+        "answer": "Yes. The chat page still supports Markdown and TXT export so users can share outcomes or archive them as structured notes."
+      },
+      "help": {
+        "question": "What if I still do not know what to do next?",
+        "answer": "Follow the flow of plaza -> workspace -> settings for the first complete experience. If speed matters, click a starter prompt and let the agent break the task down."
+      }
+    },
+    "bestPractices": {
+      "clear": "Describe the goal, target object, and expected format as clearly as possible, such as \"summarize this file and give me three conclusions.\"",
+      "attachment": "When the task depends on documents, screenshots, or contracts, upload the file and explain the desired outcome in the same turn.",
+      "conversation": "Prefer continuing an existing conversation so the agent can reuse confirmed context rather than relearn it.",
+      "export": "When you are ready to share or archive results, use export directly instead of manually copying content."
+    }
   },
   "profile": {
     "title": "Profile",
@@ -13,7 +240,14 @@
     "nickname": "Nickname",
     "email": "Email",
     "phone": "Phone",
+    "gender": "Gender",
+    "genderUnknown": "Prefer not to say",
+    "genderMale": "Male",
+    "genderFemale": "Female",
+    "editDisabled": "Profile editing has been disabled by the administrator",
+    "security": "Security",
     "changePassword": "Change Password",
+    "changePasswordDesc": "Regularly changing your password improves account security",
     "oldPassword": "Current Password",
     "newPassword": "New Password",
     "confirmPassword": "Confirm New Password",
@@ -30,27 +264,50 @@
       "inputConfirmPassword": "Please confirm new password"
     }
   },
-  "order": {
-    "title": "My Orders",
-    "list": "Order List",
-    "detail": "Order Detail",
-    "orderNo": "Order No",
-    "status": "Status",
-    "amount": "Amount",
-    "createdAt": "Order Time",
-    "payAt": "Payment Time",
-    "statusOptions": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "shipped": "Shipped",
-      "completed": "Completed",
-      "cancelled": "Cancelled"
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your account information and security settings"
+  },
+  "aiChat": {
+    "title": "AI Chat",
+    "agents": "Agents",
+    "noAgents": "No agents available",
+    "welcomeTitle": "Start AI chat",
+    "welcomeDesc": "Select an agent to begin your AI session",
+    "inputPlaceholder": "Type a message, use {'@'} to search agents...",
+    "workspace": {
+      "badge": "AI workspace",
+      "title": "Keep agent capability in one chat center",
+      "description": "This page remains on the existing conversation, attachment, Memory, starter question, and export pipeline while giving the workspace a clearer product shell.",
+      "primaryCta": "Go to agent plaza",
+      "secondaryCta": "New conversation",
+      "helpCta": "Help center",
+      "noAgentSelected": "No agent selected yet",
+      "agentSummaryFallback": "Pick an agent from the sidebar or enter the workspace from the home page and plaza with a specific agent preselected.",
+      "signals": {
+        "agent": "Current agent",
+        "knowledge": "Knowledge support",
+        "knowledgeValue": "{count} bound knowledge sources",
+        "knowledgeEmpty": "No bound knowledge source",
+        "history": "Conversation history",
+        "historyValue": "{count} session entries",
+        "vision": "Multimodal mode",
+        "visionReady": "Image understanding ready",
+        "visionStandard": "Text-focused mode"
+      }
+    },
+    "varsModal": {
+      "title": "Fill in Variables — {name}",
+      "desc": "Please fill in the following information to personalize this conversation.",
+      "confirm": "Start Chat",
+      "editVars": "Edit Variables",
+      "varsSet": "Variables Set",
+      "fillRequired": "Please fill in required variables: {fields}",
+      "persistLabel": "Permanent save",
+      "persistHint": "Saves to this device; variables will be automatically injected on every conversation with this agent"
     }
   },
-  "common": {
-    "operation": "Operation",
-    "viewDetail": "View Detail",
-    "submit": "Submit",
-    "save": "Save"
+  "auth": {
+    "passwordMinLength": "Password must be at least 6 characters"
   }
 }
