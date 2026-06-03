@@ -1,8 +1,14 @@
+<p align="center">
+  <img src="docs/assets/branding/logo.png" alt="NovusAI SaaS Logo" width="160" />
+</p>
+
 # NovusAI SaaS
 
 **Languages:** [简体中文](README.md) · English
 
 NovusAI SaaS is a multi-tenant, AI-native SaaS development framework for building extensible business applications. It provides platform admin, tenant, and user surfaces, RBAC, a plugin system, AI Agent runtime flows, realtime notifications, attachment storage, CRUD code generation, and database migrations as a production-oriented foundation for SaaS products, vertical applications, and AI-enabled business systems.
+
+![NovusAI SaaS system preview](docs/assets/screenshots/dashboard-preview.png)
 
 ## Table of Contents
 

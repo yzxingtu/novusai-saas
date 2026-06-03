@@ -261,18 +261,6 @@ ehthumbs_vista.db
 # Local production-acceptance artifacts
 /ops/acceptance-artifacts/
 
-# Workspace docs & agent context (not committed by default)
-/docs/*
-!/docs/guides/
-/docs/guides/*
-!/docs/guides/customer-fork-policy.md
-!/docs/guides/upstream-bugfix-policy.md
-!/docs/operations/
-/docs/operations/*
-!/docs/operations/customer-sync-runbook.md
-!/docs/operations/production-acceptance-runbook.md
-!/docs/operations/release-backport-policy.md
-
 # Uploads and media
 uploads/
 media/

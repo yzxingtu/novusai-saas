@@ -1,8 +1,14 @@
+<p align="center">
+  <img src="docs/assets/branding/logo.png" alt="NovusAI SaaS Logo" width="160" />
+</p>
+
 # NovusAI SaaS
 
 **语言：** 简体中文 · [English](README.en-US.md)
 
 NovusAI SaaS 是一个面向二次开发的多租户 AI SaaS 开发框架。它提供平台管理端、企业端、用户端、权限体系、插件系统、AI Agent 运行链路、实时通知、附件存储、代码生成与数据库迁移等基础能力，适合作为企业级 SaaS 产品、行业应用和 AI 原生业务系统的工程底座。
+
+![NovusAI SaaS 系统预览](docs/assets/screenshots/dashboard-preview.png)
 
 ## 目录
 
