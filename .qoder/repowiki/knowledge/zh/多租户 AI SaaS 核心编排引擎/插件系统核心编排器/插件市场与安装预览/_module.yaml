@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: backend/plugin_system/marketplace
+title: 插件市场与安装预览
+scope:
+    - backend/app/plugins/marketplace.py
+    - backend/app/plugins/marketplace_registry/
+    - backend/app/plugins/update_checker.py
+    - backend/app/plugins/preview.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/ai_domain/skills_plugins
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    - path: backend/plugin_system/security_migrations

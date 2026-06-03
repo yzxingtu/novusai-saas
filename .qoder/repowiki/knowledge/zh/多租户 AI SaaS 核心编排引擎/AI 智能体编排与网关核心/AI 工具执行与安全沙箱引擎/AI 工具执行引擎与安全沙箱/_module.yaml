@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/tools/external_executors
+title: AI 工具执行引擎与安全沙箱
+scope:
+    - backend/app/ai/tools/executors/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/tools/builtin_executors
+    - path: backend/plugin_system/runtime_support
+    - path: backend/ai_engine/gateway_support
+    - path: backend/ai_engine/tools/core_infrastructure

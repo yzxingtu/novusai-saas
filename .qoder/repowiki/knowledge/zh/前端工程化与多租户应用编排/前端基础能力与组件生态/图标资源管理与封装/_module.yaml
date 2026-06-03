@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/packages/icons
+title: 图标资源管理与封装
+scope:
+    - frontend/packages/icons/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core/base
+    - path: frontend/packages/core/ui_kit

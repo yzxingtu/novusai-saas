@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/internal/lint_configs
+title: 前端代码质量与风格规范配置
+scope:
+    - frontend/internal/lint-configs/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core
+    - path: frontend/scripts

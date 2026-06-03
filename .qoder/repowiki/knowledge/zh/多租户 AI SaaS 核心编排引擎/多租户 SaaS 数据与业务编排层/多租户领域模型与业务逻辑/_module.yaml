@@ -1,0 +1,17 @@
+schema_version: 1
+module_path: backend/data_layers/tenant_domain
+title: 多租户领域模型与业务逻辑
+scope:
+    - backend/app/models/tenant/
+    - backend/app/repositories/tenant/
+    - backend/app/schemas/tenant/
+    - backend/app/services/tenant/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/tenant_area
+    - path: backend/api_routes/tenant_api
+    - path: frontend/apps_web_antd/admin_area/tenant_management
+    - path: frontend/apps_web_antd/tenant_area/tenant_system
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/apps_web_antd/admin_area/system_admin

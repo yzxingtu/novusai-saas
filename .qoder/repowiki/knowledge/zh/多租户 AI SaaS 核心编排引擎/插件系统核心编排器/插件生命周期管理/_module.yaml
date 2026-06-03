@@ -1,0 +1,23 @@
+schema_version: 1
+module_path: backend/plugin_system/lifecycle
+title: 插件生命周期管理
+scope:
+    - backend/app/plugins/lifecycle.py
+    - backend/app/plugins/lifecycle_parts/
+    - backend/app/plugins/lifecycle_orchestrator.py
+    - backend/app/plugins/lifecycle_orchestrator_maintenance.py
+    - backend/app/plugins/lifecycle_guards.py
+    - backend/app/plugins/lifecycle_installation.py
+    - backend/app/plugins/lifecycle_migrations.py
+    - backend/app/plugins/lifecycle_runtime_state.py
+    - backend/app/plugins/lifecycle_support.py
+    - backend/app/plugins/lifecycle_dependency_runtime.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/migrations
+    - path: backend/data_layers/system_domain
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+    - path: backend/plugin_system/runtime_core
+    - path: backend/plugin_system/runtime_core/plugin_manifest

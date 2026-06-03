@@ -1,0 +1,33 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/shared_frontend
+title: 前端共享基础设施与业务组件库
+scope:
+    - frontend/apps/web-antd/src/api/shared/
+    - frontend/apps/web-antd/src/components/
+    - frontend/apps/web-antd/src/composables/
+    - frontend/apps/web-antd/src/store/
+    - frontend/apps/web-antd/src/utils/
+    - frontend/apps/web-antd/src/layouts/
+    - frontend/apps/web-antd/src/locales/
+    - frontend/apps/web-antd/src/router/
+    - frontend/apps/web-antd/src/types/
+    - frontend/apps/web-antd/src/features/
+    - frontend/apps/web-antd/src/core/
+    - frontend/apps/web-antd/src/directives/
+    - frontend/apps/web-antd/src/constants/
+    - frontend/apps/web-antd/src/styles/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/tasks
+    - path: backend/ai_engine/context
+    - path: frontend/apps_web_antd/admin_area
+    - path: frontend/packages/effects/request
+    - path: frontend/apps_web_antd/admin_area/auth_core
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/apps_web_antd/tenant_area
+    - path: frontend/packages/effects/hooks
+    - path: backend/ai_engine/runtime
+    - path: frontend/packages/utils
+    - path: backend/core_infra
+    - path: backend/plugin_system/runtime_support

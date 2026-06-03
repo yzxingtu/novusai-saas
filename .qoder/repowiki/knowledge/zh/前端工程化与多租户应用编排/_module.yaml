@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend
+title: 前端工程化与多租户应用编排
+scope:
+    - frontend/
+source_files: []
+depends_on: []
+related_to: []

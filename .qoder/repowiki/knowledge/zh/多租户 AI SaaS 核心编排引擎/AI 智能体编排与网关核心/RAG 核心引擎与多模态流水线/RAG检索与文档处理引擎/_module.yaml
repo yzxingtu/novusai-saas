@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: backend/ai_engine/rag/retrieval
+title: RAG检索与文档处理引擎
+scope:
+    - backend/app/ai/rag/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/rag/chunking
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: backend/ai_engine/rag/multimodal_description
+    - path: backend/ai_engine/context
+    - path: backend/ai_engine/rag/pipeline_orchestration
+    - path: backend/ai_engine/rag/embedding
+    - path: backend/ai_engine/rag/multimodal_parsing

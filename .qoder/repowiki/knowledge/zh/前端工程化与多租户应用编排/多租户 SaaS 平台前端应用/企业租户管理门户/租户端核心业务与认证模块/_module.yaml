@@ -1,0 +1,27 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/tenant_area/tenant_core
+title: 租户端核心业务与认证模块
+scope:
+    - frontend/apps/web-antd/src/views/tenant/dashboard/
+    - frontend/apps/web-antd/src/views/tenant/profile/
+    - frontend/apps/web-antd/src/views/tenant/authentication/
+    - frontend/apps/web-antd/src/views/tenant/analytics/
+    - frontend/apps/web-antd/src/api/tenant/dashboard.ts
+    - frontend/apps/web-antd/src/api/tenant/auth.ts
+    - frontend/apps/web-antd/src/api/tenant/analytics.ts
+    - frontend/apps/web-antd/src/api/tenant/menu.ts
+    - frontend/apps/web-antd/src/api/tenant/permission.ts
+    - frontend/apps/web-antd/src/api/tenant/role.ts
+    - frontend/apps/web-antd/src/api/tenant/tenant-user-roles.ts
+    - frontend/apps/web-antd/src/api/tenant/tenant-users.ts
+    - frontend/apps/web-antd/src/router/routes/tenant/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/tenant_area/tenant_system
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: frontend/packages/effects/layouts
+    - path: frontend/apps_web_antd/admin_area/auth_core
+    - path: frontend/packages/stores
+    - path: backend/data_layers/common_domain
+    - path: frontend/packages/effects/plugins

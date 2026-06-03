@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/packages/effects/access
+title: 前端权限控制与路由生成
+scope:
+    - frontend/packages/effects/access/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/rbac
+    - path: frontend/packages/utils
+    - path: frontend/playground/demos
+    - path: frontend/playground/system_admin
+    - path: frontend/apps_web_antd/user_area

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/playground/dashboard
+title: 仪表盘与数据分析视图
+scope:
+    - frontend/playground/src/views/dashboard/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/plugins

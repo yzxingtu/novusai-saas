@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: frontend/packages/effects/common_ui
+title: 通用 UI 组件与业务界面库
+scope:
+    - frontend/packages/effects/common-ui/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/playground/core_auth_views
+    - path: frontend/packages/styles
+    - path: backend/support_modules
+    - path: frontend/packages/core/ui_kit
+    - path: frontend/packages/effects/request

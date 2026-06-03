@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/storage
+title: 存储抽象与本地文件系统驱动
+scope:
+    - backend/app/storage/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugins_bundle
+    - path: backend/api_routes/user_api
+    - path: frontend/apps_web_antd/user_area
+    - path: backend/api_routes/public_api

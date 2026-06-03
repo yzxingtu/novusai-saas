@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/packages/utils
+title: 路由与菜单核心工具库
+scope:
+    - frontend/packages/utils/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/runtime_core
+    - path: frontend/packages/effects/access
+    - path: frontend/packages/core/base
+    - path: frontend/apps_web_antd/admin_area
+    - path: frontend/apps_web_antd/shared_frontend

@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/playground/core_auth_views
+title: 核心基础视图模块
+scope:
+    - frontend/playground/src/views/_core/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/layouts
+    - path: frontend/packages/effects/common_ui

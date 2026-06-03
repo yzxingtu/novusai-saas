@@ -62,9 +62,14 @@ backend/ruff_full_report.txt
 /.codex/
 /.cursor/
 /.cursorrules
-/.github/
+/.qoder/*
+!/.qoder/repowiki/
+!/.qoder/repowiki/**
 /AGENTS.md
 /AGENTS.example.md
+
+# The website is developed as a separate repository checked out locally here.
+/website/
 
 # Unit test / coverage reports
 reports/

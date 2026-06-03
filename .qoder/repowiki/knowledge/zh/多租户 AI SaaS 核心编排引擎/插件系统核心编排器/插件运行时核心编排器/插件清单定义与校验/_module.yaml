@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: backend/plugin_system/runtime_core/plugin_manifest
+title: 插件清单定义与校验
+scope:
+    - backend/app/plugins/manifest.py
+    - backend/app/plugins/manifest_helpers.py
+    - backend/app/plugins/manifest_metadata_schemas.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/runtime_core/plugin_loader
+    - path: backend/plugin_system/security_migrations
+    - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+    - path: backend/plugin_system/lifecycle

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/packages/effects/plugins
+title: 第三方插件封装与集成
+scope:
+    - frontend/packages/effects/plugins/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/playground/dashboard
+    - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+    - path: frontend/apps_web_antd/tenant_area/tenant_core

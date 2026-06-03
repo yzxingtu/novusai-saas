@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/packages/core/preferences
+title: 应用偏好设置与主题管理
+scope:
+    - frontend/packages/@core/preferences/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/layouts
+    - path: frontend/packages/preferences

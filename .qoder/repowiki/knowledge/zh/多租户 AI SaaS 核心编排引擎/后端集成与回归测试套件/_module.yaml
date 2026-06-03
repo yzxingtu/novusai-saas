@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/tests
+title: 后端集成与回归测试套件
+scope:
+    - backend/tests/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/core_infra
+    - path: backend/plugin_system
+    - path: backend/ai_engine
+    - path: backend/data_layers

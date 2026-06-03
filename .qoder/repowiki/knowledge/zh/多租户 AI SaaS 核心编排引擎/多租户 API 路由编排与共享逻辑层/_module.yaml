@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: backend/api_routes
+title: 多租户 API 路由编排与共享逻辑层
+scope:
+    - backend/app/api/
+source_files: []
+depends_on: []
+related_to: []

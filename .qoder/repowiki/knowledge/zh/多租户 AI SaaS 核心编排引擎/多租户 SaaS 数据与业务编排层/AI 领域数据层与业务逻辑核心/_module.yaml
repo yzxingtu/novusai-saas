@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/data_layers/ai_domain
+title: AI 领域数据层与业务逻辑核心
+scope:
+    - backend/app/models/ai/
+    - backend/app/repositories/ai/
+    - backend/app/schemas/ai/
+    - backend/app/services/ai/
+source_files: []
+depends_on: []
+related_to: []

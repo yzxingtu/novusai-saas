@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: backend/ai_engine/engine/intent_planning
+title: 意图规划与对话执行引擎
+scope:
+    - backend/app/ai/engine/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/user_area
+    - path: backend/ai_engine/engine/tool_loop
+    - path: backend/ai_engine/skills
+    - path: backend/ai_engine/context
+    - path: backend/ai_engine/engine/recovery

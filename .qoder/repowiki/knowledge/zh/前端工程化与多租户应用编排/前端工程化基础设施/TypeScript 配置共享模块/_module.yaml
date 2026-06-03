@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend/internal/tsconfig
+title: TypeScript 配置共享模块
+scope:
+    - frontend/internal/tsconfig/
+source_files: []
+depends_on: []
+related_to: []

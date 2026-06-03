@@ -1,0 +1,19 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/auth_core
+title: 平台管理端认证与个人中心
+scope:
+    - frontend/apps/web-antd/src/views/admin/authentication/
+    - frontend/apps/web-antd/src/views/admin/profile/
+    - frontend/apps/web-antd/src/api/admin/auth.ts
+    - frontend/apps/web-antd/src/api/admin/users.ts
+    - frontend/apps/web-antd/src/api/admin/menu.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/core_infra
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/apps_web_antd/tenant_area/tenant_core
+    - path: frontend/packages/stores
+    - path: backend/rbac
+    - path: backend/support_modules

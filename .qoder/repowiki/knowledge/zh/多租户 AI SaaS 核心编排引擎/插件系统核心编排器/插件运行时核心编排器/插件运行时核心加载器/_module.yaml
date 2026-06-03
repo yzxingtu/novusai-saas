@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/plugin_system/runtime_core/plugin_loader
+title: 插件运行时核心加载器
+scope:
+    - backend/app/plugins/base.py
+    - backend/app/plugins/loader.py
+    - backend/app/plugins/module_loader.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/runtime_core/plugin_manifest
+    - path: backend/plugin_system/runtime_core/plugin_registry_runtime

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: backend/ai_engine/context
+title: AI 上下文组装与生命周期管理
+scope:
+    - backend/app/ai/context/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: backend/ai_engine/engine/tool_loop
+    - path: backend/ai_engine/rag/retrieval
+    - path: backend/ai_engine/engine/intent_planning
+    - path: frontend/apps_web_antd/user_area

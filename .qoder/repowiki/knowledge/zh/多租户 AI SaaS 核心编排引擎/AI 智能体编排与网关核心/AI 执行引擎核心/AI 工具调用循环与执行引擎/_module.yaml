@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/ai_engine/engine/tool_loop
+title: AI 工具调用循环与执行引擎
+scope:
+    - backend/app/ai/engine/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/engine/intent_planning
+    - path: backend/ai_engine/context
+    - path: backend/ai_engine/engine/recovery

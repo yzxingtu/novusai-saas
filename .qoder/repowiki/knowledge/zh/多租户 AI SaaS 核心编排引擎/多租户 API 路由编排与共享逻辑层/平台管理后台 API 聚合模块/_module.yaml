@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/api_routes/admin_api
+title: 平台管理后台 API 聚合模块
+scope:
+    - backend/app/api/admin/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/system_domain
+    - path: backend/api_routes/api_shared

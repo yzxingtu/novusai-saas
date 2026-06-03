@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/rag/multimodal_parsing
+title: 多模态文档解析与 RAG 流水线
+scope:
+    - backend/app/ai/rag/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: backend/ai_engine/rag/pipeline_orchestration
+    - path: backend/ai_engine/rag/chunking
+    - path: backend/ai_engine/rag/retrieval

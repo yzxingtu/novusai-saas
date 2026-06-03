@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/ai_engine/tools/builtin_executors
+title: 内置工具执行器
+scope:
+    - backend/app/ai/tools/executors/builtin/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/tools/external_executors
+    - path: backend/ai_engine/tools/core_infrastructure

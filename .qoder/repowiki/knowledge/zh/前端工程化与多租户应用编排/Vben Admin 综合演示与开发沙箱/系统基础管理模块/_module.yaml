@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/playground/system_admin
+title: 系统基础管理模块
+scope:
+    - frontend/playground/src/views/system/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/rbac
+    - path: frontend/packages/effects/access

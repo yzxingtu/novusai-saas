@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/packages/stores
+title: 全局状态管理模块
+scope:
+    - frontend/packages/stores/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/hooks
+    - path: frontend/apps_web_antd/tenant_area/tenant_core
+    - path: frontend/apps_web_antd/admin_area/auth_core

@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/analytics_dashboard
+title: 管理端数据分析与仪表盘
+scope:
+    - frontend/apps/web-antd/src/views/admin/analytics/
+    - frontend/apps/web-antd/src/views/admin/dashboard/
+    - frontend/apps/web-antd/src/api/admin/analytics.ts
+    - frontend/apps/web-antd/src/api/admin/dashboard.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/system_domain
+    - path: frontend/apps_web_antd/admin_area/ai_management
+    - path: frontend/packages/effects/plugins
+    - path: backend/data_layers/ai_domain/monitoring_diagnostics

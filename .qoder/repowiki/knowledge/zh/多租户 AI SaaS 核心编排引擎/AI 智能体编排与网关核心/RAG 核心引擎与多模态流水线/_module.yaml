@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/ai_engine/rag
+title: RAG 核心引擎与多模态流水线
+scope:
+    - backend/app/ai/rag/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: backend/data_layers/ai_domain/knowledge_base

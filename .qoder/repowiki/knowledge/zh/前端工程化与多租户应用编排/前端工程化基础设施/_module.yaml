@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/internal
+title: 前端工程化基础设施
+scope:
+    - frontend/internal/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/codegen

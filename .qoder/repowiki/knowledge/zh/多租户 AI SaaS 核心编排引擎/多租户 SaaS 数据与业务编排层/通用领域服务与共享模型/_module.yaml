@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: backend/data_layers/common_domain
+title: 通用领域服务与共享模型
+scope:
+    - backend/app/models/common/
+    - backend/app/repositories/common/
+    - backend/app/schemas/common/
+    - backend/app/services/common/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/rbac
+    - path: backend/support_modules
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/apps_web_antd/tenant_area/tenant_core

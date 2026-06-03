@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/packages/core/base
+title: 核心基础能力与共享工具库
+scope:
+    - frontend/packages/@core/base/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/icons
+    - path: frontend/packages/types
+    - path: frontend/packages/utils

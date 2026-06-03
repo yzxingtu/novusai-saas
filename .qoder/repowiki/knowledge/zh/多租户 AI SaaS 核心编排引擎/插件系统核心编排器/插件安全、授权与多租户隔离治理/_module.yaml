@@ -1,0 +1,21 @@
+schema_version: 1
+module_path: backend/plugin_system/security_migrations
+title: 插件安全、授权与多租户隔离治理
+scope:
+    - backend/app/plugins/security.py
+    - backend/app/plugins/security_scan.py
+    - backend/app/plugins/crypto.py
+    - backend/app/plugins/package_security.py
+    - backend/app/plugins/migration_paths.py
+    - backend/app/plugins/license.py
+    - backend/app/plugins/exposure_policy.py
+    - backend/app/plugins/feature_entitlement_guards.py
+    - backend/app/plugins/tenant_plan_preflight.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/rbac
+    - path: backend/plugin_system/runtime_core/plugin_manifest
+    - path: backend/plugin_system/marketplace
+    - path: backend/plugin_system/runtime_core
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace

@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/plugins_marketplace
+title: 插件管理与市场中心
+scope:
+    - frontend/apps/web-antd/src/views/admin/plugins/
+    - frontend/apps/web-antd/src/api/admin/plugin.ts
+    - frontend/apps/web-antd/src/api/admin/plugin-marketplace.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system
+    - path: backend/ai_engine/skills
+    - path: backend/plugin_system/marketplace
+    - path: backend/plugin_system/lifecycle
+    - path: backend/plugin_system/runtime_support
+    - path: backend/plugin_system/security_migrations

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/tenant_area
+title: 企业租户管理门户
+scope:
+    - frontend/apps/web-antd/src/views/tenant/
+    - frontend/apps/web-antd/src/api/tenant/
+    - frontend/apps/web-antd/src/router/routes/tenant/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/tenant_domain
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/packages/effects/request

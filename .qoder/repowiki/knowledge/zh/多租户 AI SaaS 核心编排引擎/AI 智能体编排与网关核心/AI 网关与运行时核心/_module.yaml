@@ -1,0 +1,47 @@
+schema_version: 1
+module_path: backend/ai_engine/core
+title: AI 网关与运行时核心
+scope:
+    - backend/app/ai/utils/
+    - backend/app/ai/prompt_contracts/
+    - backend/app/ai/events/
+    - backend/app/ai/capabilities/
+    - backend/app/ai/__init__.py
+    - backend/app/ai/agent_quota_concurrency.py
+    - backend/app/ai/agent_quota_config.py
+    - backend/app/ai/agent_quota_exceptions.py
+    - backend/app/ai/agent_quota_manager.py
+    - backend/app/ai/agent_quota_manager_support.py
+    - backend/app/ai/agent_stats.py
+    - backend/app/ai/cache.py
+    - backend/app/ai/constants.py
+    - backend/app/ai/exceptions.py
+    - backend/app/ai/failover.py
+    - backend/app/ai/gateway.py
+    - backend/app/ai/internal_ai_service.py
+    - backend/app/ai/json_safe.py
+    - backend/app/ai/memory_policy.py
+    - backend/app/ai/page_locale.py
+    - backend/app/ai/quota_exceptions.py
+    - backend/app/ai/quota_manager.py
+    - backend/app/ai/quota_models.py
+    - backend/app/ai/quota_usage_tracker.py
+    - backend/app/ai/rag_injector.py
+    - backend/app/ai/rate_limiter.py
+    - backend/app/ai/retry_service.py
+    - backend/app/ai/sse.py
+    - backend/app/ai/text_semantics.py
+    - backend/app/ai/text_semantics_json.py
+    - backend/app/ai/text_semantics_terms.py
+    - backend/app/ai/text_semantics_tokens.py
+    - backend/app/ai/text_semantics_urls.py
+    - backend/app/ai/types.py
+    - backend/app/ai/usage_mode.py
+    - backend/app/ai/usage_recorder_context.py
+    - backend/app/ai/usage_recorder_core.py
+    - backend/app/ai/usage_recorder_support.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/gateway_support
+    - path: frontend/apps_web_antd/admin_area/ai_management

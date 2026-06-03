@@ -1,0 +1,23 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/tenant_area/tenant_system
+title: 租户系统管理与配置
+scope:
+    - frontend/apps/web-antd/src/views/tenant/system/
+    - frontend/apps/web-antd/src/views/tenant/system-mgmt/
+    - frontend/apps/web-antd/src/api/tenant/admins.ts
+    - frontend/apps/web-antd/src/api/tenant/announcement.ts
+    - frontend/apps/web-antd/src/api/tenant/attachment.ts
+    - frontend/apps/web-antd/src/api/tenant/configs.ts
+    - frontend/apps/web-antd/src/api/tenant/domain.ts
+    - frontend/apps/web-antd/src/api/tenant/operation-log.ts
+    - frontend/apps/web-antd/src/api/tenant/organization.ts
+    - frontend/apps/web-antd/src/api/tenant/preferences.ts
+    - frontend/apps/web-antd/src/api/tenant/execution-decisions.ts
+    - frontend/apps/web-antd/src/api/tenant/plugin.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/tenant_area/tenant_core
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: backend/data_layers/tenant_domain
+    - path: backend/configs

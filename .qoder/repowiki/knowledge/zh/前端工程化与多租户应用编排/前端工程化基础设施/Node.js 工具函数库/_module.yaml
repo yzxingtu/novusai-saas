@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/internal/node_utils
+title: Node.js 工具函数库
+scope:
+    - frontend/internal/node-utils/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/scripts
+    - path: frontend/internal/vite_config

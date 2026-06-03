@@ -1,0 +1,28 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/ai_management
+title: AI 平台管理控制台
+scope:
+    - frontend/apps/web-antd/src/views/admin/ai/
+    - frontend/apps/web-antd/src/api/admin/ai-agents.ts
+    - frontend/apps/web-antd/src/api/admin/ai-call-logs.ts
+    - frontend/apps/web-antd/src/api/admin/ai-conversations.ts
+    - frontend/apps/web-antd/src/api/admin/ai-models.ts
+    - frontend/apps/web-antd/src/api/admin/ai-providers.ts
+    - frontend/apps/web-antd/src/api/admin/ai-quotas.ts
+    - frontend/apps/web-antd/src/api/admin/ai-runtime.ts
+    - frontend/apps/web-antd/src/api/admin/knowledge-bases.ts
+    - frontend/apps/web-antd/src/api/admin/skill-packages.ts
+    - frontend/apps/web-antd/src/api/admin/skill-registry.ts
+    - frontend/apps/web-antd/src/api/admin/skills.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/routing
+    - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+    - path: backend/data_layers/ai_domain/monitoring_diagnostics
+    - path: backend/ai_engine/core
+    - path: backend/data_layers/ai_domain/skills_plugins
+    - path: backend/ai_engine/adapters
+    - path: backend/ai_engine/skills
+    - path: backend/ai_engine/gateway_support
+    - path: backend/data_layers/ai_domain/agent_runtime

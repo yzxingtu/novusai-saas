@@ -1,0 +1,30 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/system_admin
+title: 系统管理功能模块
+scope:
+    - frontend/apps/web-antd/src/views/admin/system/
+    - frontend/apps/web-antd/src/api/admin/announcement.ts
+    - frontend/apps/web-antd/src/api/admin/attachment.ts
+    - frontend/apps/web-antd/src/api/admin/codegen.ts
+    - frontend/apps/web-antd/src/api/admin/configs.ts
+    - frontend/apps/web-antd/src/api/admin/email-log.ts
+    - frontend/apps/web-antd/src/api/admin/notification-templates.ts
+    - frontend/apps/web-antd/src/api/admin/operation-log.ts
+    - frontend/apps/web-antd/src/api/admin/organization.ts
+    - frontend/apps/web-antd/src/api/admin/periodic-task.ts
+    - frontend/apps/web-antd/src/api/admin/permission.ts
+    - frontend/apps/web-antd/src/api/admin/preferences.ts
+    - frontend/apps/web-antd/src/api/admin/recycle-bin.ts
+    - frontend/apps/web-antd/src/api/admin/system-log.ts
+    - frontend/apps/web-antd/src/api/admin/task-log.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/tenant_management
+    - path: frontend/apps_web_antd/admin_area/auth_core
+    - path: backend/tasks
+    - path: backend/codegen
+    - path: backend/support_modules
+    - path: backend/data_layers/system_domain
+    - path: backend/rbac
+    - path: backend/data_layers/tenant_domain

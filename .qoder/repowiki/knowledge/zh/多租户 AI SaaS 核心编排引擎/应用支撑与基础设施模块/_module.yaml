@@ -1,0 +1,21 @@
+schema_version: 1
+module_path: backend/support_modules
+title: 应用支撑与基础设施模块
+scope:
+    - backend/app/enums/
+    - backend/app/exceptions/
+    - backend/app/middleware/
+    - backend/app/captcha/
+    - backend/app/sio/
+    - backend/app/cli_commands/
+    - backend/app/utils/
+    - backend/app/locales/
+    - backend/app/templates/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/api_routes/public_api
+    - path: backend/data_layers/common_domain
+    - path: frontend/packages/effects/common_ui
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: frontend/apps_web_antd/admin_area/auth_core

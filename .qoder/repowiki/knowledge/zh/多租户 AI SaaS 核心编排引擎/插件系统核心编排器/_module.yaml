@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/plugin_system
+title: 插件系统核心编排器
+scope:
+    - backend/app/plugins/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    - path: backend/scripts
+    - path: backend/tests

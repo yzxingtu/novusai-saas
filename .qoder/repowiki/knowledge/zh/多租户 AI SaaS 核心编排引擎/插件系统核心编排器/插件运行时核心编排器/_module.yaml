@@ -1,0 +1,23 @@
+schema_version: 1
+module_path: backend/plugin_system/runtime_core
+title: 插件运行时核心编排器
+scope:
+    - backend/app/plugins/base.py
+    - backend/app/plugins/loader.py
+    - backend/app/plugins/module_loader.py
+    - backend/app/plugins/registry.py
+    - backend/app/plugins/registry_read_layer.py
+    - backend/app/plugins/registry_runtime_extensions.py
+    - backend/app/plugins/runtime_gate.py
+    - backend/app/plugins/runtime_recovery.py
+    - backend/app/plugins/runtime_registration.py
+    - backend/app/plugins/manifest.py
+    - backend/app/plugins/manifest_helpers.py
+    - backend/app/plugins/manifest_metadata_schemas.py
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/utils
+    - path: backend/plugin_system/runtime_support
+    - path: backend/plugin_system/security_migrations
+    - path: backend/plugin_system/lifecycle

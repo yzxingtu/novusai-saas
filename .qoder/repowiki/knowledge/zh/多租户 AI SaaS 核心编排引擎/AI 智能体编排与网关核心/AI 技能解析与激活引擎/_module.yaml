@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/skills
+title: AI 技能解析与激活引擎
+scope:
+    - backend/app/ai/skills/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    - path: backend/ai_engine/engine/intent_planning
+    - path: backend/ai_engine/runtime
+    - path: frontend/apps_web_antd/admin_area/ai_management

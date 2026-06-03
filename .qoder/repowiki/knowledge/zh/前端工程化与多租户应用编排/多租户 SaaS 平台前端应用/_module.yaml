@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/apps_web_antd
+title: 多租户 SaaS 平台前端应用
+scope:
+    - frontend/apps/web-antd/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend

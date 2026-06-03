@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/internal/tailwind_config
+title: Tailwind CSS 配置与 PostCSS 集成
+scope:
+    - frontend/internal/tailwind-config/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core/ui_kit
+    - path: frontend/packages/styles

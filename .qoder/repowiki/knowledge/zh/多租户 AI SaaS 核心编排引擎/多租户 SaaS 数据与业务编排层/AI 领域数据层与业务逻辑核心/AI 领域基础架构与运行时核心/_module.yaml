@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: backend/data_layers/ai_domain/foundations
+title: AI 领域基础架构与运行时核心
+scope:
+    - backend/app/models/ai/
+    - backend/app/repositories/ai/
+    - backend/app/schemas/ai/
+    - backend/app/services/ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/ai_domain/agent_runtime
+    - path: backend/data_layers/ai_domain/skills_plugins

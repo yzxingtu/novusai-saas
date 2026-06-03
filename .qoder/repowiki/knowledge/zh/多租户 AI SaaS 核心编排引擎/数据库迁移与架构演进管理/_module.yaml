@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/migrations
+title: 数据库迁移与架构演进管理
+scope:
+    - backend/migrations/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/lifecycle
+    - path: backend/configs
+    - path: backend/scripts

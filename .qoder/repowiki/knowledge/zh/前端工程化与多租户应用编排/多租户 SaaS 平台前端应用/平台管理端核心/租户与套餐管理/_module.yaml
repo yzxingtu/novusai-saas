@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area/tenant_management
+title: 租户与套餐管理
+scope:
+    - frontend/apps/web-antd/src/views/admin/tenant/
+    - frontend/apps/web-antd/src/api/admin/tenant.ts
+    - frontend/apps/web-antd/src/api/admin/tenant-domain.ts
+    - frontend/apps/web-antd/src/api/admin/tenant-users.ts
+    - frontend/apps/web-antd/src/api/admin/plan.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: backend/data_layers/tenant_domain
+    - path: backend/data_layers/system_domain
+    - path: backend/rbac

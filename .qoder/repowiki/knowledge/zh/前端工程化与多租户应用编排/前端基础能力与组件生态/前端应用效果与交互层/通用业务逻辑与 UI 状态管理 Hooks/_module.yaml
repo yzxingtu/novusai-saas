@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend/packages/effects/hooks
+title: 通用业务逻辑与 UI 状态管理 Hooks
+scope:
+    - frontend/packages/effects/hooks/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/stores
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/packages/preferences
+    - path: frontend/packages/effects/layouts

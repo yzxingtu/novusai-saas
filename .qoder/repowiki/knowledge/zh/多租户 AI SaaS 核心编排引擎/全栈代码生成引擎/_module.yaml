@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/codegen
+title: 全栈代码生成引擎
+scope:
+    - backend/app/codegen/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/internal
+    - path: frontend/apps_web_antd/admin_area/system_admin

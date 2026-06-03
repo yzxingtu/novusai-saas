@@ -1,0 +1,17 @@
+schema_version: 1
+module_path: backend/data_layers/system_domain
+title: 平台核心业务与运维服务
+scope:
+    - backend/app/models/system/
+    - backend/app/repositories/system/
+    - backend/app/schemas/system/
+    - backend/app/services/system/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+    - path: backend/api_routes/admin_api
+    - path: backend/plugin_system/lifecycle
+    - path: frontend/apps_web_antd/admin_area/tenant_management
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: backend/tasks

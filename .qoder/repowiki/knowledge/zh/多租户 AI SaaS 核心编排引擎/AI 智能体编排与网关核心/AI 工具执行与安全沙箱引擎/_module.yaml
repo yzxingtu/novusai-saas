@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: backend/ai_engine/tools
+title: AI 工具执行与安全沙箱引擎
+scope:
+    - backend/app/ai/tools/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/request

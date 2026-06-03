@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/packages/locales
+title: 国际化与多语言支持
+scope:
+    - frontend/packages/locales/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/constants

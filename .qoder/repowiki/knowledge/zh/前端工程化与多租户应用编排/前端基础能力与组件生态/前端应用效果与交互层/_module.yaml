@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend/packages/effects
+title: 前端应用效果与交互层
+scope:
+    - frontend/packages/effects/
+source_files: []
+depends_on: []
+related_to: []

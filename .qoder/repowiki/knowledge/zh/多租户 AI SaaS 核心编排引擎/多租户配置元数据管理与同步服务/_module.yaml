@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/configs
+title: 多租户配置元数据管理与同步服务
+scope:
+    - backend/app/configs/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/api_routes/public_api
+    - path: backend/migrations
+    - path: frontend/apps_web_antd/tenant_area/tenant_system

@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: backend/data_layers/ai_domain/knowledge_base
+title: 知识库与文档管理
+scope:
+    - backend/app/models/ai/
+    - backend/app/repositories/ai/
+    - backend/app/schemas/ai/
+    - backend/app/services/ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/rag
+    - path: backend/ai_engine/rag/embedding
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai

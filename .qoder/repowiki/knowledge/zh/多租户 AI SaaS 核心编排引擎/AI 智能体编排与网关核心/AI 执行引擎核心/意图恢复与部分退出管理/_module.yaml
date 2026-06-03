@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/engine/recovery
+title: 意图恢复与部分退出管理
+scope:
+    - backend/app/ai/engine/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/engine/streaming_pipeline
+    - path: backend/ai_engine/engine/conversation_orchestration
+    - path: backend/ai_engine/engine/intent_planning
+    - path: backend/ai_engine/engine/tool_loop

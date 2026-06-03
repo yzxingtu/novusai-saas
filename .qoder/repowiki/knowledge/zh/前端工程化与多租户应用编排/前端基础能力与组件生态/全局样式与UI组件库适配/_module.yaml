@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/packages/styles
+title: 全局样式与UI组件库适配
+scope:
+    - frontend/packages/styles/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core/ui_kit
+    - path: frontend/internal/tailwind_config
+    - path: frontend/packages/effects/common_ui

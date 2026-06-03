@@ -1,0 +1,17 @@
+schema_version: 1
+module_path: backend/plugin_system/runtime_core/plugin_registry_runtime
+title: 插件扩展点注册与运行时管理
+scope:
+    - backend/app/plugins/registry.py
+    - backend/app/plugins/registry_read_layer.py
+    - backend/app/plugins/registry_runtime_extensions.py
+    - backend/app/plugins/runtime_gate.py
+    - backend/app/plugins/runtime_recovery.py
+    - backend/app/plugins/runtime_registration.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/runtime_core/plugin_loader
+    - path: backend/plugin_system/lifecycle
+    - path: backend/plugin_system/runtime_core/plugin_manifest
+    - path: backend/plugin_system/runtime_support

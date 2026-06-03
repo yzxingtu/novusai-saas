@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/tasks
+title: 异步任务调度与执行引擎
+scope:
+    - backend/app/tasks/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: backend/data_layers/system_domain

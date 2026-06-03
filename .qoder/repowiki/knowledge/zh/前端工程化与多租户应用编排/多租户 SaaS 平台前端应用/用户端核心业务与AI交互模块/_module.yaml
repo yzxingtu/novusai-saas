@@ -1,0 +1,24 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/user_area
+title: 用户端核心业务与AI交互模块
+scope:
+    - frontend/apps/web-antd/src/views/user/
+    - frontend/apps/web-antd/src/api/user/
+    - frontend/apps/web-antd/src/router/routes/user/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine
+    - path: backend/ai_engine/engine/intent_planning
+    - path: backend/ai_engine/runtime
+    - path: frontend/packages/effects/common_ui
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/packages/effects/request
+    - path: backend/data_layers/common_domain
+    - path: backend/storage
+    - path: backend/ai_engine/context
+    - path: backend/rbac
+    - path: backend/core_infra
+    - path: backend/data_layers/tenant_domain
+    - path: backend/ai_engine/engine/conversation_orchestration
+    - path: frontend/packages/effects/access

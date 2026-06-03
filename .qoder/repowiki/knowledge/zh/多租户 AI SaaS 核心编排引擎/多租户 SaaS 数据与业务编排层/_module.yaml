@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/data_layers
+title: 多租户 SaaS 数据与业务编排层
+scope:
+    - backend/app/models/
+    - backend/app/repositories/
+    - backend/app/schemas/
+    - backend/app/services/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/tests

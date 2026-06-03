@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/scripts
+title: 后端运维脚本与插件CLI工具集
+scope:
+    - backend/scripts/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system
+    - path: backend/migrations

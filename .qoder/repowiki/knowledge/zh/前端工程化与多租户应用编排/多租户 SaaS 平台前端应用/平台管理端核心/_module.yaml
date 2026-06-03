@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/apps_web_antd/admin_area
+title: 平台管理端核心
+scope:
+    - frontend/apps/web-antd/src/views/admin/
+    - frontend/apps/web-antd/src/api/admin/
+    - frontend/apps/web-antd/src/router/routes/admin/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/packages/utils
+    - path: frontend/packages/effects/request

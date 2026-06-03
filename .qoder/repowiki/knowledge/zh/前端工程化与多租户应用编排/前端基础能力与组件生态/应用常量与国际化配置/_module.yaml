@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/packages/constants
+title: 应用常量与国际化配置
+scope:
+    - frontend/packages/constants/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/locales

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine
+title: AI 智能体编排与网关核心
+scope:
+    - backend/app/ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/user_area
+    - path: backend/api_routes/user_api
+    - path: backend/tests
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/packages/effects/layouts
+title: 应用布局与认证界面系统
+scope:
+    - frontend/packages/effects/layouts/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core/preferences
+    - path: frontend/playground/core_auth_views
+    - path: frontend/apps_web_antd/tenant_area/tenant_core
+    - path: frontend/packages/preferences
+    - path: frontend/packages/effects/hooks

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/api_routes/public_api
+title: 公开 API 路由聚合模块
+scope:
+    - backend/app/api/public/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/support_modules
+    - path: backend/configs
+    - path: backend/core_infra
+    - path: backend/storage

@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend/playground
+title: Vben Admin 综合演示与开发沙箱
+scope:
+    - frontend/playground/
+source_files: []
+depends_on: []
+related_to: []

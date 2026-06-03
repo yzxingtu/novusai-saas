@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/internal/vite_config
+title: Vite 构建配置与插件封装
+scope:
+    - frontend/internal/vite-config/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/internal/node_utils

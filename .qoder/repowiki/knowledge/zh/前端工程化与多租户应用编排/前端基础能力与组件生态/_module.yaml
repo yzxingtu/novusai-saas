@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend/packages
+title: 前端基础能力与组件生态
+scope:
+    - frontend/packages/
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/rag/pipeline_orchestration
+title: RAG 流水线编排与检索引擎
+scope:
+    - backend/app/ai/rag/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/rag/multimodal_parsing
+    - path: backend/ai_engine/rag/multimodal_description
+    - path: backend/ai_engine/rag/retrieval
+    - path: backend/ai_engine/rag/chunking

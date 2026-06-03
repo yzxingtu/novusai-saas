@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: backend
+title: 多租户 AI SaaS 核心编排引擎
+scope:
+    - backend/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd

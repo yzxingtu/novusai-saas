@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: frontend/packages/core
+title: 前端核心基础架构与组件生态
+scope:
+    - frontend/packages/@core/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/internal/lint_configs

@@ -1,0 +1,36 @@
+schema_version: 1
+module_path: backend/plugin_system/runtime_support
+title: 插件运行时沙箱与通信基础设施
+scope:
+    - backend/app/plugins/context.py
+    - backend/app/plugins/context_factory.py
+    - backend/app/plugins/context_primitives.py
+    - backend/app/plugins/event_bus.py
+    - backend/app/plugins/dependencies.py
+    - backend/app/plugins/exceptions.py
+    - backend/app/plugins/scope.py
+    - backend/app/plugins/host_read_facade.py
+    - backend/app/plugins/_extension_registrar.py
+    - backend/app/plugins/api_dispatcher.py
+    - backend/app/plugins/webhook_dispatcher.py
+    - backend/app/plugins/sse.py
+    - backend/app/plugins/sio_auth.py
+    - backend/app/plugins/asset_resolver.py
+    - backend/app/plugins/asset_runtime.py
+    - backend/app/plugins/frontend_contract.py
+    - backend/app/plugins/frontend_contract_checks.py
+    - backend/app/plugins/health.py
+    - backend/app/plugins/progress.py
+    - backend/app/plugins/scheduler_refresh.py
+    - backend/app/plugins/startup.py
+    - backend/app/plugins/system_hooks.py
+    - backend/app/plugins/version_manager.py
+    - backend/app/plugins/backup.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/plugin_system/runtime_core
+    - path: backend/ai_engine/tools/external_executors
+    - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+    - path: frontend/apps_web_antd/shared_frontend

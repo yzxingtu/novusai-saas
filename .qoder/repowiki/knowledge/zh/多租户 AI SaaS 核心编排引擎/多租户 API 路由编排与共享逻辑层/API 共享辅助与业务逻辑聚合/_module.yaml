@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/api_routes/api_shared
+title: API 共享辅助与业务逻辑聚合
+scope:
+    - backend/app/api/shared/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/core_infra
+    - path: backend/api_routes/user_api
+    - path: backend/api_routes/admin_api
+    - path: backend/api_routes/tenant_api

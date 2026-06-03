@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: frontend/packages/effects/request
+title: HTTP 请求客户端封装
+scope:
+    - frontend/packages/effects/request/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/tools
+    - path: backend/ai_engine/engine/streaming_pipeline
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/apps_web_antd/admin_area
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/apps_web_antd/tenant_area
+    - path: frontend/packages/effects/common_ui

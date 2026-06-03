@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/packages/preferences
+title: 应用偏好配置覆写模块
+scope:
+    - frontend/packages/preferences/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/core/preferences
+    - path: frontend/packages/effects/layouts
+    - path: frontend/packages/effects/hooks

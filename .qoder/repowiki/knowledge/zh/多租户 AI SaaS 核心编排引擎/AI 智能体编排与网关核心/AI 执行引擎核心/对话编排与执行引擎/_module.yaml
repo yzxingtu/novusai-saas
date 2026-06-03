@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/ai_engine/engine/conversation_orchestration
+title: 对话编排与执行引擎
+scope:
+    - backend/app/ai/engine/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/engine/recovery
+    - path: frontend/apps_web_antd/user_area

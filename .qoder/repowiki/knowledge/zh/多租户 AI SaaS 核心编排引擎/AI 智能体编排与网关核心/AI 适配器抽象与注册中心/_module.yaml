@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/ai_engine/adapters
+title: AI 适配器抽象与注册中心
+scope:
+    - backend/app/ai/adapters/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/routing
+    - path: frontend/apps_web_antd/admin_area/ai_management

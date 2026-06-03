@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: frontend/packages/core/ui_kit
+title: 核心 UI 组件库与布局系统
+scope:
+    - frontend/packages/@core/ui-kit/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/internal/tailwind_config
+    - path: frontend/playground/examples
+    - path: frontend/packages/styles
+    - path: frontend/packages/icons
+    - path: frontend/packages/core/composables
+    - path: frontend/packages/effects/common_ui

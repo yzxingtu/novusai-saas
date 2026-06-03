@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: backend/core_infra
+title: 核心基础设施与多租户架构基座
+scope:
+    - backend/app/core/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/auth_core
+    - path: backend/api_routes/api_shared
+    - path: backend/tests
+    - path: backend/api_routes/public_api
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: frontend/apps_web_antd/user_area

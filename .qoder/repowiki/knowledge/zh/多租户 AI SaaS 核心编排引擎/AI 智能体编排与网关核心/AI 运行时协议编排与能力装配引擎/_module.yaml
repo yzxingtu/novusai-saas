@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: backend/ai_engine/runtime
+title: AI 运行时协议编排与能力装配引擎
+scope:
+    - backend/app/ai/runtime/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/user_area
+    - path: backend/ai_engine/engine
+    - path: backend/ai_engine/skills
+    - path: frontend/apps_web_antd/shared_frontend
+    - path: backend/ai_engine/engine/streaming_pipeline

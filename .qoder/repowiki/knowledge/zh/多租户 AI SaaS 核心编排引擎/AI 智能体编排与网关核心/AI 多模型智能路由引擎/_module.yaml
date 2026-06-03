@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: backend/ai_engine/routing
+title: AI 多模型智能路由引擎
+scope:
+    - backend/app/ai/routing/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/apps_web_antd/admin_area/ai_management
+    - path: backend/ai_engine/adapters

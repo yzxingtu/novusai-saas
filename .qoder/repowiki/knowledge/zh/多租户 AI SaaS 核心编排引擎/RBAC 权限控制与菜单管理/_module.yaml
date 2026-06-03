@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: backend/rbac
+title: RBAC 权限控制与菜单管理
+scope:
+    - backend/app/rbac/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/access
+    - path: backend/plugin_system/security_migrations
+    - path: frontend/playground/system_admin
+    - path: backend/data_layers/common_domain
+    - path: frontend/apps_web_antd/admin_area/auth_core
+    - path: frontend/apps_web_antd/user_area
+    - path: frontend/apps_web_antd/admin_area/system_admin
+    - path: frontend/apps_web_antd/admin_area/tenant_management

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: backend/ai_engine/gateway_support
+title: AI网关支持模块
+scope:
+    - backend/app/ai/gateway_support/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/ai_engine/core
+    - path: backend/ai_engine/tools/external_executors
+    - path: frontend/apps_web_antd/admin_area/ai_management

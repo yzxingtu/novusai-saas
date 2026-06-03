@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: backend/data_layers/ai_domain/agent_runtime
+title: 智能体运行时与对话编排
+scope:
+    - backend/app/models/ai/
+    - backend/app/repositories/ai/
+    - backend/app/schemas/ai/
+    - backend/app/services/ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/data_layers/ai_domain/foundations
+    - path: backend/data_layers/ai_domain/monitoring_diagnostics
+    - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    - path: frontend/apps_web_antd/admin_area/ai_management

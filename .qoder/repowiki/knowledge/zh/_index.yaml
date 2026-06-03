@@ -1,0 +1,1745 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+exported_at: "2026-06-03T14:50:06Z"
+modules:
+    "":
+        dir_name: NovusAI SaaS 多租户 AI 平台编排根节点
+        title: NovusAI SaaS 多租户 AI 平台编排根节点
+        scope:
+            - .dockerignore
+            - .gitattributes
+            - .gitignore
+            - CONTRIBUTING.md
+            - LICENSE
+            - README.en-US.md
+            - README.md
+            - SECURITY.md
+            - docker-compose.dev.yml
+            - docker-compose.prod.yml
+            - production.env.example
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    backend:
+        dir_name: 多租户 AI SaaS 核心编排引擎
+        title: 多租户 AI SaaS 核心编排引擎
+        scope:
+            - backend/
+        source_files: []
+        children:
+            - backend/plugin_system
+            - backend/migrations
+            - backend/scripts
+            - backend/ai_engine
+            - backend/tasks
+            - backend/api_routes
+            - backend/core_infra
+            - backend/rbac
+            - backend/support_modules
+            - backend/data_layers
+            - backend/codegen
+            - backend/plugins_bundle
+            - backend/configs
+            - backend/storage
+            - backend/tests
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd
+    backend/ai_engine:
+        dir_name: AI 智能体编排与网关核心
+        title: AI 智能体编排与网关核心
+        scope:
+            - backend/app/ai/
+        source_files: []
+        children:
+            - backend/ai_engine/core
+            - backend/ai_engine/adapters
+            - backend/ai_engine/routing
+            - backend/ai_engine/skills
+            - backend/ai_engine/runtime
+            - backend/ai_engine/engine
+            - backend/ai_engine/tools
+            - backend/ai_engine/rag
+            - backend/ai_engine/gateway_support
+            - backend/ai_engine/context
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/user_area
+            - path: backend/api_routes/user_api
+            - path: backend/tests
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    backend/ai_engine/adapters:
+        dir_name: AI 适配器抽象与注册中心
+        title: AI 适配器抽象与注册中心
+        scope:
+            - backend/app/ai/adapters/
+        source_files: []
+        children:
+            - backend/ai_engine/adapters/openai_compatible
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/routing
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/ai_engine/adapters/openai_compatible:
+        dir_name: OpenAI 兼容协议适配与多路复用引擎
+        title: OpenAI 兼容协议适配与多路复用引擎
+        scope:
+            - backend/app/ai/adapters/openai_compatible/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    backend/ai_engine/context:
+        dir_name: AI 上下文组装与生命周期管理
+        title: AI 上下文组装与生命周期管理
+        scope:
+            - backend/app/ai/context/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: backend/ai_engine/engine/tool_loop
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/ai_engine/engine/intent_planning
+            - path: frontend/apps_web_antd/user_area
+    backend/ai_engine/core:
+        dir_name: AI 网关与运行时核心
+        title: AI 网关与运行时核心
+        scope:
+            - backend/app/ai/utils/
+            - backend/app/ai/prompt_contracts/
+            - backend/app/ai/events/
+            - backend/app/ai/capabilities/
+            - backend/app/ai/__init__.py
+            - backend/app/ai/agent_quota_concurrency.py
+            - backend/app/ai/agent_quota_config.py
+            - backend/app/ai/agent_quota_exceptions.py
+            - backend/app/ai/agent_quota_manager.py
+            - backend/app/ai/agent_quota_manager_support.py
+            - backend/app/ai/agent_stats.py
+            - backend/app/ai/cache.py
+            - backend/app/ai/constants.py
+            - backend/app/ai/exceptions.py
+            - backend/app/ai/failover.py
+            - backend/app/ai/gateway.py
+            - backend/app/ai/internal_ai_service.py
+            - backend/app/ai/json_safe.py
+            - backend/app/ai/memory_policy.py
+            - backend/app/ai/page_locale.py
+            - backend/app/ai/quota_exceptions.py
+            - backend/app/ai/quota_manager.py
+            - backend/app/ai/quota_models.py
+            - backend/app/ai/quota_usage_tracker.py
+            - backend/app/ai/rag_injector.py
+            - backend/app/ai/rate_limiter.py
+            - backend/app/ai/retry_service.py
+            - backend/app/ai/sse.py
+            - backend/app/ai/text_semantics.py
+            - backend/app/ai/text_semantics_json.py
+            - backend/app/ai/text_semantics_terms.py
+            - backend/app/ai/text_semantics_tokens.py
+            - backend/app/ai/text_semantics_urls.py
+            - backend/app/ai/types.py
+            - backend/app/ai/usage_mode.py
+            - backend/app/ai/usage_recorder_context.py
+            - backend/app/ai/usage_recorder_core.py
+            - backend/app/ai/usage_recorder_support.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/gateway_support
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/ai_engine/engine:
+        dir_name: AI 执行引擎核心
+        title: AI 执行引擎核心
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children:
+            - backend/ai_engine/engine/recovery
+            - backend/ai_engine/engine/streaming_pipeline
+            - backend/ai_engine/engine/conversation_orchestration
+            - backend/ai_engine/engine/intent_planning
+            - backend/ai_engine/engine/tool_loop
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/runtime
+    backend/ai_engine/engine/conversation_orchestration:
+        dir_name: 对话编排与执行引擎
+        title: 对话编排与执行引擎
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/engine/recovery
+            - path: frontend/apps_web_antd/user_area
+    backend/ai_engine/engine/intent_planning:
+        dir_name: 意图规划与对话执行引擎
+        title: 意图规划与对话执行引擎
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/user_area
+            - path: backend/ai_engine/engine/tool_loop
+            - path: backend/ai_engine/skills
+            - path: backend/ai_engine/context
+            - path: backend/ai_engine/engine/recovery
+    backend/ai_engine/engine/recovery:
+        dir_name: 意图恢复与部分退出管理
+        title: 意图恢复与部分退出管理
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/engine/streaming_pipeline
+            - path: backend/ai_engine/engine/conversation_orchestration
+            - path: backend/ai_engine/engine/intent_planning
+            - path: backend/ai_engine/engine/tool_loop
+    backend/ai_engine/engine/streaming_pipeline:
+        dir_name: 流式对话执行引擎
+        title: 流式对话执行引擎
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/request
+            - path: backend/ai_engine/engine/recovery
+            - path: backend/api_routes/user_api
+            - path: backend/ai_engine/runtime
+    backend/ai_engine/engine/tool_loop:
+        dir_name: AI 工具调用循环与执行引擎
+        title: AI 工具调用循环与执行引擎
+        scope:
+            - backend/app/ai/engine/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/engine/intent_planning
+            - path: backend/ai_engine/context
+            - path: backend/ai_engine/engine/recovery
+    backend/ai_engine/gateway_support:
+        dir_name: AI网关支持模块
+        title: AI网关支持模块
+        scope:
+            - backend/app/ai/gateway_support/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/core
+            - path: backend/ai_engine/tools/external_executors
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/ai_engine/rag:
+        dir_name: RAG 核心引擎与多模态流水线
+        title: RAG 核心引擎与多模态流水线
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children:
+            - backend/ai_engine/rag/retrieval
+            - backend/ai_engine/rag/pipeline_orchestration
+            - backend/ai_engine/rag/embedding
+            - backend/ai_engine/rag/chunking
+            - backend/ai_engine/rag/multimodal_parsing
+            - backend/ai_engine/rag/multimodal_description
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: backend/data_layers/ai_domain/knowledge_base
+    backend/ai_engine/rag/chunking:
+        dir_name: RAG 文本分块与结构感知引擎
+        title: RAG 文本分块与结构感知引擎
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/ai_engine/rag/multimodal_parsing
+            - path: backend/ai_engine/rag/pipeline_orchestration
+    backend/ai_engine/rag/embedding:
+        dir_name: 向量嵌入与检索服务
+        title: 向量嵌入与检索服务
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: backend/data_layers/ai_domain/knowledge_base
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/ai_engine/rag/multimodal_description
+    backend/ai_engine/rag/multimodal_description:
+        dir_name: RAG 核心引擎与多模态处理
+        title: RAG 核心引擎与多模态处理
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag/pipeline_orchestration
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/ai_engine/rag/embedding
+    backend/ai_engine/rag/multimodal_parsing:
+        dir_name: 多模态文档解析与 RAG 流水线
+        title: 多模态文档解析与 RAG 流水线
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: backend/ai_engine/rag/pipeline_orchestration
+            - path: backend/ai_engine/rag/chunking
+            - path: backend/ai_engine/rag/retrieval
+    backend/ai_engine/rag/pipeline_orchestration:
+        dir_name: RAG 流水线编排与检索引擎
+        title: RAG 流水线编排与检索引擎
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag/multimodal_parsing
+            - path: backend/ai_engine/rag/multimodal_description
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/ai_engine/rag/chunking
+    backend/ai_engine/rag/retrieval:
+        dir_name: RAG检索与文档处理引擎
+        title: RAG检索与文档处理引擎
+        scope:
+            - backend/app/ai/rag/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag/chunking
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: backend/ai_engine/rag/multimodal_description
+            - path: backend/ai_engine/context
+            - path: backend/ai_engine/rag/pipeline_orchestration
+            - path: backend/ai_engine/rag/embedding
+            - path: backend/ai_engine/rag/multimodal_parsing
+    backend/ai_engine/routing:
+        dir_name: AI 多模型智能路由引擎
+        title: AI 多模型智能路由引擎
+        scope:
+            - backend/app/ai/routing/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/ai_management
+            - path: backend/ai_engine/adapters
+    backend/ai_engine/runtime:
+        dir_name: AI 运行时协议编排与能力装配引擎
+        title: AI 运行时协议编排与能力装配引擎
+        scope:
+            - backend/app/ai/runtime/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/user_area
+            - path: backend/ai_engine/engine
+            - path: backend/ai_engine/skills
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: backend/ai_engine/engine/streaming_pipeline
+    backend/ai_engine/skills:
+        dir_name: AI 技能解析与激活引擎
+        title: AI 技能解析与激活引擎
+        scope:
+            - backend/app/ai/skills/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+            - path: backend/ai_engine/engine/intent_planning
+            - path: backend/ai_engine/runtime
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/ai_engine/tools:
+        dir_name: AI 工具执行与安全沙箱引擎
+        title: AI 工具执行与安全沙箱引擎
+        scope:
+            - backend/app/ai/tools/
+        source_files: []
+        children:
+            - backend/ai_engine/tools/builtin_executors
+            - backend/ai_engine/tools/external_executors
+            - backend/ai_engine/tools/core_infrastructure
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/request
+    backend/ai_engine/tools/builtin_executors:
+        dir_name: 内置工具执行器
+        title: 内置工具执行器
+        scope:
+            - backend/app/ai/tools/executors/builtin/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/tools/external_executors
+            - path: backend/ai_engine/tools/core_infrastructure
+    backend/ai_engine/tools/core_infrastructure:
+        dir_name: AI 工具执行引擎与安全沙箱_2
+        title: AI 工具执行引擎与安全沙箱
+        scope:
+            - backend/app/ai/tools/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/tools/builtin_executors
+            - path: backend/ai_engine/tools/external_executors
+    backend/ai_engine/tools/external_executors:
+        dir_name: AI 工具执行引擎与安全沙箱
+        title: AI 工具执行引擎与安全沙箱
+        scope:
+            - backend/app/ai/tools/executors/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/tools/builtin_executors
+            - path: backend/plugin_system/runtime_support
+            - path: backend/ai_engine/gateway_support
+            - path: backend/ai_engine/tools/core_infrastructure
+    backend/api_routes:
+        dir_name: 多租户 API 路由编排与共享逻辑层
+        title: 多租户 API 路由编排与共享逻辑层
+        scope:
+            - backend/app/api/
+        source_files: []
+        children:
+            - backend/api_routes/api_shared
+            - backend/api_routes/tenant_api
+            - backend/api_routes/admin_api
+            - backend/api_routes/public_api
+            - backend/api_routes/user_api
+        depends_on: []
+        related_to: []
+    backend/api_routes/admin_api:
+        dir_name: 平台管理后台 API 聚合模块
+        title: 平台管理后台 API 聚合模块
+        scope:
+            - backend/app/api/admin/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/system_domain
+            - path: backend/api_routes/api_shared
+    backend/api_routes/api_shared:
+        dir_name: API 共享辅助与业务逻辑聚合
+        title: API 共享辅助与业务逻辑聚合
+        scope:
+            - backend/app/api/shared/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/core_infra
+            - path: backend/api_routes/user_api
+            - path: backend/api_routes/admin_api
+            - path: backend/api_routes/tenant_api
+    backend/api_routes/public_api:
+        dir_name: 公开 API 路由聚合模块
+        title: 公开 API 路由聚合模块
+        scope:
+            - backend/app/api/public/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/support_modules
+            - path: backend/configs
+            - path: backend/core_infra
+            - path: backend/storage
+    backend/api_routes/tenant_api:
+        dir_name: 企业管理后台 API 路由聚合
+        title: 企业管理后台 API 路由聚合
+        scope:
+            - backend/app/api/tenant/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/tenant_domain
+            - path: backend/api_routes/api_shared
+    backend/api_routes/user_api:
+        dir_name: 用户端业务接口模块
+        title: 用户端业务接口模块
+        scope:
+            - backend/app/api/user/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine
+            - path: backend/storage
+            - path: backend/api_routes/api_shared
+            - path: backend/ai_engine/engine/streaming_pipeline
+    backend/codegen:
+        dir_name: 全栈代码生成引擎
+        title: 全栈代码生成引擎
+        scope:
+            - backend/app/codegen/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/internal
+            - path: frontend/apps_web_antd/admin_area/system_admin
+    backend/configs:
+        dir_name: 多租户配置元数据管理与同步服务
+        title: 多租户配置元数据管理与同步服务
+        scope:
+            - backend/app/configs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/api_routes/public_api
+            - path: backend/migrations
+            - path: frontend/apps_web_antd/tenant_area/tenant_system
+    backend/core_infra:
+        dir_name: 核心基础设施与多租户架构基座
+        title: 核心基础设施与多租户架构基座
+        scope:
+            - backend/app/core/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/auth_core
+            - path: backend/api_routes/api_shared
+            - path: backend/tests
+            - path: backend/api_routes/public_api
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/apps_web_antd/user_area
+    backend/data_layers:
+        dir_name: 多租户 SaaS 数据与业务编排层
+        title: 多租户 SaaS 数据与业务编排层
+        scope:
+            - backend/app/models/
+            - backend/app/repositories/
+            - backend/app/schemas/
+            - backend/app/services/
+        source_files: []
+        children:
+            - backend/data_layers/system_domain
+            - backend/data_layers/common_domain
+            - backend/data_layers/ai_domain
+            - backend/data_layers/tenant_domain
+        depends_on: []
+        related_to:
+            - path: backend/tests
+    backend/data_layers/ai_domain:
+        dir_name: AI 领域数据层与业务逻辑核心
+        title: AI 领域数据层与业务逻辑核心
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children:
+            - backend/data_layers/ai_domain/monitoring_diagnostics
+            - backend/data_layers/ai_domain/skills_plugins
+            - backend/data_layers/ai_domain/knowledge_base
+            - backend/data_layers/ai_domain/foundations
+            - backend/data_layers/ai_domain/agent_runtime
+        depends_on: []
+        related_to: []
+    backend/data_layers/ai_domain/agent_runtime:
+        dir_name: 智能体运行时与对话编排
+        title: 智能体运行时与对话编排
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/ai_domain/foundations
+            - path: backend/data_layers/ai_domain/monitoring_diagnostics
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/data_layers/ai_domain/foundations:
+        dir_name: AI 领域基础架构与运行时核心
+        title: AI 领域基础架构与运行时核心
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/ai_domain/agent_runtime
+            - path: backend/data_layers/ai_domain/skills_plugins
+    backend/data_layers/ai_domain/knowledge_base:
+        dir_name: 知识库与文档管理
+        title: 知识库与文档管理
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag
+            - path: backend/ai_engine/rag/embedding
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    backend/data_layers/ai_domain/monitoring_diagnostics:
+        dir_name: AI 监控与运行时诊断
+        title: AI 监控与运行时诊断
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/ai_domain/agent_runtime
+            - path: frontend/apps_web_antd/admin_area/ai_management
+            - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+    backend/data_layers/ai_domain/skills_plugins:
+        dir_name: AI 技能与插件注册管理
+        title: AI 技能与插件注册管理
+        scope:
+            - backend/app/models/ai/
+            - backend/app/repositories/ai/
+            - backend/app/schemas/ai/
+            - backend/app/services/ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/marketplace
+            - path: backend/data_layers/ai_domain/foundations
+            - path: frontend/apps_web_antd/admin_area/ai_management
+    backend/data_layers/common_domain:
+        dir_name: 通用领域服务与共享模型
+        title: 通用领域服务与共享模型
+        scope:
+            - backend/app/models/common/
+            - backend/app/repositories/common/
+            - backend/app/schemas/common/
+            - backend/app/services/common/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/rbac
+            - path: backend/support_modules
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+    backend/data_layers/system_domain:
+        dir_name: 平台核心业务与运维服务
+        title: 平台核心业务与运维服务
+        scope:
+            - backend/app/models/system/
+            - backend/app/repositories/system/
+            - backend/app/schemas/system/
+            - backend/app/services/system/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+            - path: backend/api_routes/admin_api
+            - path: backend/plugin_system/lifecycle
+            - path: frontend/apps_web_antd/admin_area/tenant_management
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: backend/tasks
+    backend/data_layers/tenant_domain:
+        dir_name: 多租户领域模型与业务逻辑
+        title: 多租户领域模型与业务逻辑
+        scope:
+            - backend/app/models/tenant/
+            - backend/app/repositories/tenant/
+            - backend/app/schemas/tenant/
+            - backend/app/services/tenant/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area
+            - path: backend/api_routes/tenant_api
+            - path: frontend/apps_web_antd/admin_area/tenant_management
+            - path: frontend/apps_web_antd/tenant_area/tenant_system
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/apps_web_antd/admin_area/system_admin
+    backend/migrations:
+        dir_name: 数据库迁移与架构演进管理
+        title: 数据库迁移与架构演进管理
+        scope:
+            - backend/migrations/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/lifecycle
+            - path: backend/configs
+            - path: backend/scripts
+    backend/plugin_system:
+        dir_name: 插件系统核心编排器
+        title: 插件系统核心编排器
+        scope:
+            - backend/app/plugins/
+        source_files: []
+        children:
+            - backend/plugin_system/runtime_core
+            - backend/plugin_system/marketplace
+            - backend/plugin_system/lifecycle
+            - backend/plugin_system/security_migrations
+            - backend/plugin_system/runtime_support
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+            - path: backend/scripts
+            - path: backend/tests
+    backend/plugin_system/lifecycle:
+        dir_name: 插件生命周期管理
+        title: 插件生命周期管理
+        scope:
+            - backend/app/plugins/lifecycle.py
+            - backend/app/plugins/lifecycle_parts/
+            - backend/app/plugins/lifecycle_orchestrator.py
+            - backend/app/plugins/lifecycle_orchestrator_maintenance.py
+            - backend/app/plugins/lifecycle_guards.py
+            - backend/app/plugins/lifecycle_installation.py
+            - backend/app/plugins/lifecycle_migrations.py
+            - backend/app/plugins/lifecycle_runtime_state.py
+            - backend/app/plugins/lifecycle_support.py
+            - backend/app/plugins/lifecycle_dependency_runtime.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/migrations
+            - path: backend/data_layers/system_domain
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+            - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+            - path: backend/plugin_system/runtime_core
+            - path: backend/plugin_system/runtime_core/plugin_manifest
+    backend/plugin_system/marketplace:
+        dir_name: 插件市场与安装预览
+        title: 插件市场与安装预览
+        scope:
+            - backend/app/plugins/marketplace.py
+            - backend/app/plugins/marketplace_registry/
+            - backend/app/plugins/update_checker.py
+            - backend/app/plugins/preview.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/ai_domain/skills_plugins
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+            - path: backend/plugin_system/security_migrations
+    backend/plugin_system/runtime_core:
+        dir_name: 插件运行时核心编排器
+        title: 插件运行时核心编排器
+        scope:
+            - backend/app/plugins/base.py
+            - backend/app/plugins/loader.py
+            - backend/app/plugins/module_loader.py
+            - backend/app/plugins/registry.py
+            - backend/app/plugins/registry_read_layer.py
+            - backend/app/plugins/registry_runtime_extensions.py
+            - backend/app/plugins/runtime_gate.py
+            - backend/app/plugins/runtime_recovery.py
+            - backend/app/plugins/runtime_registration.py
+            - backend/app/plugins/manifest.py
+            - backend/app/plugins/manifest_helpers.py
+            - backend/app/plugins/manifest_metadata_schemas.py
+        source_files: []
+        children:
+            - backend/plugin_system/runtime_core/plugin_loader
+            - backend/plugin_system/runtime_core/plugin_registry_runtime
+            - backend/plugin_system/runtime_core/plugin_manifest
+        depends_on: []
+        related_to:
+            - path: frontend/packages/utils
+            - path: backend/plugin_system/runtime_support
+            - path: backend/plugin_system/security_migrations
+            - path: backend/plugin_system/lifecycle
+    backend/plugin_system/runtime_core/plugin_loader:
+        dir_name: 插件运行时核心加载器
+        title: 插件运行时核心加载器
+        scope:
+            - backend/app/plugins/base.py
+            - backend/app/plugins/loader.py
+            - backend/app/plugins/module_loader.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/runtime_core/plugin_manifest
+            - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+    backend/plugin_system/runtime_core/plugin_manifest:
+        dir_name: 插件清单定义与校验
+        title: 插件清单定义与校验
+        scope:
+            - backend/app/plugins/manifest.py
+            - backend/app/plugins/manifest_helpers.py
+            - backend/app/plugins/manifest_metadata_schemas.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/runtime_core/plugin_loader
+            - path: backend/plugin_system/security_migrations
+            - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+            - path: backend/plugin_system/lifecycle
+    backend/plugin_system/runtime_core/plugin_registry_runtime:
+        dir_name: 插件扩展点注册与运行时管理
+        title: 插件扩展点注册与运行时管理
+        scope:
+            - backend/app/plugins/registry.py
+            - backend/app/plugins/registry_read_layer.py
+            - backend/app/plugins/registry_runtime_extensions.py
+            - backend/app/plugins/runtime_gate.py
+            - backend/app/plugins/runtime_recovery.py
+            - backend/app/plugins/runtime_registration.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/runtime_core/plugin_loader
+            - path: backend/plugin_system/lifecycle
+            - path: backend/plugin_system/runtime_core/plugin_manifest
+            - path: backend/plugin_system/runtime_support
+    backend/plugin_system/runtime_support:
+        dir_name: 插件运行时沙箱与通信基础设施
+        title: 插件运行时沙箱与通信基础设施
+        scope:
+            - backend/app/plugins/context.py
+            - backend/app/plugins/context_factory.py
+            - backend/app/plugins/context_primitives.py
+            - backend/app/plugins/event_bus.py
+            - backend/app/plugins/dependencies.py
+            - backend/app/plugins/exceptions.py
+            - backend/app/plugins/scope.py
+            - backend/app/plugins/host_read_facade.py
+            - backend/app/plugins/_extension_registrar.py
+            - backend/app/plugins/api_dispatcher.py
+            - backend/app/plugins/webhook_dispatcher.py
+            - backend/app/plugins/sse.py
+            - backend/app/plugins/sio_auth.py
+            - backend/app/plugins/asset_resolver.py
+            - backend/app/plugins/asset_runtime.py
+            - backend/app/plugins/frontend_contract.py
+            - backend/app/plugins/frontend_contract_checks.py
+            - backend/app/plugins/health.py
+            - backend/app/plugins/progress.py
+            - backend/app/plugins/scheduler_refresh.py
+            - backend/app/plugins/startup.py
+            - backend/app/plugins/system_hooks.py
+            - backend/app/plugins/version_manager.py
+            - backend/app/plugins/backup.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/runtime_core
+            - path: backend/ai_engine/tools/external_executors
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+            - path: backend/plugin_system/runtime_core/plugin_registry_runtime
+            - path: frontend/apps_web_antd/shared_frontend
+    backend/plugin_system/security_migrations:
+        dir_name: 插件安全、授权与多租户隔离治理
+        title: 插件安全、授权与多租户隔离治理
+        scope:
+            - backend/app/plugins/security.py
+            - backend/app/plugins/security_scan.py
+            - backend/app/plugins/crypto.py
+            - backend/app/plugins/package_security.py
+            - backend/app/plugins/migration_paths.py
+            - backend/app/plugins/license.py
+            - backend/app/plugins/exposure_policy.py
+            - backend/app/plugins/feature_entitlement_guards.py
+            - backend/app/plugins/tenant_plan_preflight.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/rbac
+            - path: backend/plugin_system/runtime_core/plugin_manifest
+            - path: backend/plugin_system/marketplace
+            - path: backend/plugin_system/runtime_core
+            - path: frontend/apps_web_antd/admin_area/plugins_marketplace
+    backend/plugins_bundle:
+        dir_name: 插件化扩展与功能模块集
+        title: 插件化扩展与功能模块集
+        scope:
+            - backend/plugins/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/storage
+    backend/rbac:
+        dir_name: RBAC 权限控制与菜单管理
+        title: RBAC 权限控制与菜单管理
+        scope:
+            - backend/app/rbac/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/access
+            - path: backend/plugin_system/security_migrations
+            - path: frontend/playground/system_admin
+            - path: backend/data_layers/common_domain
+            - path: frontend/apps_web_antd/admin_area/auth_core
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: frontend/apps_web_antd/admin_area/tenant_management
+    backend/scripts:
+        dir_name: 后端运维脚本与插件CLI工具集
+        title: 后端运维脚本与插件CLI工具集
+        scope:
+            - backend/scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system
+            - path: backend/migrations
+    backend/storage:
+        dir_name: 存储抽象与本地文件系统驱动
+        title: 存储抽象与本地文件系统驱动
+        scope:
+            - backend/app/storage/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugins_bundle
+            - path: backend/api_routes/user_api
+            - path: frontend/apps_web_antd/user_area
+            - path: backend/api_routes/public_api
+    backend/support_modules:
+        dir_name: 应用支撑与基础设施模块
+        title: 应用支撑与基础设施模块
+        scope:
+            - backend/app/enums/
+            - backend/app/exceptions/
+            - backend/app/middleware/
+            - backend/app/captcha/
+            - backend/app/sio/
+            - backend/app/cli_commands/
+            - backend/app/utils/
+            - backend/app/locales/
+            - backend/app/templates/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/api_routes/public_api
+            - path: backend/data_layers/common_domain
+            - path: frontend/packages/effects/common_ui
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: frontend/apps_web_antd/admin_area/auth_core
+    backend/tasks:
+        dir_name: 异步任务调度与执行引擎
+        title: 异步任务调度与执行引擎
+        scope:
+            - backend/app/tasks/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: backend/data_layers/system_domain
+    backend/tests:
+        dir_name: 后端集成与回归测试套件
+        title: 后端集成与回归测试套件
+        scope:
+            - backend/tests/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/core_infra
+            - path: backend/plugin_system
+            - path: backend/ai_engine
+            - path: backend/data_layers
+    frontend:
+        dir_name: 前端工程化与多租户应用编排
+        title: 前端工程化与多租户应用编排
+        scope:
+            - frontend/
+        source_files: []
+        children:
+            - frontend/apps_web_antd
+            - frontend/playground
+            - frontend/packages
+            - frontend/scripts
+            - frontend/internal
+        depends_on: []
+        related_to: []
+    frontend/apps_web_antd:
+        dir_name: 多租户 SaaS 平台前端应用
+        title: 多租户 SaaS 平台前端应用
+        scope:
+            - frontend/apps/web-antd/
+        source_files: []
+        children:
+            - frontend/apps_web_antd/admin_area
+            - frontend/apps_web_antd/shared_frontend
+            - frontend/apps_web_antd/tenant_area
+            - frontend/apps_web_antd/user_area
+        depends_on: []
+        related_to:
+            - path: backend
+    frontend/apps_web_antd/admin_area:
+        dir_name: 平台管理端核心
+        title: 平台管理端核心
+        scope:
+            - frontend/apps/web-antd/src/views/admin/
+            - frontend/apps/web-antd/src/api/admin/
+            - frontend/apps/web-antd/src/router/routes/admin/
+        source_files: []
+        children:
+            - frontend/apps_web_antd/admin_area/system_admin
+            - frontend/apps_web_antd/admin_area/ai_management
+            - frontend/apps_web_antd/admin_area/analytics_dashboard
+            - frontend/apps_web_antd/admin_area/tenant_management
+            - frontend/apps_web_antd/admin_area/plugins_marketplace
+            - frontend/apps_web_antd/admin_area/auth_core
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/packages/utils
+            - path: frontend/packages/effects/request
+    frontend/apps_web_antd/admin_area/ai_management:
+        dir_name: AI 平台管理控制台
+        title: AI 平台管理控制台
+        scope:
+            - frontend/apps/web-antd/src/views/admin/ai/
+            - frontend/apps/web-antd/src/api/admin/ai-agents.ts
+            - frontend/apps/web-antd/src/api/admin/ai-call-logs.ts
+            - frontend/apps/web-antd/src/api/admin/ai-conversations.ts
+            - frontend/apps/web-antd/src/api/admin/ai-models.ts
+            - frontend/apps/web-antd/src/api/admin/ai-providers.ts
+            - frontend/apps/web-antd/src/api/admin/ai-quotas.ts
+            - frontend/apps/web-antd/src/api/admin/ai-runtime.ts
+            - frontend/apps/web-antd/src/api/admin/knowledge-bases.ts
+            - frontend/apps/web-antd/src/api/admin/skill-packages.ts
+            - frontend/apps/web-antd/src/api/admin/skill-registry.ts
+            - frontend/apps/web-antd/src/api/admin/skills.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/routing
+            - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+            - path: backend/data_layers/ai_domain/monitoring_diagnostics
+            - path: backend/ai_engine/core
+            - path: backend/data_layers/ai_domain/skills_plugins
+            - path: backend/ai_engine/adapters
+            - path: backend/ai_engine/skills
+            - path: backend/ai_engine/gateway_support
+            - path: backend/data_layers/ai_domain/agent_runtime
+    frontend/apps_web_antd/admin_area/analytics_dashboard:
+        dir_name: 管理端数据分析与仪表盘
+        title: 管理端数据分析与仪表盘
+        scope:
+            - frontend/apps/web-antd/src/views/admin/analytics/
+            - frontend/apps/web-antd/src/views/admin/dashboard/
+            - frontend/apps/web-antd/src/api/admin/analytics.ts
+            - frontend/apps/web-antd/src/api/admin/dashboard.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/system_domain
+            - path: frontend/apps_web_antd/admin_area/ai_management
+            - path: frontend/packages/effects/plugins
+            - path: backend/data_layers/ai_domain/monitoring_diagnostics
+    frontend/apps_web_antd/admin_area/auth_core:
+        dir_name: 平台管理端认证与个人中心
+        title: 平台管理端认证与个人中心
+        scope:
+            - frontend/apps/web-antd/src/views/admin/authentication/
+            - frontend/apps/web-antd/src/views/admin/profile/
+            - frontend/apps/web-antd/src/api/admin/auth.ts
+            - frontend/apps/web-antd/src/api/admin/users.ts
+            - frontend/apps/web-antd/src/api/admin/menu.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/core_infra
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+            - path: frontend/packages/stores
+            - path: backend/rbac
+            - path: backend/support_modules
+    frontend/apps_web_antd/admin_area/plugins_marketplace:
+        dir_name: 插件管理与市场中心
+        title: 插件管理与市场中心
+        scope:
+            - frontend/apps/web-antd/src/views/admin/plugins/
+            - frontend/apps/web-antd/src/api/admin/plugin.ts
+            - frontend/apps/web-antd/src/api/admin/plugin-marketplace.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system
+            - path: backend/ai_engine/skills
+            - path: backend/plugin_system/marketplace
+            - path: backend/plugin_system/lifecycle
+            - path: backend/plugin_system/runtime_support
+            - path: backend/plugin_system/security_migrations
+    frontend/apps_web_antd/admin_area/system_admin:
+        dir_name: 系统管理功能模块
+        title: 系统管理功能模块
+        scope:
+            - frontend/apps/web-antd/src/views/admin/system/
+            - frontend/apps/web-antd/src/api/admin/announcement.ts
+            - frontend/apps/web-antd/src/api/admin/attachment.ts
+            - frontend/apps/web-antd/src/api/admin/codegen.ts
+            - frontend/apps/web-antd/src/api/admin/configs.ts
+            - frontend/apps/web-antd/src/api/admin/email-log.ts
+            - frontend/apps/web-antd/src/api/admin/notification-templates.ts
+            - frontend/apps/web-antd/src/api/admin/operation-log.ts
+            - frontend/apps/web-antd/src/api/admin/organization.ts
+            - frontend/apps/web-antd/src/api/admin/periodic-task.ts
+            - frontend/apps/web-antd/src/api/admin/permission.ts
+            - frontend/apps/web-antd/src/api/admin/preferences.ts
+            - frontend/apps/web-antd/src/api/admin/recycle-bin.ts
+            - frontend/apps/web-antd/src/api/admin/system-log.ts
+            - frontend/apps/web-antd/src/api/admin/task-log.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/tenant_management
+            - path: frontend/apps_web_antd/admin_area/auth_core
+            - path: backend/tasks
+            - path: backend/codegen
+            - path: backend/support_modules
+            - path: backend/data_layers/system_domain
+            - path: backend/rbac
+            - path: backend/data_layers/tenant_domain
+    frontend/apps_web_antd/admin_area/tenant_management:
+        dir_name: 租户与套餐管理
+        title: 租户与套餐管理
+        scope:
+            - frontend/apps/web-antd/src/views/admin/tenant/
+            - frontend/apps/web-antd/src/api/admin/tenant.ts
+            - frontend/apps/web-antd/src/api/admin/tenant-domain.ts
+            - frontend/apps/web-antd/src/api/admin/tenant-users.ts
+            - frontend/apps/web-antd/src/api/admin/plan.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/admin_area/system_admin
+            - path: backend/data_layers/tenant_domain
+            - path: backend/data_layers/system_domain
+            - path: backend/rbac
+    frontend/apps_web_antd/shared_frontend:
+        dir_name: 前端共享基础设施与业务组件库
+        title: 前端共享基础设施与业务组件库
+        scope:
+            - frontend/apps/web-antd/src/api/shared/
+            - frontend/apps/web-antd/src/components/
+            - frontend/apps/web-antd/src/composables/
+            - frontend/apps/web-antd/src/store/
+            - frontend/apps/web-antd/src/utils/
+            - frontend/apps/web-antd/src/layouts/
+            - frontend/apps/web-antd/src/locales/
+            - frontend/apps/web-antd/src/router/
+            - frontend/apps/web-antd/src/types/
+            - frontend/apps/web-antd/src/features/
+            - frontend/apps/web-antd/src/core/
+            - frontend/apps/web-antd/src/directives/
+            - frontend/apps/web-antd/src/constants/
+            - frontend/apps/web-antd/src/styles/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/tasks
+            - path: backend/ai_engine/context
+            - path: frontend/apps_web_antd/admin_area
+            - path: frontend/packages/effects/request
+            - path: frontend/apps_web_antd/admin_area/auth_core
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/apps_web_antd/tenant_area
+            - path: frontend/packages/effects/hooks
+            - path: backend/ai_engine/runtime
+            - path: frontend/packages/utils
+            - path: backend/core_infra
+            - path: backend/plugin_system/runtime_support
+    frontend/apps_web_antd/tenant_area:
+        dir_name: 企业租户管理门户
+        title: 企业租户管理门户
+        scope:
+            - frontend/apps/web-antd/src/views/tenant/
+            - frontend/apps/web-antd/src/api/tenant/
+            - frontend/apps/web-antd/src/router/routes/tenant/
+        source_files: []
+        children:
+            - frontend/apps_web_antd/tenant_area/tenant_system
+            - frontend/apps_web_antd/tenant_area/tenant_core
+            - frontend/apps_web_antd/tenant_area/tenant_ai
+        depends_on: []
+        related_to:
+            - path: backend/data_layers/tenant_domain
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/packages/effects/request
+    frontend/apps_web_antd/tenant_area/tenant_ai:
+        dir_name: 企业级 AI 智能体与知识库管理
+        title: 企业级 AI 智能体与知识库管理
+        scope:
+            - frontend/apps/web-antd/src/views/tenant/ai/
+            - frontend/apps/web-antd/src/api/tenant/agents.ts
+            - frontend/apps/web-antd/src/api/tenant/ai.ts
+            - frontend/apps/web-antd/src/api/tenant/conversations.ts
+            - frontend/apps/web-antd/src/api/tenant/knowledge-bases.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/rag
+            - path: backend/ai_engine/rag/multimodal_parsing
+            - path: backend/ai_engine/rag/embedding
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+            - path: frontend/apps_web_antd/tenant_area/tenant_system
+            - path: backend/ai_engine/rag/retrieval
+            - path: backend/data_layers/ai_domain/agent_runtime
+            - path: backend/data_layers/ai_domain/knowledge_base
+            - path: backend/data_layers/ai_domain/monitoring_diagnostics
+            - path: backend/ai_engine
+    frontend/apps_web_antd/tenant_area/tenant_core:
+        dir_name: 租户端核心业务与认证模块
+        title: 租户端核心业务与认证模块
+        scope:
+            - frontend/apps/web-antd/src/views/tenant/dashboard/
+            - frontend/apps/web-antd/src/views/tenant/profile/
+            - frontend/apps/web-antd/src/views/tenant/authentication/
+            - frontend/apps/web-antd/src/views/tenant/analytics/
+            - frontend/apps/web-antd/src/api/tenant/dashboard.ts
+            - frontend/apps/web-antd/src/api/tenant/auth.ts
+            - frontend/apps/web-antd/src/api/tenant/analytics.ts
+            - frontend/apps/web-antd/src/api/tenant/menu.ts
+            - frontend/apps/web-antd/src/api/tenant/permission.ts
+            - frontend/apps/web-antd/src/api/tenant/role.ts
+            - frontend/apps/web-antd/src/api/tenant/tenant-user-roles.ts
+            - frontend/apps/web-antd/src/api/tenant/tenant-users.ts
+            - frontend/apps/web-antd/src/router/routes/tenant/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area/tenant_system
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: frontend/packages/effects/layouts
+            - path: frontend/apps_web_antd/admin_area/auth_core
+            - path: frontend/packages/stores
+            - path: backend/data_layers/common_domain
+            - path: frontend/packages/effects/plugins
+    frontend/apps_web_antd/tenant_area/tenant_system:
+        dir_name: 租户系统管理与配置
+        title: 租户系统管理与配置
+        scope:
+            - frontend/apps/web-antd/src/views/tenant/system/
+            - frontend/apps/web-antd/src/views/tenant/system-mgmt/
+            - frontend/apps/web-antd/src/api/tenant/admins.ts
+            - frontend/apps/web-antd/src/api/tenant/announcement.ts
+            - frontend/apps/web-antd/src/api/tenant/attachment.ts
+            - frontend/apps/web-antd/src/api/tenant/configs.ts
+            - frontend/apps/web-antd/src/api/tenant/domain.ts
+            - frontend/apps/web-antd/src/api/tenant/operation-log.ts
+            - frontend/apps/web-antd/src/api/tenant/organization.ts
+            - frontend/apps/web-antd/src/api/tenant/preferences.ts
+            - frontend/apps/web-antd/src/api/tenant/execution-decisions.ts
+            - frontend/apps/web-antd/src/api/tenant/plugin.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+            - path: frontend/apps_web_antd/tenant_area/tenant_ai
+            - path: backend/data_layers/tenant_domain
+            - path: backend/configs
+    frontend/apps_web_antd/user_area:
+        dir_name: 用户端核心业务与AI交互模块
+        title: 用户端核心业务与AI交互模块
+        scope:
+            - frontend/apps/web-antd/src/views/user/
+            - frontend/apps/web-antd/src/api/user/
+            - frontend/apps/web-antd/src/router/routes/user/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine
+            - path: backend/ai_engine/engine/intent_planning
+            - path: backend/ai_engine/runtime
+            - path: frontend/packages/effects/common_ui
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/packages/effects/request
+            - path: backend/data_layers/common_domain
+            - path: backend/storage
+            - path: backend/ai_engine/context
+            - path: backend/rbac
+            - path: backend/core_infra
+            - path: backend/data_layers/tenant_domain
+            - path: backend/ai_engine/engine/conversation_orchestration
+            - path: frontend/packages/effects/access
+    frontend/internal:
+        dir_name: 前端工程化基础设施
+        title: 前端工程化基础设施
+        scope:
+            - frontend/internal/
+        source_files: []
+        children:
+            - frontend/internal/lint_configs
+            - frontend/internal/vite_config
+            - frontend/internal/node_utils
+            - frontend/internal/tsconfig
+            - frontend/internal/tailwind_config
+        depends_on: []
+        related_to:
+            - path: backend/codegen
+    frontend/internal/lint_configs:
+        dir_name: 前端代码质量与风格规范配置
+        title: 前端代码质量与风格规范配置
+        scope:
+            - frontend/internal/lint-configs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core
+            - path: frontend/scripts
+    frontend/internal/node_utils:
+        dir_name: Node.js 工具函数库
+        title: Node.js 工具函数库
+        scope:
+            - frontend/internal/node-utils/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/scripts
+            - path: frontend/internal/vite_config
+    frontend/internal/tailwind_config:
+        dir_name: Tailwind CSS 配置与 PostCSS 集成
+        title: Tailwind CSS 配置与 PostCSS 集成
+        scope:
+            - frontend/internal/tailwind-config/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/ui_kit
+            - path: frontend/packages/styles
+    frontend/internal/tsconfig:
+        dir_name: TypeScript 配置共享模块
+        title: TypeScript 配置共享模块
+        scope:
+            - frontend/internal/tsconfig/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend/internal/vite_config:
+        dir_name: Vite 构建配置与插件封装
+        title: Vite 构建配置与插件封装
+        scope:
+            - frontend/internal/vite-config/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/internal/node_utils
+    frontend/packages:
+        dir_name: 前端基础能力与组件生态
+        title: 前端基础能力与组件生态
+        scope:
+            - frontend/packages/
+        source_files: []
+        children:
+            - frontend/packages/utils
+            - frontend/packages/preferences
+            - frontend/packages/constants
+            - frontend/packages/locales
+            - frontend/packages/effects
+            - frontend/packages/core
+            - frontend/packages/types
+            - frontend/packages/icons
+            - frontend/packages/styles
+            - frontend/packages/stores
+        depends_on: []
+        related_to: []
+    frontend/packages/constants:
+        dir_name: 应用常量与国际化配置
+        title: 应用常量与国际化配置
+        scope:
+            - frontend/packages/constants/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/locales
+    frontend/packages/core:
+        dir_name: 前端核心基础架构与组件生态
+        title: 前端核心基础架构与组件生态
+        scope:
+            - frontend/packages/@core/
+        source_files: []
+        children:
+            - frontend/packages/core/preferences
+            - frontend/packages/core/base
+            - frontend/packages/core/composables
+            - frontend/packages/core/ui_kit
+        depends_on: []
+        related_to:
+            - path: frontend/internal/lint_configs
+    frontend/packages/core/base:
+        dir_name: 核心基础能力与共享工具库
+        title: 核心基础能力与共享工具库
+        scope:
+            - frontend/packages/@core/base/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/icons
+            - path: frontend/packages/types
+            - path: frontend/packages/utils
+    frontend/packages/core/composables:
+        dir_name: 核心组合式函数库
+        title: 核心组合式函数库
+        scope:
+            - frontend/packages/@core/composables/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/ui_kit
+    frontend/packages/core/preferences:
+        dir_name: 应用偏好设置与主题管理
+        title: 应用偏好设置与主题管理
+        scope:
+            - frontend/packages/@core/preferences/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/layouts
+            - path: frontend/packages/preferences
+    frontend/packages/core/ui_kit:
+        dir_name: 核心 UI 组件库与布局系统
+        title: 核心 UI 组件库与布局系统
+        scope:
+            - frontend/packages/@core/ui-kit/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/internal/tailwind_config
+            - path: frontend/playground/examples
+            - path: frontend/packages/styles
+            - path: frontend/packages/icons
+            - path: frontend/packages/core/composables
+            - path: frontend/packages/effects/common_ui
+    frontend/packages/effects:
+        dir_name: 前端应用效果与交互层
+        title: 前端应用效果与交互层
+        scope:
+            - frontend/packages/effects/
+        source_files: []
+        children:
+            - frontend/packages/effects/hooks
+            - frontend/packages/effects/request
+            - frontend/packages/effects/common_ui
+            - frontend/packages/effects/access
+            - frontend/packages/effects/plugins
+            - frontend/packages/effects/layouts
+        depends_on: []
+        related_to: []
+    frontend/packages/effects/access:
+        dir_name: 前端权限控制与路由生成
+        title: 前端权限控制与路由生成
+        scope:
+            - frontend/packages/effects/access/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/rbac
+            - path: frontend/packages/utils
+            - path: frontend/playground/demos
+            - path: frontend/playground/system_admin
+            - path: frontend/apps_web_antd/user_area
+    frontend/packages/effects/common_ui:
+        dir_name: 通用 UI 组件与业务界面库
+        title: 通用 UI 组件与业务界面库
+        scope:
+            - frontend/packages/effects/common-ui/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/playground/core_auth_views
+            - path: frontend/packages/styles
+            - path: backend/support_modules
+            - path: frontend/packages/core/ui_kit
+            - path: frontend/packages/effects/request
+    frontend/packages/effects/hooks:
+        dir_name: 通用业务逻辑与 UI 状态管理 Hooks
+        title: 通用业务逻辑与 UI 状态管理 Hooks
+        scope:
+            - frontend/packages/effects/hooks/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/stores
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/packages/preferences
+            - path: frontend/packages/effects/layouts
+    frontend/packages/effects/layouts:
+        dir_name: 应用布局与认证界面系统
+        title: 应用布局与认证界面系统
+        scope:
+            - frontend/packages/effects/layouts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/preferences
+            - path: frontend/playground/core_auth_views
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+            - path: frontend/packages/preferences
+            - path: frontend/packages/effects/hooks
+    frontend/packages/effects/plugins:
+        dir_name: 第三方插件封装与集成
+        title: 第三方插件封装与集成
+        scope:
+            - frontend/packages/effects/plugins/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/playground/dashboard
+            - path: frontend/apps_web_antd/admin_area/analytics_dashboard
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+    frontend/packages/effects/request:
+        dir_name: HTTP 请求客户端封装
+        title: HTTP 请求客户端封装
+        scope:
+            - frontend/packages/effects/request/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/ai_engine/tools
+            - path: backend/ai_engine/engine/streaming_pipeline
+            - path: frontend/apps_web_antd/shared_frontend
+            - path: frontend/apps_web_antd/admin_area
+            - path: frontend/apps_web_antd/user_area
+            - path: frontend/apps_web_antd/tenant_area
+            - path: frontend/packages/effects/common_ui
+    frontend/packages/icons:
+        dir_name: 图标资源管理与封装
+        title: 图标资源管理与封装
+        scope:
+            - frontend/packages/icons/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/base
+            - path: frontend/packages/core/ui_kit
+    frontend/packages/locales:
+        dir_name: 国际化与多语言支持
+        title: 国际化与多语言支持
+        scope:
+            - frontend/packages/locales/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/constants
+    frontend/packages/preferences:
+        dir_name: 应用偏好配置覆写模块
+        title: 应用偏好配置覆写模块
+        scope:
+            - frontend/packages/preferences/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/preferences
+            - path: frontend/packages/effects/layouts
+            - path: frontend/packages/effects/hooks
+    frontend/packages/stores:
+        dir_name: 全局状态管理模块
+        title: 全局状态管理模块
+        scope:
+            - frontend/packages/stores/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/hooks
+            - path: frontend/apps_web_antd/tenant_area/tenant_core
+            - path: frontend/apps_web_antd/admin_area/auth_core
+    frontend/packages/styles:
+        dir_name: 全局样式与UI组件库适配
+        title: 全局样式与UI组件库适配
+        scope:
+            - frontend/packages/styles/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/ui_kit
+            - path: frontend/internal/tailwind_config
+            - path: frontend/packages/effects/common_ui
+    frontend/packages/types:
+        dir_name: 前端类型定义与全局声明模块
+        title: 前端类型定义与全局声明模块
+        scope:
+            - frontend/packages/types/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/base
+    frontend/packages/utils:
+        dir_name: 路由与菜单核心工具库
+        title: 路由与菜单核心工具库
+        scope:
+            - frontend/packages/utils/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/plugin_system/runtime_core
+            - path: frontend/packages/effects/access
+            - path: frontend/packages/core/base
+            - path: frontend/apps_web_antd/admin_area
+            - path: frontend/apps_web_antd/shared_frontend
+    frontend/playground:
+        dir_name: Vben Admin 综合演示与开发沙箱
+        title: Vben Admin 综合演示与开发沙箱
+        scope:
+            - frontend/playground/
+        source_files: []
+        children:
+            - frontend/playground/core_auth_views
+            - frontend/playground/demos
+            - frontend/playground/system_admin
+            - frontend/playground/examples
+            - frontend/playground/dashboard
+        depends_on: []
+        related_to: []
+    frontend/playground/core_auth_views:
+        dir_name: 核心基础视图模块
+        title: 核心基础视图模块
+        scope:
+            - frontend/playground/src/views/_core/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/layouts
+            - path: frontend/packages/effects/common_ui
+    frontend/playground/dashboard:
+        dir_name: 仪表盘与数据分析视图
+        title: 仪表盘与数据分析视图
+        scope:
+            - frontend/playground/src/views/dashboard/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/plugins
+    frontend/playground/demos:
+        dir_name: 功能演示与权限沙箱
+        title: 功能演示与权限沙箱
+        scope:
+            - frontend/playground/src/views/demos/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/effects/access
+    frontend/playground/examples:
+        dir_name: UI组件交互演示与文档
+        title: UI组件交互演示与文档
+        scope:
+            - frontend/playground/src/views/examples/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/packages/core/ui_kit
+    frontend/playground/system_admin:
+        dir_name: 系统基础管理模块
+        title: 系统基础管理模块
+        scope:
+            - frontend/playground/src/views/system/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend/rbac
+            - path: frontend/packages/effects/access
+    frontend/scripts:
+        dir_name: 前端工程化与运维脚本集
+        title: 前端工程化与运维脚本集
+        scope:
+            - frontend/scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/internal/node_utils
+            - path: frontend/internal/lint_configs

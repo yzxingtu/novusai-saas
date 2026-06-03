@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/ai_engine/engine/streaming_pipeline
+title: 流式对话执行引擎
+scope:
+    - backend/app/ai/engine/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/packages/effects/request
+    - path: backend/ai_engine/engine/recovery
+    - path: backend/api_routes/user_api
+    - path: backend/ai_engine/runtime
