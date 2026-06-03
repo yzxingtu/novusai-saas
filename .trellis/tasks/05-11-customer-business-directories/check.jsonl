@@ -1,9 +1,0 @@
-{"ts":"2026-05-11T04:10:00+08:00","type":"planned","summary":"Validate task JSON/JSONL, path existence, policy references, contradiction scans, and git diff whitespace checks."}
-{"ts":"2026-05-11T04:15:00+08:00","type":"paths","command":"Test-Path for business/customer/extensions roots, templates, and Trellis task files","result":"passed"}
-{"ts":"2026-05-11T04:16:00+08:00","type":"parse","command":"ConvertFrom-Json over task.json, implement.jsonl, and check.jsonl","result":"passed"}
-{"ts":"2026-05-11T04:17:00+08:00","type":"reference-scan","command":"rg for business/<project-code>, customer/<project-code>, and extensions/<package-code> in README, Trellis guide, customer fork policy, PR template, and new templates","result":"passed"}
-{"ts":"2026-05-11T04:18:00+08:00","type":"contradiction-scan","command":"rg for stale customer plugin/business placement guidance such as customer/ecommerce-erp/plugins and customer business pages","result":"passed"}
-{"ts":"2026-05-11T04:19:00+08:00","type":"diff","command":"git diff --check","result":"passed_with_crlf_warnings_only"}
-{"ts":"2026-05-11T04:41:00+08:00","type":"boundary-guard","command":"pwsh -File ops/verify-customer-boundaries.ps1 -Path .","result":"passed"}
-{"ts":"2026-05-11T04:42:00+08:00","type":"downstream-boundary-guard","command":"pwsh -File E:/git_clone/novusai-saas-yudi/ops/verify-customer-boundaries.ps1 -Path E:/git_clone/novusai-ecommerce-erp","result":"passed"}
-{"ts":"2026-05-11T04:43:00+08:00","type":"downstream-base","command":"pwsh -File ops/verify-yudi-base.ps1 -Path E:/git_clone/novusai-ecommerce-erp","result":"passed"}

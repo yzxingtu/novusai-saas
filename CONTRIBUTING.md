@@ -1,16 +1,13 @@
 # Contributing to NovusAI SaaS
 
-**Languages:** English · [简体中文说明见 README.zh-CN.md 贡献相关章节](README.zh-CN.md#参与贡献)
+**Languages:** English · [简体中文说明见 README.md 贡献相关章节](README.md#参与贡献)
 
 Thank you for your interest in improving this project. This document describes how we expect contributions to be made.
 
 ## Getting started
 
 1. Read [README.md](README.md) for prerequisites and **Quick start** (Docker, backend venv, frontend `pnpm`).
-2. Read the Trellis entry points before changing code:
-   [`.trellis/workflow.md`](.trellis/workflow.md),
-   [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md),
-   and the relevant backend/frontend/AI runtime spec index.
+2. Review the relevant backend or frontend source, tests, and README sections before changing code.
 
 ## Upstream-first contribution rules
 
@@ -54,12 +51,6 @@ current docs under [`docs/guides/`](docs/guides/) and
 | Backend | Ruff (lint + format), pytest | Run from `backend`: `ruff check .`, `ruff format .`, `pytest` |
 | Frontend | ESLint / Prettier via `pnpm lint` | Run from `frontend`: `pnpm lint` |
 
-Deeper conventions:
-
-- Backend: [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md)
-- Frontend: [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md)
-- AI runtime: [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md)
-
 ## Tests
 
 - **Backend:** from `backend`, run `pytest` before submitting. Add or update tests for bug fixes and new behavior where practical.
@@ -68,7 +59,7 @@ Deeper conventions:
 ## Internationalization and comments
 
 - Do not hardcode user-visible strings: frontend uses `$t()` / `t()`, backend uses `_()`.
-- New comments in code should follow the project’s bilingual convention when comments are necessary; see the relevant Trellis backend/frontend quality guides.
+- New comments in code should be short, useful, and written only when they clarify non-obvious behavior.
 
 ## Security
 

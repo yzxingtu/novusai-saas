@@ -1,5 +1,0 @@
-{"file":"backend/app/ai/adapters/openai_adapter.py","reason":"Public OpenAI adapter entrypoints should stay protocol-safe and avoid exposing legacy compat execution helpers as live owners."}
-{"file":"backend/app/ai/adapters/openai_compatible/__init__.py","reason":"Package export surface should stop re-exporting retired legacy compat entrypoints once live routing is frozen."}
-{"file":"backend/app/ai/adapters/openai_compatible/compat/legacy_protocol_execution.py","reason":"Retained internal compat helper stays documented as internal-only residue, not a public/live adapter seam."}
-{"file":"backend/app/ai/adapters/openai_compatible/compat/legacy_protocol_stream_rescue.py","reason":"Stream rescue helper remains internal low-level support behind protocol-safe entrypoints, not a public fallback surface."}
-{"file":"backend/tests/ai/adapters/test_openai_adapter_protocol_entrypoints.py","reason":"Regression coverage should pin protocol-safe public entrypoints after explicit legacy compat exports are retired."}

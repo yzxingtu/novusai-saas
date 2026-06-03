@@ -1,7 +1,0 @@
-{"file":"backend/app/codegen/templates/frontend/data_table.ts.j2","reason":"Generated table/list pages must stop importing the removed dict-options placeholder helper"}
-{"file":"backend/app/codegen/templates/frontend/data_card.ts.j2","reason":"Generated card pages still imply dict-backed field wiring"}
-{"file":"frontend/apps/web-antd/src/views/admin/system/codegen/modules/ComponentPalette.vue","reason":"Builder palette still exposes DictSelect as if it were a live component path"}
-{"file":"frontend/apps/web-antd/src/views/admin/system/codegen/modules/field-utils.ts","reason":"Component inference still treats DictSelect as a normal generated component"}
-{"file":"frontend/apps/web-antd/src/views/admin/system/codegen/modules/useWysiwygFormPreview.ts","reason":"Preview mocks still fabricate dict-option behavior without a real runtime owner"}
-{"file":"frontend/apps/web-antd/src/locales/langs/zh-CN/admin/system.json","reason":"Current help text overpromises dict-option integration"}
-{"file":"frontend/apps/web-antd/src/locales/langs/en-US/admin/system.json","reason":"Current help text overpromises dict-option integration"}

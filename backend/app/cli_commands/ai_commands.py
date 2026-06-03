@@ -146,9 +146,8 @@ def ai_smoke(
     type=click.Path(dir_okay=False),
     default=str(
         _BACKEND_DIR.parent
-        / ".trellis"
-        / "tasks"
-        / "04-23-codex-llm-first-dialogue-replan"
+        / "docs"
+        / "ai-runtime"
         / "smoke-scenarios.md"
     ),
     show_default=True,

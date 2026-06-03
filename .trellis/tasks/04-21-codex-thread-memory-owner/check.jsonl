@@ -1,5 +1,0 @@
-{"file": "backend/tests/ai/engine/test_context_pipeline_orchestrator.py", "reason": "Verify recall gating and polluted-turn policy follow the same thread owner"}
-{"file": "backend/tests/services/test_agent_chat_service_memory_scene.py", "reason": "Verify polluted external-context turns do not leak into durable capture"}
-{"file": "backend/tests/services/test_conversation_service.py", "reason": "Verify conversation detail continues to expose memory source, freshness, and mode"}
-{"file": "backend/tests/services/test_agent_chat_memory_support.py", "reason": "Verify startup helper behavior remains consistent across chat and stream paths"}
-{"file": "backend/tests/services/test_conversation_stream_persistence_service.py", "reason": "Verify stream error rows and marker-only fallback both preserve canonical memory_runtime_policy/thread_memory_state ownership"}

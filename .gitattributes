@@ -5,7 +5,3 @@ backend/**/*.pyi text eol=lf
 backend/**/*.toml text eol=lf
 backend/**/*.yml text eol=lf
 backend/**/*.yaml text eol=lf
-
-# 中文: Trellis 规范是跨平台文本工件，统一 LF 便于审计 diff。
-# EN: Trellis specs are cross-platform text artifacts; LF keeps review diffs stable.
-.trellis/**/*.md text eol=lf

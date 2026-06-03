@@ -37,31 +37,10 @@ services:
     networks:
       - novusai-dev
 
-  # Prometheus 本地监控 / Local Prometheus monitoring
-  prometheus:
-    image: prom/prometheus:v2.55.1
-    container_name: novusai-prometheus-dev
-    ports:
-      - "127.0.0.1:${PROMETHEUS_HTTP_PORT:-19090}:9090"
-    volumes:
-      - ./ops/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
-      - ./ops/prometheus/rules:/etc/prometheus/rules:ro
-      - prometheus_data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - novusai-dev
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  prometheus_data:
     driver: local
 
 networks:

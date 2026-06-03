@@ -7,8 +7,8 @@ This directory is the NovusAI frontend workspace. It is based on Vben Admin, but
 - Main app: `apps/web-antd`
 - Workspace manifest: `pnpm-workspace.yaml`
 - Root scripts: `package.json`
-- Frontend spec: `../.trellis/spec/frontend/index.md`
-- Canonical workflow: `../.trellis/workflow.md`
+- Frontend spec: `../.agent/trellis/spec/frontend/index.md`
+- Canonical workflow: `../.agent/trellis/workflow.md`
 
 ## Requirements
 

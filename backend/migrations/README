@@ -14,7 +14,7 @@ cd backend
 alembic revision --autogenerate -m "描述你的更改"
 ```
 
-创建后请立即人工清理 autogenerate 噪音，并核对 `.cursor/rules/alembic-migration-authoring.md`。
+创建后请立即人工清理 autogenerate 噪音，并核对模型、索引、约束与数据迁移是否符合当前业务。
 
 ## 运行迁移
 

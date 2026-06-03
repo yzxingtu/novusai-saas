@@ -1,305 +1,272 @@
 # NovusAI SaaS
 
-> Status: this repo remains the multi-tenant SaaS source system with `admin`,
-> `tenant`, and `user` product surfaces.
-> Single-instance / `admin + member` split planning or implementation docs must
-> not be kept as canonical docs in this repo.
+**语言：** 简体中文 · [English](README.en-US.md)
 
-**Languages:** English · [简体中文](README.zh-CN.md)
+NovusAI SaaS 是一个面向二次开发的多租户 AI SaaS 开发框架。它提供平台管理端、企业端、用户端、权限体系、插件系统、AI Agent 运行链路、实时通知、附件存储、代码生成与数据库迁移等基础能力，适合作为企业级 SaaS 产品、行业应用和 AI 原生业务系统的工程底座。
 
-Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and **user** apps, **RBAC**, **plugins**, **Agent → Skill → AIGateway** flows, **Socket.IO**, pluggable **attachments**, **codegen**, and **Alembic** migrations.
+## 目录
 
-## Table of contents
+- [核心能力](#核心能力)
+- [架构概览](#架构概览)
+- [技术栈](#技术栈)
+- [仓库结构](#仓库结构)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [开发与测试](#开发与测试)
+- [代码生成](#代码生成)
+- [API 文档](#api-文档)
+- [部署说明](#部署说明)
+- [扩展开发](#扩展开发)
+- [贡献](#贡献)
+- [安全](#安全)
+- [许可证](#许可证)
 
-- [Overview](#overview)
-- [Upstream governance](#upstream-governance)
-- [Architecture](#architecture)
-- [Tech stack](#tech-stack)
-- [Repository structure](#repository-structure)
-- [Prerequisites](#prerequisites)
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [Development](#development)
-- [API documentation](#api-documentation)
-- [Default development URLs and accounts](#default-development-urls-and-accounts)
-- [Documentation](#documentation)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-- [Security](#security)
-- [License](#license)
-- [Support](#support)
+## 核心能力
 
-## Overview
+| 能力 | 说明 |
+|------|------|
+| 多端应用 | 内置 `admin`、`tenant`、`user` 三类产品面，路由、菜单、权限和 API 命名空间相互隔离。 |
+| 多租户 | 支持平台级管理、企业级管理、企业用户和租户隔离的数据访问模型。 |
+| 权限体系 | 提供 RBAC、菜单权限、数据权限、组织边界和操作审计等基础能力。 |
+| AI 运行时 | 支持 **Agent → Skill → AIGateway** 的业务 AI 链路，可扩展模型、技能、知识库与工具调用。 |
+| 插件系统 | 支持后端插件、前端插件入口、插件菜单、插件资源、插件生命周期和插件扩展点。 |
+| 实时能力 | 使用 Socket.IO 支持管理端、企业端、用户端通知与实时事件。 |
+| 异步任务 | 使用 Celery 与 Redis 处理后台任务、定时任务和长耗时流程。 |
+| 附件与存储 | 提供可插拔的附件、对象存储、下载和插件存储扩展能力。 |
+| CRUD 代码生成 | 提供面向后台管理场景的 CRUD 生成与回滚清单机制。 |
+| 数据库迁移 | 使用 Alembic 管理主应用和插件迁移。 |
 
-NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), [`.trellis`](.trellis) (canonical workflow/spec entry), [`.agents`](.agents) (active local agent skills), and [`.cursor`](.cursor) (editor compatibility rules). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
-
-| Area | Notes |
-|------|--------|
-| **Surfaces** | `admin` / `tenant` / `user` — separate routes and API namespaces. |
-| **AI** | Business AI uses **Agent → Skill → AIGateway**; current runtime contracts live under `.trellis/spec/ai-runtime/`. |
-| **Data** | JSON:API-style `filter` / `sort` / `page`; tenant isolation and data permissions in services and RBAC. |
-| **Realtime** | Celery for async work; Socket.IO for notifications and tenant/user/admin realtime channels. |
-| **Extensibility** | Plugins under `backend/plugins/`; CRUD codegen and rollback via root [`codegen_manifest.json`](codegen_manifest.json). |
-
-## Upstream governance
-
-This repository, `novusai-saas-yudi`, is the canonical multi-tenant SaaS
-upstream product line. Customer projects are expected to stay as thin forks or
-overlays that carry customer-only workflows, branding, deployment overlays,
-configuration, seed data, and plugins.
-
-Common platform bugs and shared SaaS features should be reproduced, fixed, and
-verified in Yudi first. Customer repositories then synchronize from the Yudi
-release or hotfix line instead of keeping long-lived downstream patches to core
-areas such as auth, tenant isolation, queues, notifications, AI runtime,
-plugins, migrations, Docker baseline, or shared UI.
-
-For the detailed upstream/downstream rules, customer sync runbooks, and release
-or backport steps, start with [`docs/guides/`](docs/guides/) and
-[`docs/operations/`](docs/operations/). Ambiguous changes should be triaged
-explicitly before implementation so the work lands in the right repository.
-
-Downstream projects should keep their code in the sanctioned roots inherited
-from this repo:
-
-- [`business/<project-code>/`](business/) for customer or vertical business
-  modules.
-- [`customer/<project-code>/`](customer/) for deployment, seed, branding, and
-  delivery overlays.
-- [`extensions/<package-code>/`](extensions/) for reusable plugins,
-  connectors, skill packages, and integration assets.
-
-Do not mix customer business modules directly into the Yudi core `backend/app`,
-`frontend/apps`, or shared platform packages. If a business module needs a new
-shared SaaS hook, add that hook in Yudi upstream first.
-
-## Architecture
+## 架构概览
 
 ```mermaid
 flowchart LR
-  subgraph clients [Clients]
-    AdminUI[Admin_UI]
-    TenantUI[Tenant_UI]
-    UserUI[User_UI]
+  subgraph UI [Frontend]
+    Admin[Admin App]
+    Tenant[Tenant App]
+    User[User App]
   end
-  subgraph api [FastAPI]
-    Routes[Controllers]
-    Svc[Services]
-    Repo[Repositories]
+
+  subgraph API [FastAPI Backend]
+    Routes[API Routes]
+    Services[Services]
+    Repos[Repositories]
+    Plugins[Plugin Runtime]
   end
-  subgraph ai [AI]
+
+  subgraph AI [AI Runtime]
     Agent[Agent]
     Skill[Skill]
-    GW[AIGateway]
+    Gateway[AIGateway]
+    KB[Knowledge Base]
   end
-  AdminUI --> Routes
-  TenantUI --> Routes
-  UserUI --> Routes
-  Routes --> Svc --> Repo
-  Svc --> Agent --> Skill --> GW
+
+  subgraph Infra [Infrastructure]
+    DB[(PostgreSQL)]
+    Redis[(Redis)]
+    Celery[Celery Workers]
+    SocketIO[Socket.IO]
+  end
+
+  Admin --> Routes
+  Tenant --> Routes
+  User --> Routes
+  Routes --> Services --> Repos --> DB
+  Services --> Plugins
+  Services --> Agent --> Skill --> Gateway
+  Agent --> KB
+  Services --> Redis
+  Services --> SocketIO
+  Celery --> Services
 ```
 
-## Tech stack
+## 技术栈
 
-| Layer | Stack |
-|-------|--------|
-| **Backend** | Python **3.10+**, FastAPI, SQLAlchemy 2.x (async), PostgreSQL (pgvector image in dev Compose), Redis, Celery, Alembic, Socket.IO |
-| **Frontend** | Vue 3, TypeScript, Vben Admin 5.x, Ant Design Vue, Vite, pnpm, vue-i18n |
-| **Auth** | JWT (access / refresh; impersonation where applicable) |
+| 层级 | 技术 |
+|------|------|
+| 后端 | Python 3.10+、FastAPI、SQLAlchemy 2.x、Alembic、Pydantic、Celery、Socket.IO |
+| 数据与缓存 | PostgreSQL、Redis，可按需启用 pgvector 等扩展镜像 |
+| 前端 | Vue 3、TypeScript、Vben Admin、Ant Design Vue、Vite、pnpm、vue-i18n |
+| 工程化 | Ruff、pytest、ESLint、Prettier、Stylelint、Vitest、Turbo |
+| 部署参考 | Docker、Docker Compose |
 
-## Repository structure
+## 仓库结构
 
-```
-novusai-saas-yudi/
-├── backend/
-│   ├── app/                 # FastAPI: api/, services/, models/, repositories/,
-│   │                        # ai/, rbac/, storage/, tasks/, sio/, codegen/, …
-│   ├── migrations/          # Alembic
-│   ├── plugins/             # Bundled / first-party plugins
-│   └── tests/
-├── frontend/                # pnpm + Turbo monorepo
-│   ├── apps/web-antd/       # Main NovusAI app (admin / tenant / user)
-│   └── packages/
-├── business/                # Downstream customer/vertical business modules
-├── customer/                # Downstream deployment/config/seed overlays
-├── extensions/              # Reusable non-core plugins/connectors/packages
-├── docs/                    # Guides, audits, design notes
-├── shared/
-├── .trellis/                # Canonical workflow, specs, and task records
-├── .agents/                 # Active local agent skills and project agent helpers
-├── .cursor/
-│   ├── rules/               # Editor compatibility rules
-│   └── skills/              # Compatibility skills; Trellis/.agents are authoritative
-├── codegen_manifest.json    # Codegen rollback manifest (may be empty)
-├── docker-compose.dev.yml   # Dev PostgreSQL + Redis
-├── LICENSE
-├── CONTRIBUTING.md
-├── SECURITY.md
-├── README.md
-└── README.zh-CN.md
+```text
+novusai-saas/
+├── backend/                 # FastAPI 后端、迁移、插件运行时、测试
+│   ├── app/                 # API、服务、模型、仓储、AI、RBAC、任务、存储、codegen
+│   ├── migrations/          # Alembic 迁移
+│   ├── plugins/             # 内置插件与插件示例
+│   └── tests/               # 后端测试
+├── frontend/                # 前端 pnpm monorepo
+│   ├── apps/web-antd/       # 主 Web 应用
+│   └── packages/            # 前端共享包与基础能力
+├── business/                # 业务模块扩展目录
+├── customer/                # 交付、部署、种子数据和品牌覆盖目录
+├── extensions/              # 可复用插件、连接器和集成资产
+├── docs/                    # 项目文档目录
+├── docker-compose.dev.yml   # 本地开发依赖服务
+├── docker-compose.prod.yml  # 生产编排参考
+├── README.md                # 中文自述
+└── README.en-US.md          # English README
 ```
 
-## Prerequisites
+## 环境要求
 
-- **Python** 3.10+ ([`backend/pyproject.toml`](backend/pyproject.toml))
-- **Node.js** 20.19+ and **pnpm** 10+ (workspace lock: `pnpm@10.28.2`)
-- **PostgreSQL** and **Redis** (local or Docker)
+- Python 3.10+
+- Node.js 20.19+
+- pnpm 10+
+- PostgreSQL
+- Redis
+- Docker 与 Docker Compose（推荐用于本地依赖服务）
 
-## Quick start
+## 快速开始
 
-### 1) Infrastructure (recommended)
+### 1. 启动依赖服务
 
-From the repository root:
+在仓库根目录启动本地 PostgreSQL 与 Redis：
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-This starts **PostgreSQL** (port `5432`) and **Redis** (`6379`) with named volumes.
-
-### 2) Backend
-
-Run all commands from the **`backend`** directory:
+### 2. 启动后端
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
 
 uv sync --extra dev
-# or: pip install -e ".[dev]"
+# 或者使用 pip:
+# pip install -e ".[dev]"
 
 cp .env.example .env
-# Edit .env — see Configuration
-
 novusai db upgrade head
 novusai run --reload
 ```
 
-In a **second** terminal (same virtualenv):
+另开一个终端启动 Celery worker：
 
 ```bash
 cd backend
+source .venv/bin/activate
 novusai celery dev
 ```
 
-Optional: tune logging via variables in `.env` (e.g. SQL file logging under `logs/`, WebSocket handshake verbosity).
-
-### 3) Frontend
-
-Run from the **`frontend`** directory:
+### 3. 启动前端
 
 ```bash
 cd frontend
 pnpm install
-```
-
-Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://127.0.0.1:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
-
-```bash
 pnpm dev:antd
 ```
 
-The default dev server port is **5666** (`VITE_PORT` in `.env.development`).
+默认访问地址：
 
-## Configuration
+| 项目 | 地址 |
+|------|------|
+| API | `http://127.0.0.1:8000` |
+| Web 应用 | `http://localhost:5666` |
+| Swagger UI | `http://127.0.0.1:8000/docs` |
+| ReDoc | `http://127.0.0.1:8000/redoc` |
 
-Do **not** commit real secrets. Copy templates and edit:
+初始迁移会创建开发管理员账号。默认账号仅用于本地开发，生产环境必须修改或移除。
 
-| Scope | File | Highlights |
-|--------|------|------------|
-| Backend | [`backend/.env.example`](backend/.env.example) → `.env` | `DEBUG`, `SECRET_KEY`, `DATABASE_*`, `REDIS_*`, `CELERY_*`, JWT settings, `LOG_*`, … |
-| Frontend | [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) | `VITE_GLOB_API_URL`, `VITE_PORT`, `VITE_PLATFORM_DOMAINS`, … |
+## 配置说明
 
-See comments inside each example file for semantics and production guidance.
+请复制示例配置并按环境调整，真实密钥不要提交到 Git。
 
-## Development
+| 范围 | 文件 | 说明 |
+|------|------|------|
+| 后端 | `backend/.env.example` → `backend/.env` | 数据库、Redis、JWT、日志、Celery、AI Provider、存储等配置 |
+| 前端 | `frontend/apps/web-antd/.env.development` | API 地址、开发端口、平台域名等配置 |
+| 本地覆盖 | `frontend/apps/web-antd/.env.local` | Vite 本地覆盖配置，可按需创建 |
 
-### Backend
+## 开发与测试
 
-From `backend` (with dev extras installed):
+后端常用命令：
 
 ```bash
+cd backend
 pytest
 ruff check .
 ruff format .
 ```
 
-Tests are configured in [`backend/pyproject.toml`](backend/pyproject.toml) (`testpaths = ["tests"]`).
-
-### Frontend
-
-From `frontend`:
+前端常用命令：
 
 ```bash
+cd frontend
 pnpm lint
 pnpm test:unit
 pnpm build:antd
 ```
 
-## API documentation
+## 代码生成
 
-When **`DEBUG=true`**, the API serves interactive docs (see [`backend/app/main.py`](backend/app/main.py)):
+框架包含 CRUD 代码生成能力。生成后，仓库根目录会产生运行时文件 `codegen_manifest.json`，用于记录生成产物并支持回滚。该文件属于工作区生成物，已被 Git 忽略，不应提交到仓库。
 
-| URL | Description |
-|-----|----------------|
+## API 文档
+
+当后端 `DEBUG=true` 时，会开放以下接口文档：
+
+| 地址 | 说明 |
+|------|------|
 | `http://127.0.0.1:8000/docs` | Swagger UI |
 | `http://127.0.0.1:8000/redoc` | ReDoc |
-| `http://127.0.0.1:8000/openapi.json` | OpenAPI schema |
+| `http://127.0.0.1:8000/openapi.json` | OpenAPI JSON |
 
-In typical **production** settings, these URLs are disabled (`None` when `DEBUG` is false). Rely on versioned API contracts and internal documentation instead.
+生产环境通常应关闭交互式 API 文档，并通过受控方式发布接口契约。
 
-## Default development URLs and accounts
+## 部署说明
 
-> **Development only.** Change passwords and remove demo accounts before production.
+本仓库提供框架源码和 Docker Compose 参考文件：
 
-| Item | Value |
-|------|--------|
-| API | `http://127.0.0.1:8000` |
-| Web app | `http://localhost:5666` |
-| Platform login | `/admin/login` — example: `admin` / `admin123456` |
-| Tenant login | `/tenant/login` — example: `adminsss` / `admin123456` |
+- `docker-compose.dev.yml` 用于本地 PostgreSQL 与 Redis。
+- `docker-compose.prod.yml` 作为生产编排参考，实际部署时需要结合私有环境变量、反向代理、HTTPS、日志、监控、备份和容量规划。
+- `production.env.example` 是生产环境变量示例文件，复制为 `production.env` 后按部署环境修改。
 
-## Documentation
+生产 Compose 参考启动方式：
 
-| Location | Purpose |
-|----------|---------|
-| [`.trellis/workflow.md`](.trellis/workflow.md) | Current workflow shell and path selector |
-| [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md) | Canonical `fast` / `normal` / `deep` selection rules |
-| [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | Backend conventions and guide index |
-| [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | Frontend conventions and guide index |
-| [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime governance and testing discipline |
-| [`docs/guides/`](docs/guides/) | Developer guides, upstream/downstream policy, and customer sync guidance |
-| [`docs/operations/`](docs/operations/) | Operational runbooks, release acceptance, and production sync procedures |
-| [`.agents/skills/`](.agents/skills) | Active local agent skills that point back to Trellis specs |
-| [`.cursor/skills/`](.cursor/skills) | Editor compatibility skills; use Trellis specs as the source of truth |
+```bash
+cp production.env.example production.env
+docker compose --env-file production.env -f docker-compose.prod.yml up -d
+```
 
-**Codegen:** after generating CRUD from the monorepo root, `codegen_manifest.json` records artifacts for rollback; the admin UI may warn if the manifest is missing or out of sync.
+生产部署前请至少完成：
 
-## Deployment
+- 替换所有默认密钥和默认账号。
+- 使用独立数据库、Redis 和对象存储。
+- 配置 HTTPS、CORS、可信域名和安全响应头。
+- 配置日志、监控、告警、备份和恢复流程。
+- 按业务需要审查 AI Provider、插件权限、文件上传和外部 HTTP 工具策略。
 
-Production and environment-specific assets are owned by the active operations
-runbooks and task records. Start with
-[`ops/production-deployment-runbook.md`](ops/production-deployment-runbook.md)
-for Docker/Compose deployment, then use
-[`ops/production-acceptance/README.md`](ops/production-acceptance/README.md)
-for release acceptance gates. This README stays focused on local development
-and canonical code/spec entry points.
+## 扩展开发
 
-## Contributing
+建议按以下目录组织扩展代码：
 
-See [**CONTRIBUTING.md**](CONTRIBUTING.md) for branches, pull requests, style checks, and tests.
+| 目录 | 用途 |
+|------|------|
+| `backend/plugins/` | 内置或随框架分发的插件 |
+| `business/` | 面向具体业务域的模块 |
+| `customer/` | 交付环境、品牌、配置、种子数据和部署覆盖 |
+| `extensions/` | 可复用插件、连接器、技能包和集成资产 |
 
-## Security
+## 贡献
 
-See [**SECURITY.md**](SECURITY.md) for how to report vulnerabilities.
+欢迎提交 Issue 和 Pull Request。提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，并确保相关测试、格式化和静态检查通过。
 
-## License
+## 安全
 
-This project is licensed under the **MIT License** — see [**LICENSE**](LICENSE).
+安全漏洞请按 [SECURITY.md](SECURITY.md) 中的方式报告。请不要在公开 Issue 中披露敏感漏洞细节。
 
-## Support
+## 许可证
 
-- **Bug reports and feature requests:** use your Git hosting’s issue tracker (e.g. GitHub **Issues** on the repository).
-- **Questions:** prefer issues or team channels so answers stay searchable.
+本项目采用 [MIT License](LICENSE)。

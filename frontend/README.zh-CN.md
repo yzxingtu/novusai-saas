@@ -7,8 +7,8 @@
 - 主应用：`apps/web-antd`
 - Workspace 清单：`pnpm-workspace.yaml`
 - 根脚本：`package.json`
-- 前端规范：`../.trellis/spec/frontend/index.md`
-- 正式 workflow：`../.trellis/workflow.md`
+- 前端规范：`../.agent/trellis/spec/frontend/index.md`
+- 正式 workflow：`../.agent/trellis/workflow.md`
 
 ## 环境要求
 

@@ -49,6 +49,23 @@ pip-delete-this-directory.txt
 # Ruff full report (local artifact; do not commit)
 backend/ruff_full_report.txt
 
+# Codegen rollback manifest (generated at runtime)
+/codegen_manifest.json
+
+# Private production environment file copied from production.env.example
+/production.env
+
+# Local AI, agent, IDE, and repository workflow configs
+/.agent/
+/.agents/
+/.claude/
+/.codex/
+/.cursor/
+/.cursorrules
+/.github/
+/AGENTS.md
+/AGENTS.example.md
+
 # Unit test / coverage reports
 reports/
 htmlcov/
@@ -187,23 +204,10 @@ lerna-debug.log*
 *.iml
 *.ipr
 *.iws
-.warp/
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
-!.cursor/skills/
-!.cursor/skills/**
-.trae/
-.windsurf/*
-!.windsurf/rules/
-!.windsurf/skills/
+.windsurf/
 
 # VS Code
 .vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
 *.code-workspace
 
 # Sublime Text
@@ -252,10 +256,12 @@ ehthumbs_vista.db
 # Project Specific
 # ============================================
 
+# Local agent instructions
+
 # Local production-acceptance artifacts
 /ops/acceptance-artifacts/
 
-# Workspace docs & Trellis (not committed by default)
+# Workspace docs & agent context (not committed by default)
 /docs/*
 !/docs/guides/
 /docs/guides/*
@@ -266,63 +272,6 @@ ehthumbs_vista.db
 !/docs/operations/customer-sync-runbook.md
 !/docs/operations/production-acceptance-runbook.md
 !/docs/operations/release-backport-policy.md
-/.trellis/
-!/.trellis/
-/.trellis/*
-# Limited Trellis authority-root whitelist (exact files only; do not broaden to all of .trellis)
-!/.trellis/workflow.md
-!/.trellis/spec/
-/.trellis/spec/*
-!/.trellis/spec/guides/
-/.trellis/spec/guides/*
-!/.trellis/spec/guides/index.md
-!/.trellis/spec/guides/trellis-paths.md
-!/.trellis/spec/guides/upstream-downstream-governance.md
-!/.trellis/spec/ai-runtime/
-/.trellis/spec/ai-runtime/*
-!/.trellis/spec/ai-runtime/index.md
-!/.trellis/spec/ai-runtime/testing-discipline.md
-!/.trellis/tasks/
-/.trellis/tasks/*
-!/.trellis/tasks/04-28-ai-dialogue-execution-task-index/
-/.trellis/tasks/04-28-ai-dialogue-execution-task-index/*
-!/.trellis/tasks/04-28-ai-dialogue-execution-task-index/task-index.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/
-/.trellis/tasks/04-29-ai-dialogue-governance-reset/*
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/task.json
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/prd.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/info.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/task-index.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/cleanup-list.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/uiux-transcript-shell-and-builtin-acceptance-spec.md
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/
-/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/*
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/
-/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/*
-!/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/report.md
-!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/
-/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/*
-!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/task.json
-!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/prd.md
-!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/info.md
-!/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/
-/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/*
-!/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/task.json
-!/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/prd.md
-!/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/info.md
-!/.trellis/tasks/05-11-yudi-upstream-governance/
-/.trellis/tasks/05-11-yudi-upstream-governance/*
-!/.trellis/tasks/05-11-yudi-upstream-governance/task.json
-!/.trellis/tasks/05-11-yudi-upstream-governance/prd.md
-!/.trellis/tasks/05-11-yudi-upstream-governance/info.md
-!/.trellis/tasks/05-11-yudi-upstream-governance/implement.jsonl
-!/.trellis/tasks/05-11-yudi-upstream-governance/check.jsonl
-!/.trellis/tasks/05-11-customer-business-directories/
-/.trellis/tasks/05-11-customer-business-directories/*
-!/.trellis/tasks/05-11-customer-business-directories/task.json
-!/.trellis/tasks/05-11-customer-business-directories/prd.md
-!/.trellis/tasks/05-11-customer-business-directories/implement.jsonl
-!/.trellis/tasks/05-11-customer-business-directories/check.jsonl
 
 # Uploads and media
 uploads/
@@ -406,7 +355,6 @@ test_doc.txt
 /backend/.codex-temp/
 /frontend/lint-output.txt
 /output_openapi.json
-/.claude/settings.local.json
 /temp.txt
 /tmp-trace-*/
 /tmp-*.png

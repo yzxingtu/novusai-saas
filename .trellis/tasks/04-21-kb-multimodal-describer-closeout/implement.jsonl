@@ -1,8 +1,0 @@
-{"file":"backend/app/ai/rag/audio_describer.py","reason":"Live audio ingest still runs through a placeholder describer that always returns empty text"}
-{"file":"backend/app/ai/rag/video_describer.py","reason":"Live video ingest still runs through a placeholder describer that always returns empty text"}
-{"file":"backend/app/ai/rag/parser_multimodal_support.py","reason":"Audio/video parsers accept empty placeholder output and feed the live processor path"}
-{"file":"backend/app/ai/rag/processor_document_support.py","reason":"Processor behavior and error surface must align with the real multimodal ingest owner"}
-{"file":"frontend/apps/web-antd/src/views/tenant/ai/knowledge-bases/data.ts","reason":"Tenant form still exposes audio/video model selectors for a non-working live path"}
-{"file":"frontend/apps/web-antd/src/views/admin/ai/knowledge-bases/data.ts","reason":"Admin form still exposes audio/video model selectors for a non-working live path"}
-{"file":"backend/app/locales/en/messages.json","reason":"Current copy implies configuration is sufficient even though describers remain placeholders"}
-{"file":"backend/app/locales/zh_CN/messages.json","reason":"Current copy implies configuration is sufficient even though describers remain placeholders"}
