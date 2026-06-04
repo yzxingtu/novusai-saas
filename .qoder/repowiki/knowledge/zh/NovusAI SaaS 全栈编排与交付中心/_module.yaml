@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: NovusAI SaaS 多租户 AI 平台编排根节点
+title: NovusAI SaaS 全栈编排与交付中心
 scope:
     - .dockerignore
     - .gitattributes
@@ -13,6 +13,7 @@ scope:
     - docker-compose.dev.yml
     - docker-compose.prod.yml
     - production.env.example
+    - production.env
 source_files: []
 depends_on: []
 related_to: []

@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: frontend
-title: 前端工程化与多租户应用编排
+title: 企业级多租户 SaaS 前端平台
 scope:
     - frontend/
 source_files: []

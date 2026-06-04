@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: frontend/scripts
+title: 前端工程化与开发工具集
+scope:
+    - frontend/scripts/
+source_files: []
+depends_on: []
+related_to: []

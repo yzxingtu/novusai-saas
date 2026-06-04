@@ -2,11 +2,11 @@
 schema_version: 1
 locale: zh-CN
 branch: main
-exported_at: "2026-06-03T14:50:06Z"
+exported_at: "2026-06-04T15:26:28Z"
 modules:
     "":
-        dir_name: NovusAI SaaS 多租户 AI 平台编排根节点
-        title: NovusAI SaaS 多租户 AI 平台编排根节点
+        dir_name: NovusAI SaaS 全栈编排与交付中心
+        title: NovusAI SaaS 全栈编排与交付中心
         scope:
             - .dockerignore
             - .gitattributes
@@ -19,6 +19,7 @@ modules:
             - docker-compose.dev.yml
             - docker-compose.prod.yml
             - production.env.example
+            - production.env
         source_files: []
         children: []
         depends_on: []
@@ -30,21 +31,21 @@ modules:
             - backend/
         source_files: []
         children:
-            - backend/plugin_system
-            - backend/migrations
-            - backend/scripts
-            - backend/ai_engine
-            - backend/tasks
-            - backend/api_routes
-            - backend/core_infra
             - backend/rbac
-            - backend/support_modules
-            - backend/data_layers
-            - backend/codegen
-            - backend/plugins_bundle
             - backend/configs
+            - backend/codegen
+            - backend/api_routes
             - backend/storage
+            - backend/data_layers
+            - backend/migrations
+            - backend/tasks
+            - backend/plugin_system
+            - backend/plugins_bundle
             - backend/tests
+            - backend/ai_engine
+            - backend/scripts
+            - backend/support_modules
+            - backend/core_infra
         depends_on: []
         related_to:
             - path: frontend/apps_web_antd
@@ -55,15 +56,15 @@ modules:
             - backend/app/ai/
         source_files: []
         children:
+            - backend/ai_engine/rag
             - backend/ai_engine/core
             - backend/ai_engine/adapters
-            - backend/ai_engine/routing
-            - backend/ai_engine/skills
-            - backend/ai_engine/runtime
-            - backend/ai_engine/engine
-            - backend/ai_engine/tools
-            - backend/ai_engine/rag
             - backend/ai_engine/gateway_support
+            - backend/ai_engine/skills
+            - backend/ai_engine/tools
+            - backend/ai_engine/engine
+            - backend/ai_engine/routing
+            - backend/ai_engine/runtime
             - backend/ai_engine/context
         depends_on: []
         related_to:
@@ -161,11 +162,11 @@ modules:
             - backend/app/ai/engine/
         source_files: []
         children:
-            - backend/ai_engine/engine/recovery
             - backend/ai_engine/engine/streaming_pipeline
-            - backend/ai_engine/engine/conversation_orchestration
             - backend/ai_engine/engine/intent_planning
+            - backend/ai_engine/engine/conversation_orchestration
             - backend/ai_engine/engine/tool_loop
+            - backend/ai_engine/engine/recovery
         depends_on: []
         related_to:
             - path: backend/ai_engine/runtime
@@ -251,12 +252,12 @@ modules:
             - backend/app/ai/rag/
         source_files: []
         children:
-            - backend/ai_engine/rag/retrieval
-            - backend/ai_engine/rag/pipeline_orchestration
             - backend/ai_engine/rag/embedding
+            - backend/ai_engine/rag/pipeline_orchestration
+            - backend/ai_engine/rag/retrieval
+            - backend/ai_engine/rag/multimodal_description
             - backend/ai_engine/rag/chunking
             - backend/ai_engine/rag/multimodal_parsing
-            - backend/ai_engine/rag/multimodal_description
         depends_on: []
         related_to:
             - path: frontend/apps_web_antd/tenant_area/tenant_ai
@@ -385,9 +386,9 @@ modules:
             - backend/app/ai/tools/
         source_files: []
         children:
-            - backend/ai_engine/tools/builtin_executors
             - backend/ai_engine/tools/external_executors
             - backend/ai_engine/tools/core_infrastructure
+            - backend/ai_engine/tools/builtin_executors
         depends_on: []
         related_to:
             - path: frontend/packages/effects/request
@@ -434,10 +435,10 @@ modules:
         source_files: []
         children:
             - backend/api_routes/api_shared
-            - backend/api_routes/tenant_api
-            - backend/api_routes/admin_api
-            - backend/api_routes/public_api
             - backend/api_routes/user_api
+            - backend/api_routes/tenant_api
+            - backend/api_routes/public_api
+            - backend/api_routes/admin_api
         depends_on: []
         related_to: []
     backend/api_routes/admin_api:
@@ -549,10 +550,10 @@ modules:
             - backend/app/services/
         source_files: []
         children:
-            - backend/data_layers/system_domain
-            - backend/data_layers/common_domain
             - backend/data_layers/ai_domain
+            - backend/data_layers/common_domain
             - backend/data_layers/tenant_domain
+            - backend/data_layers/system_domain
         depends_on: []
         related_to:
             - path: backend/tests
@@ -566,11 +567,11 @@ modules:
             - backend/app/services/ai/
         source_files: []
         children:
-            - backend/data_layers/ai_domain/monitoring_diagnostics
             - backend/data_layers/ai_domain/skills_plugins
             - backend/data_layers/ai_domain/knowledge_base
-            - backend/data_layers/ai_domain/foundations
             - backend/data_layers/ai_domain/agent_runtime
+            - backend/data_layers/ai_domain/monitoring_diagnostics
+            - backend/data_layers/ai_domain/foundations
         depends_on: []
         related_to: []
     backend/data_layers/ai_domain/agent_runtime:
@@ -720,11 +721,11 @@ modules:
             - backend/app/plugins/
         source_files: []
         children:
-            - backend/plugin_system/runtime_core
             - backend/plugin_system/marketplace
-            - backend/plugin_system/lifecycle
             - backend/plugin_system/security_migrations
             - backend/plugin_system/runtime_support
+            - backend/plugin_system/lifecycle
+            - backend/plugin_system/runtime_core
         depends_on: []
         related_to:
             - path: frontend/apps_web_antd/admin_area/plugins_marketplace
@@ -1000,17 +1001,17 @@ modules:
             - path: backend/ai_engine
             - path: backend/data_layers
     frontend:
-        dir_name: 前端工程化与多租户应用编排
-        title: 前端工程化与多租户应用编排
+        dir_name: 企业级多租户 SaaS 前端平台
+        title: 企业级多租户 SaaS 前端平台
         scope:
             - frontend/
         source_files: []
         children:
-            - frontend/apps_web_antd
-            - frontend/playground
+            - frontend/internal
             - frontend/packages
             - frontend/scripts
-            - frontend/internal
+            - frontend/playground
+            - frontend/apps_web_antd
         depends_on: []
         related_to: []
     frontend/apps_web_antd:
@@ -1021,9 +1022,9 @@ modules:
         source_files: []
         children:
             - frontend/apps_web_antd/admin_area
-            - frontend/apps_web_antd/shared_frontend
-            - frontend/apps_web_antd/tenant_area
             - frontend/apps_web_antd/user_area
+            - frontend/apps_web_antd/tenant_area
+            - frontend/apps_web_antd/shared_frontend
         depends_on: []
         related_to:
             - path: backend
@@ -1036,12 +1037,12 @@ modules:
             - frontend/apps/web-antd/src/router/routes/admin/
         source_files: []
         children:
+            - frontend/apps_web_antd/admin_area/tenant_management
+            - frontend/apps_web_antd/admin_area/auth_core
             - frontend/apps_web_antd/admin_area/system_admin
             - frontend/apps_web_antd/admin_area/ai_management
-            - frontend/apps_web_antd/admin_area/analytics_dashboard
-            - frontend/apps_web_antd/admin_area/tenant_management
             - frontend/apps_web_antd/admin_area/plugins_marketplace
-            - frontend/apps_web_antd/admin_area/auth_core
+            - frontend/apps_web_antd/admin_area/analytics_dashboard
         depends_on: []
         related_to:
             - path: frontend/apps_web_antd/shared_frontend
@@ -1220,8 +1221,8 @@ modules:
             - frontend/apps/web-antd/src/router/routes/tenant/
         source_files: []
         children:
-            - frontend/apps_web_antd/tenant_area/tenant_system
             - frontend/apps_web_antd/tenant_area/tenant_core
+            - frontend/apps_web_antd/tenant_area/tenant_system
             - frontend/apps_web_antd/tenant_area/tenant_ai
         depends_on: []
         related_to:
@@ -1335,11 +1336,11 @@ modules:
             - frontend/internal/
         source_files: []
         children:
-            - frontend/internal/lint_configs
-            - frontend/internal/vite_config
             - frontend/internal/node_utils
-            - frontend/internal/tsconfig
+            - frontend/internal/vite_config
             - frontend/internal/tailwind_config
+            - frontend/internal/lint_configs
+            - frontend/internal/tsconfig
         depends_on: []
         related_to:
             - path: backend/codegen
@@ -1402,16 +1403,16 @@ modules:
             - frontend/packages/
         source_files: []
         children:
-            - frontend/packages/utils
-            - frontend/packages/preferences
-            - frontend/packages/constants
-            - frontend/packages/locales
-            - frontend/packages/effects
             - frontend/packages/core
-            - frontend/packages/types
             - frontend/packages/icons
+            - frontend/packages/types
+            - frontend/packages/utils
             - frontend/packages/styles
             - frontend/packages/stores
+            - frontend/packages/preferences
+            - frontend/packages/effects
+            - frontend/packages/locales
+            - frontend/packages/constants
         depends_on: []
         related_to: []
     frontend/packages/constants:
@@ -1432,8 +1433,8 @@ modules:
         source_files: []
         children:
             - frontend/packages/core/preferences
-            - frontend/packages/core/base
             - frontend/packages/core/composables
+            - frontend/packages/core/base
             - frontend/packages/core/ui_kit
         depends_on: []
         related_to:
@@ -1494,11 +1495,11 @@ modules:
         source_files: []
         children:
             - frontend/packages/effects/hooks
-            - frontend/packages/effects/request
             - frontend/packages/effects/common_ui
-            - frontend/packages/effects/access
-            - frontend/packages/effects/plugins
             - frontend/packages/effects/layouts
+            - frontend/packages/effects/plugins
+            - frontend/packages/effects/access
+            - frontend/packages/effects/request
         depends_on: []
         related_to: []
     frontend/packages/effects/access:
@@ -1673,10 +1674,10 @@ modules:
             - frontend/playground/
         source_files: []
         children:
-            - frontend/playground/core_auth_views
             - frontend/playground/demos
-            - frontend/playground/system_admin
+            - frontend/playground/core_auth_views
             - frontend/playground/examples
+            - frontend/playground/system_admin
             - frontend/playground/dashboard
         depends_on: []
         related_to: []
@@ -1733,13 +1734,11 @@ modules:
             - path: backend/rbac
             - path: frontend/packages/effects/access
     frontend/scripts:
-        dir_name: 前端工程化与运维脚本集
-        title: 前端工程化与运维脚本集
+        dir_name: 前端工程化与开发工具集
+        title: 前端工程化与开发工具集
         scope:
             - frontend/scripts/
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: frontend/internal/node_utils
-            - path: frontend/internal/lint_configs
+        related_to: []
