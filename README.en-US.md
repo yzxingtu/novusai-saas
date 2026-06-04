@@ -2,6 +2,12 @@
   <img src="docs/assets/branding/logo.png" alt="NovusAI SaaS Logo" width="160" />
 </p>
 
+<p align="center">
+  <a href="https://nvuai.cc">Website</a> ·
+  <a href="https://nvuai.cc/docs/quick-start">Quick Start</a> ·
+  <a href="https://nvuai.cc/docs">Docs</a>
+</p>
+
 # NovusAI SaaS
 
 **Languages:** [简体中文](README.md) · English
@@ -129,18 +135,24 @@ novusai-saas/
 
 ## Quick Start
 
-### 1. Start Dependency Services
+### Option A: Source Development (Recommended)
+
+Best for active development. Backend and frontend run from source; only PostgreSQL and Redis are containerised.
+
+#### 1. Start Dependency Services
 
 From the repository root, start local PostgreSQL and Redis:
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d postgres redis
 ```
 
-### 2. Start the Backend
+#### 2. Start the Backend
 
 ```bash
 cd backend
+cp .env.example .env
+
 python -m venv .venv
 
 # Windows
@@ -153,7 +165,6 @@ uv sync --extra dev
 # Or use pip:
 # pip install -e ".[dev]"
 
-cp .env.example .env
 novusai db upgrade head
 novusai run --reload
 ```
@@ -166,7 +177,7 @@ source .venv/bin/activate
 novusai celery dev
 ```
 
-### 3. Start the Frontend
+#### 3. Start the Frontend
 
 ```bash
 cd frontend
@@ -174,16 +185,53 @@ pnpm install
 pnpm dev:antd
 ```
 
-Default local URLs:
+### Option B: Docker Full-Stack Build
 
-| Item | URL |
-|------|-----|
-| API | `http://127.0.0.1:8000` |
-| Web app | `http://localhost:5666` |
-| Swagger UI | `http://127.0.0.1:8000/docs` |
-| ReDoc | `http://127.0.0.1:8000/redoc` |
+Best for a quick trial or integration testing. All services — backend, frontend, and databases — run in containers.
 
-Initial migrations create a development administrator account. Default accounts are for local development only and must be changed or removed in production.
+#### 1. Prepare the backend config
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+#### 2. Build and start all services
+
+```bash
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+The first build takes about 5–10 minutes (the frontend pnpm install is the slowest step). Subsequent starts reuse cached layers.
+
+If you change Postgres initialisation parameters (e.g. credentials), remove the old volume first:
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+### Access URLs
+
+| Item | Source Development | Docker Full-Stack |
+|------|--------------------|--------------------|
+| Web app | `http://localhost:5666` | `http://localhost:5666` |
+| API | `http://127.0.0.1:8000` | `http://localhost:8000` |
+| Swagger UI | `http://127.0.0.1:8000/docs` | `http://localhost:8000/docs` |
+| ReDoc | `http://127.0.0.1:8000/redoc` | `http://localhost:8000/redoc` |
+| PostgreSQL | `127.0.0.1:5432` | `localhost:5432` |
+| Redis | `127.0.0.1:6379` | `localhost:6379` |
+
+### Default Admin Account
+
+Initial migrations create a platform super-administrator:
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin123456` |
+| Email | `admin@novusai.com` |
+
+> **Warning:** The default account is for local development and initial testing only. Change the password immediately after deploying to production.
 
 ## Configuration
 

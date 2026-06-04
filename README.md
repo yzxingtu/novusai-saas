@@ -2,6 +2,12 @@
   <img src="docs/assets/branding/logo.png" alt="NovusAI SaaS Logo" width="160" />
 </p>
 
+<p align="center">
+  <a href="https://nvuai.cc">官网</a> ·
+  <a href="https://nvuai.cc/docs/quick-start">快速开始</a> ·
+  <a href="https://nvuai.cc/docs/quick-start">文档</a>
+</p>
+
 # NovusAI SaaS
 
 **语言：** 简体中文 · [English](README.en-US.md)
@@ -129,18 +135,24 @@ novusai-saas/
 
 ## 快速开始
 
-### 1. 启动依赖服务
+### 方式一：源码开发（推荐）
+
+适合二次开发，后端和前端以源码方式运行，仅将 PostgreSQL 和 Redis 放入容器。
+
+#### 1. 启动依赖服务
 
 在仓库根目录启动本地 PostgreSQL 与 Redis：
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d postgres redis
 ```
 
-### 2. 启动后端
+#### 2. 启动后端
 
 ```bash
 cd backend
+cp .env.example .env
+
 python -m venv .venv
 
 # Windows
@@ -153,7 +165,6 @@ uv sync --extra dev
 # 或者使用 pip:
 # pip install -e ".[dev]"
 
-cp .env.example .env
 novusai db upgrade head
 novusai run --reload
 ```
@@ -166,7 +177,7 @@ source .venv/bin/activate
 novusai celery dev
 ```
 
-### 3. 启动前端
+#### 3. 启动前端
 
 ```bash
 cd frontend
@@ -174,16 +185,53 @@ pnpm install
 pnpm dev:antd
 ```
 
-默认访问地址：
+### 方式二：Docker 全栈构建
 
-| 项目 | 地址 |
-|------|------|
-| API | `http://127.0.0.1:8000` |
-| Web 应用 | `http://localhost:5666` |
-| Swagger UI | `http://127.0.0.1:8000/docs` |
-| ReDoc | `http://127.0.0.1:8000/redoc` |
+适合快速体验或集成测试，后端、前端、数据库全部容器化运行。
 
-初始迁移会创建开发管理员账号。默认账号仅用于本地开发，生产环境必须修改或移除。
+#### 1. 准备后端配置
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+#### 2. 构建并启动所有服务
+
+```bash
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+首次构建约 5–10 分钟（前端 pnpm 安装较耗时），后续启动会使用缓存。
+
+若修改了数据库凭证等 Postgres 初始化参数，需先清除旧数据卷再重建：
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+### 访问地址
+
+| 项目 | 源码开发 | Docker 全栈 |
+|------|----------|-------------|
+| Web 应用 | `http://localhost:5666` | `http://localhost:5666` |
+| API | `http://127.0.0.1:8000` | `http://localhost:8000` |
+| Swagger UI | `http://127.0.0.1:8000/docs` | `http://localhost:8000/docs` |
+| ReDoc | `http://127.0.0.1:8000/redoc` | `http://localhost:8000/redoc` |
+| PostgreSQL | `127.0.0.1:5432` | `localhost:5432` |
+| Redis | `127.0.0.1:6379` | `localhost:6379` |
+
+### 默认管理员账号
+
+初始迁移会自动创建平台超级管理员：
+
+| 字段 | 值 |
+|------|----|
+| 用户名 | `admin` |
+| 密码 | `admin123456` |
+| 邮箱 | `admin@novusai.com` |
+
+> **警告**：默认账号仅用于本地开发和初始测试，生产环境部署后请立即修改密码。
 
 ## 配置说明
 
