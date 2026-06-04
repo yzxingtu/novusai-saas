@@ -82,7 +82,7 @@ services:
 
   backend-migrate:
     <<: *backend-env
-    image: novusai/backend:${NOVUSAI_IMAGE_TAG:-latest}
+    image: ghcr.io/yzxingtu/novusai-backend:${NOVUSAI_IMAGE_TAG:-latest}
     command: ["novusai", "db", "upgrade", "heads"]
     depends_on:
       postgres:
@@ -93,7 +93,7 @@ services:
 
   backend-api:
     <<: *backend-env
-    image: novusai/backend:${NOVUSAI_IMAGE_TAG:-latest}
+    image: ghcr.io/yzxingtu/novusai-backend:${NOVUSAI_IMAGE_TAG:-latest}
     depends_on:
       backend-migrate:
         condition: service_completed_successfully
@@ -115,7 +115,7 @@ services:
 
   backend-worker:
     <<: *backend-env
-    image: novusai/backend-worker:${NOVUSAI_IMAGE_TAG:-latest}
+    image: ghcr.io/yzxingtu/novusai-backend-worker:${NOVUSAI_IMAGE_TAG:-latest}
     depends_on:
       backend-migrate:
         condition: service_completed_successfully
@@ -135,7 +135,7 @@ services:
 
   backend-beat:
     <<: *backend-env
-    image: novusai/backend-beat:${NOVUSAI_IMAGE_TAG:-latest}
+    image: ghcr.io/yzxingtu/novusai-backend-beat:${NOVUSAI_IMAGE_TAG:-latest}
     depends_on:
       backend-migrate:
         condition: service_completed_successfully
@@ -162,7 +162,7 @@ services:
       - novusai-prod
 
   frontend:
-    image: novusai/frontend-web-antd:${NOVUSAI_IMAGE_TAG:-latest}
+    image: ghcr.io/yzxingtu/novusai-frontend-web-antd:${NOVUSAI_IMAGE_TAG:-latest}
     depends_on:
       backend-api:
         condition: service_healthy

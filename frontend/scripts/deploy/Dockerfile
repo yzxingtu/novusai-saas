@@ -26,16 +26,20 @@ RUN set -eu; \
         ;; \
     esac; \
     case "$VITE_GLOB_API_URL" in \
+      http://localhost*|http://127.0.0.1*|http://backend-api*) \
+        echo "Using local/dev API URL: $VITE_GLOB_API_URL" ;; \
       https://*) \
         ;; \
       *) \
-        echo "VITE_GLOB_API_URL must start with https:// for production images" >&2; \
+        echo "VITE_GLOB_API_URL must start with https:// for production images (or be a local dev URL)" >&2; \
         exit 1; \
         ;; \
     esac; \
     case "$VITE_GLOB_API_URL" in \
+      http://localhost*|http://127.0.0.1*|http://backend-api*) \
+        ;; \
       *example.invalid*|*example.com*|*localhost*|*127.0.0.1*|*0.0.0.0*) \
-        echo "VITE_GLOB_API_URL must be a real HTTPS production API URL" >&2; \
+        echo "VITE_GLOB_API_URL must be a real HTTPS production URL" >&2; \
         exit 1; \
         ;; \
     esac; \

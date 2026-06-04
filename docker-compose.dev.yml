@@ -1,8 +1,25 @@
+# Docker Compose — 本地开发环境
+# 用法: docker compose -f docker-compose.dev.yml up --build
+
+x-backend-env: &backend-env
+  env_file:
+    - ./backend/.env
+  environment:
+    DATABASE_HOST: postgres
+    DATABASE_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: ""
+    RUN_MIGRATIONS_ON_STARTUP: "true"
+    APP_INTERNAL_BASE_URL: http://backend-api:8000
+    CORS_ORIGINS: '["http://localhost:5666","http://localhost:8000"]'
+    PLATFORM_DOMAINS: localhost,127.0.0.1
+
 services:
-  # PostgreSQL 数据库
+  # ── 基础设施 ──────────────────────────────────
+
   postgres:
     image: pgvector/pgvector:0.8.0-pg14
-    container_name: novusai-postgres-dev
     environment:
       POSTGRES_DB: novusai_saas
       POSTGRES_USER: postgres
@@ -20,10 +37,8 @@ services:
     networks:
       - novusai-dev
 
-  # Redis 缓存/消息队列
   redis:
     image: redis:7-alpine
-    container_name: novusai-redis-dev
     ports:
       - "6379:6379"
     volumes:
@@ -37,11 +52,104 @@ services:
     networks:
       - novusai-dev
 
+  # ── 后端 (本地构建) ─────────────────────────────
+
+  backend-migrate:
+    <<: *backend-env
+    build:
+      context: ./backend
+      target: api
+    command: ["novusai", "db", "upgrade", "heads"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - novusai-dev
+
+  backend-api:
+    <<: *backend-env
+    build:
+      context: ./backend
+      target: api
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_storage:/app/storage
+      - backend_logs:/app/logs
+    networks:
+      - novusai-dev
+
+  backend-worker:
+    <<: *backend-env
+    build:
+      context: ./backend
+      target: worker
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backend_storage:/app/storage
+      - backend_logs:/app/logs
+    networks:
+      - novusai-dev
+
+  backend-beat:
+    <<: *backend-env
+    build:
+      context: ./backend
+      target: beat
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backend_storage:/app/storage
+      - backend_logs:/app/logs
+      - backend_beat_state:/app/var/celerybeat
+    networks:
+      - novusai-dev
+
+  # ── 前端 (本地构建) ─────────────────────────────
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/scripts/deploy/Dockerfile
+      args:
+        VITE_GLOB_API_URL: http://backend-api:8000
+        VITE_PLATFORM_DOMAINS: localhost
+        VITE_APP_TITLE: "NovusAI SaaS Dev"
+        VITE_APP_NAMESPACE: novusai-web-saas
+        VITE_APP_STORE_SECURE_KEY: novusai-dev-key-2024
+    depends_on:
+      backend-api:
+        condition: service_started
+    ports:
+      - "5666:8080"
+    networks:
+      - novusai-dev
+
 volumes:
+  backend_storage:
+  backend_beat_state:
+  backend_logs:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
 
 networks:
   novusai-dev:
