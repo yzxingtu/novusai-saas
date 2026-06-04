@@ -90,7 +90,9 @@ git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 green "✓ 已提交并创建标签 v${NEW_VERSION}"
 
 # ── 推送 ─────────────────────────────────────────────
-read -rp "是否推送到远端 $REMOTE？[Y/n] " CONFIRM
+printf '%s' "是否推送到远端 ${REMOTE}？[Y/n] "
+CONFIRM="Y"
+read -r CONFIRM || true
 CONFIRM="${CONFIRM:-Y}"
 
 if [[ "$CONFIRM" =~ ^[Yy] ]]; then
