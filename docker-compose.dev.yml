@@ -131,7 +131,7 @@ services:
       context: .
       dockerfile: frontend/scripts/deploy/Dockerfile
       args:
-        VITE_GLOB_API_URL: http://backend-api:8000
+        VITE_GLOB_API_URL: http://localhost:8000
         VITE_PLATFORM_DOMAINS: localhost
         VITE_APP_TITLE: "NovusAI SaaS Dev"
         VITE_APP_NAMESPACE: novusai-web-saas
