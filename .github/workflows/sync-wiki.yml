@@ -1,0 +1,75 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.qoder/repowiki/zh/content/**'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Home.md
+        run: python3 .github/scripts/generate-wiki-home.py
+
+      - name: Sync to Wiki
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          WIKI_REPO="https://${GITHUB_REPOSITORY_OWNER}:${WIKI_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+
+          # Clone wiki (init if first time)
+          if git clone "$WIKI_REPO" _wiki 2>/dev/null; then
+            echo "Wiki repo cloned successfully"
+          else
+            echo "Wiki repo not found — initializing new wiki"
+            mkdir _wiki
+            cd _wiki
+            git init
+            git remote add origin "$WIKI_REPO"
+            cd ..
+          fi
+
+          # Clear existing content
+          find _wiki -mindepth 1 -not -path '_wiki/.git*' -delete 2>/dev/null || true
+
+          # Copy new content
+          cp -r .qoder/repowiki/zh/content/* _wiki/
+
+          # Copy generated Home.md
+          cp Home.md _wiki/
+
+          # Commit & push
+          cd _wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No wiki changes to sync"
+            exit 0
+          fi
+
+          git commit -m "sync: update wiki from .qoder/repowiki [skip ci]"
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            if git push -u origin master 2>/dev/null || git push -u origin main; then
+              echo "Wiki synced successfully"
+              exit 0
+            fi
+            echo "Push attempt $i failed, retrying..."
+            git pull --rebase origin master 2>/dev/null || git pull --rebase origin main 2>/dev/null || true
+            sleep 2
+          done
+          echo "Failed to push wiki after $MAX_RETRIES attempts"
+          exit 1
