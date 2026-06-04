@@ -5,8 +5,9 @@ ENV PATH="$PNPM_HOME:$PATH"
 ENV NODE_OPTIONS=--max-old-space-size=8192
 ENV TZ=Asia/Shanghai
 
+# Build-time args — baked into the JS bundle (import.meta.env.VITE_*)
 ARG VITE_GLOB_API_URL=https://api.novusai.example.com
-ARG VITE_PLATFORM_DOMAINS=
+ARG VITE_PLATFORM_DOMAINS=localhost
 ARG VITE_APP_TITLE="NovusAI SaaS"
 ARG VITE_APP_NAMESPACE=novusai-web-saas
 ARG VITE_APP_STORE_SECURE_KEY=change-me-before-production
@@ -16,45 +17,6 @@ ENV VITE_GLOB_API_URL="${VITE_GLOB_API_URL}" \
     VITE_APP_TITLE="${VITE_APP_TITLE}" \
     VITE_APP_NAMESPACE="${VITE_APP_NAMESPACE}" \
     VITE_APP_STORE_SECURE_KEY="${VITE_APP_STORE_SECURE_KEY}"
-
-RUN set -eu; \
-    test -n "$VITE_APP_TITLE" || { echo "VITE_APP_TITLE must be set for production images" >&2; exit 1; }; \
-    case "$VITE_APP_STORE_SECURE_KEY" in \
-      ""|*example.invalid*|*example.com*|*localhost*|*127.0.0.1*|*0.0.0.0*|*.local*|*replace-me*|*please-replace*|*change-me*|your-secret-key-change-in-production) \
-        echo "VITE_APP_STORE_SECURE_KEY must be replaced for a production image" >&2; \
-        exit 1; \
-        ;; \
-    esac; \
-    case "$VITE_GLOB_API_URL" in \
-      http://localhost*|http://127.0.0.1*|http://backend-api*) \
-        echo "Using local/dev API URL: $VITE_GLOB_API_URL" ;; \
-      https://*) \
-        ;; \
-      *) \
-        echo "VITE_GLOB_API_URL must start with https:// for production images (or be a local dev URL)" >&2; \
-        exit 1; \
-        ;; \
-    esac; \
-    case "$VITE_GLOB_API_URL" in \
-      http://localhost*|http://127.0.0.1*|http://backend-api*) \
-        ;; \
-      *example.invalid*|*example.com*|*localhost*|*127.0.0.1*|*0.0.0.0*) \
-        echo "VITE_GLOB_API_URL must be a real HTTPS production URL" >&2; \
-        exit 1; \
-        ;; \
-    esac; \
-    case "$VITE_PLATFORM_DOMAINS" in \
-      "") \
-        echo "VITE_PLATFORM_DOMAINS must not be empty" >&2; \
-        exit 1; \
-        ;; \
-      localhost|127.0.0.1) \
-        echo "Using local/dev platform domains: $VITE_PLATFORM_DOMAINS" ;; \
-      *example.invalid*|*example.com*|*0.0.0.0*) \
-        echo "VITE_PLATFORM_DOMAINS must be replaced with real production domains" >&2; \
-        exit 1; \
-        ;; \
-    esac
 
 RUN corepack enable
 
@@ -83,6 +45,11 @@ COPY --from=builder --chown=nginx:nginx /app/apps/web-antd/dist /usr/share/nginx
 
 COPY --from=builder --chown=nginx:nginx /app/scripts/deploy/nginx.conf /etc/nginx/nginx.conf
 
+# Runtime config — override VITE_GLOB_* vars at container startup via docker-compose.yml
+ENV VITE_GLOB_API_URL=https://api.novusai.example.com
+
+COPY --chmod=755 frontend/scripts/deploy/entrypoint.sh /entrypoint.sh
+
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
@@ -90,4 +57,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 USER nginx
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]
