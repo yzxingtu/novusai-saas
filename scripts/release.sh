@@ -14,7 +14,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$REPO_ROOT/VERSION"
 PYPROJECT="$REPO_ROOT/backend/pyproject.toml"
-REMOTE="${RELEASE_REMOTE:-origin}"
+REMOTE="${RELEASE_REMOTE:-$(git remote | head -1)}"
 
 # ── 颜色输出 ─────────────────────────────────────────
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
