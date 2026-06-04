@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generate Home.md
+      - name: Process & generate wiki content
         run: python3 .github/scripts/generate-wiki-home.py
 
       - name: Sync to Wiki
@@ -46,11 +46,8 @@ jobs:
           # Clear existing content
           find _wiki -mindepth 1 -not -path '_wiki/.git*' -delete 2>/dev/null || true
 
-          # Copy new content
-          cp -r .qoder/repowiki/zh/content/* _wiki/
-
-          # Copy generated Home.md
-          cp Home.md _wiki/
+          # Copy processed content from staging directory
+          cp -r .wiki-staging/* _wiki/
 
           # Commit & push
           cd _wiki
