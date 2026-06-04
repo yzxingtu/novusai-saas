@@ -44,7 +44,13 @@ RUN set -eu; \
         ;; \
     esac; \
     case "$VITE_PLATFORM_DOMAINS" in \
-      ""|*example.invalid*|*example.com*|*localhost*|*127.0.0.1*|*0.0.0.0*) \
+      "") \
+        echo "VITE_PLATFORM_DOMAINS must not be empty" >&2; \
+        exit 1; \
+        ;; \
+      localhost|127.0.0.1) \
+        echo "Using local/dev platform domains: $VITE_PLATFORM_DOMAINS" ;; \
+      *example.invalid*|*example.com*|*0.0.0.0*) \
         echo "VITE_PLATFORM_DOMAINS must be replaced with real production domains" >&2; \
         exit 1; \
         ;; \
@@ -59,7 +65,7 @@ COPY backend/app /backend/app
 COPY backend/plugins /backend/plugins
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-RUN pnpm --filter @vben/web-antd build
+RUN pnpm --filter @vben/web-antd... build
 
 RUN test -f /app/apps/web-antd/dist/index.html
 
