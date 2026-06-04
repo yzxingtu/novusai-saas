@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@vben/vite-config';
@@ -9,6 +10,18 @@ import { loadEnv } from 'vite';
 import { novusPluginsLoader } from './build/vite-plugin-novus-plugins';
 
 const DEFAULT_PROXY_TARGET = 'http://127.0.0.1:8000';
+
+// Read global version from VERSION file at repo root
+function readAppVersion(): string {
+  try {
+    const versionPath = fileURLToPath(
+      new URL('../../../VERSION', import.meta.url),
+    );
+    return readFileSync(versionPath, 'utf8').trim();
+  } catch {
+    return 'dev';
+  }
+}
 
 function resolveProxyTarget(rawApiUrl?: string): string {
   const normalized = rawApiUrl?.trim();
@@ -78,6 +91,9 @@ export default defineConfig(async ({ mode }) => {
   return {
     application: {},
     vite: {
+      define: {
+        __APP_VERSION__: JSON.stringify(readAppVersion()),
+      },
       plugins: [
         novusPluginsLoader({
           pluginsDir,

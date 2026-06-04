@@ -1,5 +1,6 @@
 *
 
+!VERSION
 !frontend/
 !frontend/**
 !backend/

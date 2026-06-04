@@ -17,6 +17,8 @@ defineOptions({ name: 'AdminAuthLayout' });
 
 const publicConfigStore = usePublicConfigStore();
 
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+
 onMounted(() => {
   updatePreferences({
     theme: { builtinType: 'sky-blue', colorPrimary: 'hsl(231 98% 65%)' },
@@ -206,11 +208,13 @@ const logoSrc = computed(() => {
 
       <!-- Copyright -->
       <div
-        v-if="footerBranding.visible"
         class="absolute bottom-4 text-center text-xs text-muted-foreground"
       >
-        {{ footerBranding.companyName }}
-        <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
+        <div v-if="footerBranding.visible">
+          {{ footerBranding.companyName }}
+          <span v-if="footerBranding.meta">{{ footerBranding.meta }}</span>
+        </div>
+        <div class="mt-0.5 opacity-60">v{{ appVersion }}</div>
       </div>
     </div>
   </div>
