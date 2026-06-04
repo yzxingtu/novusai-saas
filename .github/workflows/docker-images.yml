@@ -24,22 +24,18 @@ jobs:
             context: ./backend
             dockerfile: ./backend/Dockerfile
             target: api
-            suffix: ""
           - name: novusai-backend-worker
             context: ./backend
             dockerfile: ./backend/Dockerfile
             target: worker
-            suffix: ""
           - name: novusai-backend-beat
             context: ./backend
             dockerfile: ./backend/Dockerfile
             target: beat
-            suffix: ""
           - name: novusai-frontend-web-antd
             context: .
             dockerfile: frontend/scripts/deploy/Dockerfile
             target: ""
-            suffix: ""
 
     steps:
       - name: Checkout
@@ -84,3 +80,49 @@ jobs:
             VITE_GLOB_API_URL=${{ secrets.VITE_GLOB_API_URL || 'https://api.novusai.example.com' }}
             VITE_PLATFORM_DOMAINS=${{ secrets.VITE_PLATFORM_DOMAINS || 'novusai.example.com' }}
             VITE_APP_STORE_SECURE_KEY=${{ secrets.VITE_APP_STORE_SECURE_KEY || 'ci-placeholder-replace-in-secrets' }}
+
+  release:
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 需要完整历史来生成 commit diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install OpenAI SDK
+        run: pip install openai
+
+      - name: Generate release notes with AI
+        id: notes
+        env:
+          AI_API_BASE: ${{ secrets.AI_API_BASE }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_MODEL: ${{ secrets.AI_MODEL || 'gpt-4o-mini' }}
+        run: |
+          python scripts/generate_release_notes.py \
+            --tag "${{ github.ref_name }}" \
+            --output /tmp/release_notes.md
+          echo "notes_file=/tmp/release_notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Read version from VERSION file
+        id: ver
+        run: echo "version=$(cat VERSION | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "v${{ steps.ver.outputs.version }}"
+          body_path: ${{ steps.notes.outputs.notes_file }}
+          draft: false
+          prerelease: ${{ contains(steps.ver.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
