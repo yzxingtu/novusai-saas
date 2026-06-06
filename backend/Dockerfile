@@ -18,6 +18,7 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY backend/pyproject.toml backend/README.md ./
+COPY VERSION /
 COPY VERSION ./
 COPY backend/app ./app
 # 中文: 元数据和源码都进入镜像后再执行一次正式安装，避免 fallback 掩盖构建问题。
@@ -46,6 +47,8 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
+COPY --from=builder /VERSION /VERSION
+COPY --from=builder --chown=novusai:novusai /app/VERSION /app/VERSION
 COPY --chown=novusai:novusai backend/ .
 
 RUN mkdir -p /app/logs /app/storage/uploads /app/storage/cache/images /app/var/celerybeat \

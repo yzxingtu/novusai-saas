@@ -23,7 +23,7 @@ RUN corepack enable
 WORKDIR /app
 
 COPY frontend /app
-COPY VERSION /app/VERSION
+COPY VERSION /
 COPY backend/app /backend/app
 COPY backend/plugins /backend/plugins
 
