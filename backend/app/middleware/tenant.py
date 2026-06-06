@@ -6,6 +6,8 @@ Resolves tenant info from request Host header, supports / 根据 Host 头解析�
 2. Custom domain mode / 自定义域名模式: custom.domain.com -> tenant_domains table
 """
 
+from urllib.parse import urlparse
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -140,6 +142,21 @@ class TenantMiddleware:
         # Parse tenant / 解析企业
         tenant_code, domain_type = parse_tenant_from_host(host)
 
+        # 跨域场景回退：当 Host 无法识别租户时，用 Origin 头解析。
+        # Cross-origin fallback: if Host cannot identify a tenant, try the
+        # Origin header (e.g. tenant custom domain → centralised API domain).
+        origin_host: str | None = None
+        if tenant_code is None and domain_type in {"unknown"}:
+            origin_raw = headers.get(b"origin", b"").decode("utf-8", errors="ignore")
+            if origin_raw:
+                try:
+                    parsed = urlparse(origin_raw)
+                    origin_host = (parsed.hostname or "").lower()
+                except ValueError:
+                    origin_host = None
+                if origin_host:
+                    tenant_code, domain_type = parse_tenant_from_host(origin_host)
+
         # Create tenant context / 创建企业上下文
         tenant_ctx = TenantContext(
             tenant_code=tenant_code,
@@ -147,9 +164,10 @@ class TenantMiddleware:
         )
 
         # If tenant info resolved, load from DB / 如果解析出了企业信息，从数据库加载
+        resolve_host = origin_host if origin_host else host
         if tenant_code or domain_type == "custom":
             async with async_session_factory() as db:
-                tenant = await self._resolve_tenant(db, tenant_code, host, domain_type)
+                tenant = await self._resolve_tenant(db, tenant_code, resolve_host, domain_type)
                 if tenant:
                     tenant_ctx.tenant = tenant
                     tenant_ctx.tenant_id = tenant.id
