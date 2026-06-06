@@ -356,3 +356,6 @@ log/
 
 # Vben upstream snapshots (generated locally/CI only)
 frontend/.vendor/
+
+# CI copies VERSION into backend/ at build time
+backend/VERSION

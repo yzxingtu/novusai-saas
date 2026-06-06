@@ -41,6 +41,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Copy VERSION into backend context
+        run: cp VERSION backend/VERSION
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

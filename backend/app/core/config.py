@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # env_file 固定为 backend/.env，避免 cwd 不同导致加载失败
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # 应用基础配置 / Application Basic Configuration
     # ========================================
     APP_NAME: str = "NovusAI SaaS"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "0.1.0"  # 中文: 启动时自动从 VERSION 文件读取，此默认值仅作兜底。
     APP_ENV: str = "development"  # development, staging, production / 运行环境
     DEBUG: bool = False
     # 中文: 生产镜像由独立 migrate 容器执行迁移，API 启动只做连接校验。
@@ -287,6 +287,15 @@ class Settings(BaseSettings):
             if normalized in falsy:
                 return False
         raise ValueError("DEBUG must be a boolean-like value")
+
+    @model_validator(mode="after")
+    def _load_version_from_file(self) -> "Settings":
+        """中文: 从 VERSION 文件读取版本号，仅在未通过环境变量显式设置时生效。
+        EN: Read version from VERSION file, only when not explicitly set via env var."""
+        version_file = _CONFIG_DIR / "VERSION"
+        if version_file.is_file():
+            self.APP_VERSION = version_file.read_text().strip()
+        return self
 
 
 @lru_cache

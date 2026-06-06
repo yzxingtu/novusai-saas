@@ -18,6 +18,7 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
+COPY VERSION ./
 COPY app ./app
 # 中文: 元数据和源码都进入镜像后再执行一次正式安装，避免 fallback 掩盖构建问题。
 # EN: Install once after metadata and source are present so fallback paths cannot mask build issues.
