@@ -291,8 +291,16 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _load_version_from_file(self) -> "Settings":
         """中文: 从 VERSION 文件读取版本号，仅在未通过环境变量显式设置时生效。
-        EN: Read version from VERSION file, only when not explicitly set via env var."""
+        EN: Read version from VERSION file, only when not explicitly set via env var.
+
+        查找顺序 / Lookup order:
+          1. backend/VERSION  — Docker 构建时由 COPY VERSION ./ 注入
+          2. <repo_root>/VERSION — 本地开发时直接读取仓库根目录版本文件
+        """
         version_file = _CONFIG_DIR / "VERSION"
+        if not version_file.is_file():
+            # 本地开发：fallback 到仓库根目录的 VERSION 文件
+            version_file = _CONFIG_DIR.parent / "VERSION"
         if version_file.is_file():
             self.APP_VERSION = version_file.read_text().strip()
         return self

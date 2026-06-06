@@ -54,20 +54,6 @@ services:
 
   # ── 后端 (本地构建) ─────────────────────────────
 
-  backend-migrate:
-    <<: *backend-env
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-      target: api
-    command: ["novusai", "db", "upgrade", "heads"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-    networks:
-      - novusai-dev
-
   backend-api:
     <<: *backend-env
     build:
@@ -75,8 +61,6 @@ services:
       dockerfile: backend/Dockerfile
       target: api
     depends_on:
-      backend-migrate:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -96,8 +80,6 @@ services:
       dockerfile: backend/Dockerfile
       target: worker
     depends_on:
-      backend-migrate:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -115,8 +97,6 @@ services:
       dockerfile: backend/Dockerfile
       target: beat
     depends_on:
-      backend-migrate:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
