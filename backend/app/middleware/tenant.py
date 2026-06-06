@@ -142,11 +142,16 @@ class TenantMiddleware:
         # Parse tenant / 解析企业
         tenant_code, domain_type = parse_tenant_from_host(host)
 
-        # 跨域场景回退：当 Host 无法识别租户时，用 Origin 头解析。
-        # Cross-origin fallback: if Host cannot identify a tenant, try the
-        # Origin header (e.g. tenant custom domain → centralised API domain).
+        # 跨域场景回退：当 Host 无法有效识别租户时，用 Origin 头解析。
+        # Cross-origin fallback: when Host cannot reliably identify a tenant,
+        # try the Origin header (e.g. tenant custom domain → centralised API domain).
+        #
+        # 触发条件 / Trigger conditions:
+        #   - unknown: Host 完全无法解析（平台域名、未知域名）
+        #   - subdomain: Host 看似子域名但可能是 API 代理域名（如 apidemo.nvuai.cc
+        #     被误识别为 tenant code "api"），此时用 Origin 重新解析更可靠
         origin_host: str | None = None
-        if tenant_code is None and domain_type in {"unknown"}:
+        if (tenant_code is None and domain_type == "unknown") or domain_type == "subdomain":
             origin_raw = headers.get(b"origin", b"").decode("utf-8", errors="ignore")
             if origin_raw:
                 try:
@@ -155,7 +160,14 @@ class TenantMiddleware:
                 except ValueError:
                     origin_host = None
                 if origin_host:
-                    tenant_code, domain_type = parse_tenant_from_host(origin_host)
+                    new_code, new_type = parse_tenant_from_host(origin_host)
+                    # 仅当 Origin 能解析出有效租户时才覆盖 Host 的结果。
+                    # Only override Host result when Origin yields a valid tenant.
+                    if new_code or new_type == "custom":
+                        tenant_code, domain_type = new_code, new_type
+                    else:
+                        # Origin 也无效，保留 Host 原始结果 / Origin also failed, keep Host result
+                        origin_host = None
 
         # Create tenant context / 创建企业上下文
         tenant_ctx = TenantContext(
