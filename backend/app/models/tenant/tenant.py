@@ -29,9 +29,16 @@ class Tenant(BaseModel):
         DeletionDep(
             "TenantAdmin",
             "tenant_id",
-            DeletionStrategy.BLOCK,
+            DeletionStrategy.CASCADE_SOFT,
             label_field="username",
             i18n_key="tenant_admin",
+        ),
+        DeletionDep(
+            "TenantUser",
+            "tenant_id",
+            DeletionStrategy.CASCADE_SOFT,
+            label_field="username",
+            i18n_key="tenant_user",
         ),
         DeletionDep(
             "TenantDomain",
