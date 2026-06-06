@@ -21,15 +21,15 @@ jobs:
       matrix:
         include:
           - name: novusai-backend
-            context: ./backend
+            context: .
             dockerfile: ./backend/Dockerfile
             target: api
           - name: novusai-backend-worker
-            context: ./backend
+            context: .
             dockerfile: ./backend/Dockerfile
             target: worker
           - name: novusai-backend-beat
-            context: ./backend
+            context: .
             dockerfile: ./backend/Dockerfile
             target: beat
           - name: novusai-frontend-web-antd
@@ -40,9 +40,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Copy VERSION into backend context
-        run: cp VERSION backend/VERSION
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

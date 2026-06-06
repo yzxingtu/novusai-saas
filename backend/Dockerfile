@@ -17,9 +17,9 @@ RUN set -eux; \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY backend/pyproject.toml backend/README.md ./
 COPY VERSION ./
-COPY app ./app
+COPY backend/app ./app
 # 中文: 元数据和源码都进入镜像后再执行一次正式安装，避免 fallback 掩盖构建问题。
 # EN: Install once after metadata and source are present so fallback paths cannot mask build issues.
 RUN pip install --prefix=/install --no-cache-dir .
@@ -46,7 +46,7 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY --chown=novusai:novusai . .
+COPY --chown=novusai:novusai backend/ .
 
 RUN mkdir -p /app/logs /app/storage/uploads /app/storage/cache/images /app/var/celerybeat \
     && chown -R novusai:novusai /app

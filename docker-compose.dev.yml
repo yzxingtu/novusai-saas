@@ -57,7 +57,8 @@ services:
   backend-migrate:
     <<: *backend-env
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: api
     command: ["novusai", "db", "upgrade", "heads"]
     depends_on:
@@ -70,7 +71,8 @@ services:
   backend-api:
     <<: *backend-env
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: api
     depends_on:
       backend-migrate:
@@ -90,7 +92,8 @@ services:
   backend-worker:
     <<: *backend-env
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: worker
     depends_on:
       backend-migrate:
@@ -108,7 +111,8 @@ services:
   backend-beat:
     <<: *backend-env
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: beat
     depends_on:
       backend-migrate:

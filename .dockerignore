@@ -1,14 +1,34 @@
+# 白名单模式：排除所有，按需包含构建所需文件
+# Whitelist mode: exclude everything, include only what builds need
 *
 
+# 版本号（前后端构建都需要）/ VERSION file (both frontend & backend builds)
 !VERSION
+
+# 后端构建所需 / Backend build needs
+!backend/
+!backend/**
+
+# 前端构建所需 / Frontend build needs
 !frontend/
 !frontend/**
-!backend/
-!backend/app/
-!backend/app/**
-!backend/plugins/
-!backend/plugins/**
 
+# 排除不需要的后端文件 / Exclude unnecessary backend files
+backend/.venv
+backend/logs
+backend/storage
+backend/tests
+backend/docs
+backend/plugins/.backups
+
+# 排除不需要的前端文件 / Exclude unnecessary frontend files
+frontend/dist
+frontend/apps/*/dist
+frontend/.env
+frontend/.env.*
+!frontend/apps/web-antd/.env.production
+
+# 排除通用无关文件 / Exclude common irrelevant files
 **/.git
 **/.idea
 **/.pytest_cache
@@ -17,8 +37,6 @@
 **/__pycache__
 **/*.pyc
 **/node_modules
-**/.env
-**/.env.*
 **/*.pem
 **/*.key
 **/*.crt
@@ -29,14 +47,9 @@
 **/*secret*
 **/*credential*
 
-backend/.venv
-backend/logs
-backend/storage
-backend/tests
-backend/plugins/.backups
-frontend/dist
-frontend/apps/*/dist
-frontend/.env
-frontend/.env.*
-!frontend/apps/web-antd/.env.production
-ops/acceptance-artifacts
+# 排除其他目录 / Exclude other directories
+website/
+docs/
+.github/
+.qoder/
+ops/
