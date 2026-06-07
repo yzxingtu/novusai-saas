@@ -139,51 +139,70 @@ class TenantMiddleware:
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode("utf-8", errors="ignore")
 
-        # Parse tenant / 解析企业
+        # Parse tenant from Host (primary) / 优先用 Host 头解析企业
         tenant_code, domain_type = parse_tenant_from_host(host)
 
-        # 跨域场景回退：当 Host 无法有效识别租户时，用 Origin 头解析。
-        # Cross-origin fallback: when Host cannot reliably identify a tenant,
-        # try the Origin header (e.g. tenant custom domain → centralised API domain).
-        #
-        # 触发条件 / Trigger conditions:
-        #   - unknown: Host 完全无法解析（平台域名、未知域名）
-        #   - subdomain: Host 看似子域名但可能是 API 代理域名（如 apidemo.nvuai.cc
-        #     被误识别为 tenant code "api"），此时用 Origin 重新解析更可靠
+        # 预解析 Origin（用于跨域兜底） / Pre-parse Origin for cross-origin fallback
+        # 跨域场景：租户前端（如 https://t3tetj7r5.nvuai.online）调用集中式 API
+        # 域名（如 https://apidemo.nvuai.cc），此时 Host 头无法识别租户身份，
+        # 必须从 Origin 头还原真实租户。
+        # Cross-origin scenario: tenant frontend on https://t3tetj7r5.nvuai.online
+        # calls a centralised API domain like https://apidemo.nvuai.cc, in which
+        # case the Host header cannot identify the tenant and we must recover the
+        # real tenant from the Origin header.
         origin_host: str | None = None
-        if (tenant_code is None and domain_type == "unknown") or domain_type == "subdomain":
-            origin_raw = headers.get(b"origin", b"").decode("utf-8", errors="ignore")
-            if origin_raw:
-                try:
-                    parsed = urlparse(origin_raw)
-                    origin_host = (parsed.hostname or "").lower()
-                except ValueError:
-                    origin_host = None
-                if origin_host:
-                    new_code, new_type = parse_tenant_from_host(origin_host)
-                    # 仅当 Origin 能解析出有效租户时才覆盖 Host 的结果。
-                    # Only override Host result when Origin yields a valid tenant.
-                    if new_code or new_type == "custom":
-                        tenant_code, domain_type = new_code, new_type
-                    else:
-                        # Origin 也无效，保留 Host 原始结果 / Origin also failed, keep Host result
-                        origin_host = None
+        origin_code: str | None = None
+        origin_type: str = "unknown"
+        origin_raw = headers.get(b"origin", b"").decode("utf-8", errors="ignore")
+        if origin_raw:
+            try:
+                parsed = urlparse(origin_raw)
+                origin_host = (parsed.hostname or "").lower() or None
+            except ValueError:
+                origin_host = None
+            if origin_host and origin_host != host.split(":")[0].lower():
+                origin_code, origin_type = parse_tenant_from_host(origin_host)
+            else:
+                # Origin 与 Host 同域则无回退价值 / Same-origin: no fallback value
+                origin_host = None
 
-        # Create tenant context / 创建企业上下文
+        # 创建企业上下文（占位） / Create tenant context placeholder
         tenant_ctx = TenantContext(
             tenant_code=tenant_code,
             domain_type=domain_type,
         )
 
-        # If tenant info resolved, load from DB / 如果解析出了企业信息，从数据库加载
-        resolve_host = origin_host if origin_host else host
-        if tenant_code or domain_type == "custom":
-            async with async_session_factory() as db:
-                tenant = await self._resolve_tenant(db, tenant_code, resolve_host, domain_type)
-                if tenant:
-                    tenant_ctx.tenant = tenant
-                    tenant_ctx.tenant_id = tenant.id
-                    tenant_ctx.tenant_code = tenant.code
+        # 两阶段查询：Host 优先 → Origin 兜底重试。
+        # Two-stage lookup: Host first, fallback to Origin when Host fails.
+        # 这样能同时覆盖：
+        # 1. 正常 subdomain / custom 域名（一阶段命中）
+        # 2. 集中式 API 跨域调用（Host 是 API 代理域名、不在 DB 中），
+        #    无论 Host 被解析为 subdomain / custom / unknown 都能由 Origin 兜底
+        async with async_session_factory() as db:
+            tenant = None
+            # Stage 1: Host
+            if tenant_code or domain_type == "custom":
+                tenant = await self._resolve_tenant(
+                    db, tenant_code, host, domain_type
+                )
+            # Stage 2: Origin fallback when Host lookup failed
+            # 当 Host 查不到租户、且 Origin 能解析出候选租户时重试。
+            if (
+                tenant is None
+                and origin_host
+                and (origin_code or origin_type == "custom")
+            ):
+                tenant = await self._resolve_tenant(
+                    db, origin_code, origin_host, origin_type
+                )
+                if tenant is not None:
+                    tenant_code, domain_type = origin_code, origin_type
+
+            if tenant is not None:
+                tenant_ctx.tenant = tenant
+                tenant_ctx.tenant_id = tenant.id
+                tenant_ctx.tenant_code = tenant.code
+                tenant_ctx.domain_type = domain_type
 
         # Store tenant context in scope state / 将企业上下文存储到 scope state
         # FastAPI maps this to request.state / FastAPI 会将其映射到 request.state
