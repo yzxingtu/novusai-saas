@@ -65,8 +65,8 @@ backend/ruff_full_report.txt
 /.qoder/*
 !/.qoder/repowiki/
 !/.qoder/repowiki/**
+!/.qoder/rules/
 /AGENTS.md
-/AGENTS.example.md
 
 # The website is developed as a separate repository checked out locally here.
 /website/
