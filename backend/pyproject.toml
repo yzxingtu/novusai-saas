@@ -1,6 +1,6 @@
 [project]
 name = "novusai-saas-backend"
-version = "0.1.5"
+version = "0.1.6"
 description = "NovusAI SaaS Backend - 现代化 AI 集成 SaaS 开发框架"
 readme = "README.md"
 requires-python = ">=3.10"
