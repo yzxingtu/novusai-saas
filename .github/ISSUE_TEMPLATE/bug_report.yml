@@ -1,0 +1,83 @@
+name: "\U0001F41B Bug 报告"
+description: 报告一个缺陷或异常行为
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间填写此 Bug 报告！请尽量提供完整信息以便快速定位问题。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要描述你遇到的问题
+      placeholder: 清晰描述 Bug 的表现
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 请列出可复现此问题的操作步骤
+      placeholder: |
+        1. 进入 '...'
+        2. 点击 '...'
+        3. 向下滚动到 '...'
+        4. 出现错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 描述你期望发生的行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 描述实际发生的行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图或日志
+      description: 如有相关截图或错误日志，请粘贴在此处
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: 影响模块
+      options:
+        - 前端 (Frontend)
+        - 后端 (Backend)
+        - AI 子系统
+        - 插件系统
+        - 部署/Docker
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 当前运行的版本（可在登录页或 /api/health 查看）
+      placeholder: "v0.1.6"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 操作系统、浏览器、Docker 版本等
+      placeholder: |
+        - OS: macOS 15 / Ubuntu 22.04
+        - 浏览器: Chrome 125
+        - Docker: 27.x

@@ -1,0 +1,42 @@
+name: "\u2753 问题咨询"
+description: 使用过程中遇到疑问或需要帮助
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        在提问前，建议先查阅 [项目文档](https://nvuai.cc) 和已有的 Issues。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 问题描述
+      description: 详细描述你的疑问
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 问题类别
+      options:
+        - 安装部署
+        - 配置使用
+        - AI 功能
+        - 插件开发
+        - 二次开发
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的方案
+      description: 描述你已经尝试过的解决方法
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关信息
+      description: 版本号、错误日志、截图等有助于回答问题的信息
