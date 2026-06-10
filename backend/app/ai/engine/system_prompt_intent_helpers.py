@@ -52,9 +52,29 @@ def intent_completion_contract(
     preferred_tool_names: list[str],
     intent_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    allowed = list(allowed_tool_names or preferred_tool_names)
+
+    # Internal-ops meta-tools form a list -> describe -> invoke chain: only the
+    # terminal invoke completes the intent; discovery calls are action steps.
+    # 内部操作元工具是 list -> describe -> invoke 链：仅终态 invoke 视为完成，
+    # 发现类调用属于过程动作。
+    normalized_family = str(family or "").strip().lower()
+    if normalized_family == "internal_ops":
+        from app.ai.internal_ops.tools import TOOL_INVOKE_OPERATION
+
+        if TOOL_INVOKE_OPERATION in allowed:
+            return {
+                "mode": "any_of",
+                "completion_signals": [TOOL_INVOKE_OPERATION],
+                "action_signals": [
+                    name for name in allowed if name != TOOL_INVOKE_OPERATION
+                ],
+                "verify_signals": [],
+            }
+
     return {
         "mode": "any_of",
-        "completion_signals": list(allowed_tool_names or preferred_tool_names),
+        "completion_signals": allowed,
         "action_signals": [],
         "verify_signals": [],
     }

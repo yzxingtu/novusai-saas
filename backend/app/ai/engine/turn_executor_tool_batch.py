@@ -117,7 +117,51 @@ def build_shortcircuit_fallback_response(
 ) -> ChatResponse | None:
     if intent is None or not bool(getattr(intent, "shortcircuit", False)):
         return None
-    if str(getattr(intent, "kind", "") or "").strip() != "time_query":
+    intent_kind = str(getattr(intent, "kind", "") or "").strip()
+
+    # ── confirmation_replay: directly replay an approved pending tool call ────
+    if intent_kind == "confirmation_replay":
+        replay = dict(
+            (getattr(intent, "metadata", {}) or {}).get("confirmation_replay") or {}
+        )
+        tool_name = str(replay.get("name") or "").strip()
+        tool_call_id = str(replay.get("tool_call_id") or "").strip()
+        arguments_str = str(replay.get("arguments") or "{}").strip()
+        if not tool_name:
+            return None
+        if not tool_call_id:
+            tool_call_id = f"synthetic_confirm_replay_{tool_name}"
+        synthetic_call = [
+            {
+                "id": tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "arguments": arguments_str,
+                },
+            }
+        ]
+        metadata = dict(getattr(response, "metadata", {}) or {})
+        metadata["synthetic_shortcircuit_tool_call"] = True
+        metadata["synthetic_shortcircuit_intent_id"] = getattr(intent, "intent_id", None)
+        metadata["synthetic_shortcircuit_tool_name"] = tool_name
+        metadata["confirmation_replay"] = True
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=synthetic_call,
+            ),
+            total_tokens=int(total_tokens or getattr(response, "total_tokens", 0) or 0),
+            output_tokens=int(
+                completion_tokens_used or getattr(response, "output_tokens", 0) or 0
+            ),
+            finish_reason="tool_calls",
+            tool_calls=synthetic_call,
+            metadata=metadata,
+        )
+    # ── time_query shortcircuit ───────────────────────────────────────────────
+    if intent_kind != "time_query":
         return None
 
     time_tool = next(

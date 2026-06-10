@@ -84,19 +84,39 @@ def _is_complete_json_value(text: str) -> bool:
 
 
 def _merge_stream_arguments(current: str, incoming: str) -> str:
+    """
+    Merge a streamed arguments fragment into the accumulated buffer.
+    将流式参数片段合并进已累积缓冲。
+
+    Incremental deltas (chat-completions style) must be appended verbatim:
+    short fragments like '":"' legitimately repeat inside JSON and must never
+    be dropped as duplicates. Dedup/replace only applies to full-payload
+    resends (responses-style `arguments.done` events or cumulative providers).
+    增量 delta（chat-completions 风格）必须原样追加：形如 '":"' 的短片段在
+    JSON 中会合法地重复出现，绝不能按“重复”丢弃。去重/替换仅适用于整体重发
+    （responses 风格的 arguments.done 事件或累积式供应商）。
+    """
     current_text = str(current or "")
     incoming_text = str(incoming or "")
     if not incoming_text:
         return current_text
     if not current_text:
         return incoming_text
-    if incoming_text == current_text or incoming_text in current_text:
+    if incoming_text == current_text:
         return current_text
-    if _is_complete_json_value(current_text) and _is_complete_json_value(incoming_text):
-        return incoming_text
+    # Cumulative resend: provider streams progressively complete payloads
+    # 累积式重发：供应商每次发送逐步完整的负载
     if incoming_text.startswith(current_text):
         return incoming_text
-    return _merge_stream_fragment(current_text, incoming_text)
+    # Full-payload resend after deltas (e.g. arguments.done)
+    # delta 之后的整体重发（如 arguments.done 事件）
+    if _is_complete_json_value(incoming_text):
+        if current_text in incoming_text:
+            return incoming_text
+        if _is_complete_json_value(current_text):
+            return incoming_text
+    # Plain incremental fragment: append verbatim / 普通增量片段：原样追加
+    return current_text + incoming_text
 
 
 def merge_stream_tool_calls(

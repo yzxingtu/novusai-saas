@@ -199,6 +199,78 @@ def find_pending_confirmation(
     return None
 
 
+def find_resolved_pending_confirmation(
+    messages: list[ChatMessage],
+) -> dict[str, Any] | None:
+    """
+    Return a tool call that has been explicitly approved via interaction_updates
+    (pending_confirmation.resolved=True, rejected=False), ready for direct replay.
+    找到用户已通过 interaction_updates 点击"确认"的工具调用（resolved=True 且 rejected≠True），
+    可直接重放而无需再次调用 LLM。
+
+    Returns:
+        {"name", "arguments" (with confirmed=True injected), "tool_call_id"} or None
+    """
+    tail = messages[-8:] if len(messages) > 8 else messages
+    for msg in reversed(tail):
+        if msg.role != "assistant":
+            continue
+        # Check top-level metadata first
+        meta = msg.metadata or {}
+        top_level_pending = meta.get("pending_confirmation")
+        if isinstance(top_level_pending, dict):
+            if top_level_pending.get("resolved") and not top_level_pending.get("rejected"):
+                # Resolved at message level; now find the specific tool_call
+                for tc in msg.tool_calls or []:
+                    nested = tc.get("pending_confirmation")
+                    if isinstance(nested, dict) and nested.get("resolved") and not nested.get("rejected"):
+                        tc_id = str(tc.get("id") or "").strip()
+                        func = tc.get("function") or {}
+                        raw_args = func.get("arguments", "{}")
+                        try:
+                            arguments = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                        except (ValueError, TypeError):
+                            arguments = {}
+                        arguments = dict(arguments)
+                        arguments["confirmed"] = True
+                        name = str(func.get("name") or "").strip()
+                        if name and tc_id:
+                            return {"name": name, "arguments": arguments, "tool_call_id": tc_id}
+                # Fallback: no nested tool_call match, try first tool_call
+                for tc in msg.tool_calls or []:
+                    tc_id = str(tc.get("id") or "").strip()
+                    func = tc.get("function") or {}
+                    raw_args = func.get("arguments", "{}")
+                    try:
+                        arguments = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                    except (ValueError, TypeError):
+                        arguments = {}
+                    arguments = dict(arguments)
+                    arguments["confirmed"] = True
+                    name = str(func.get("name") or "").strip()
+                    if name and tc_id:
+                        return {"name": name, "arguments": arguments, "tool_call_id": tc_id}
+        # Also check nested tool_call level directly
+        for tc in msg.tool_calls or []:
+            nested = tc.get("pending_confirmation")
+            if not isinstance(nested, dict):
+                continue
+            if nested.get("resolved") and not nested.get("rejected"):
+                tc_id = str(tc.get("id") or "").strip()
+                func = tc.get("function") or {}
+                raw_args = func.get("arguments", "{}")
+                try:
+                    arguments = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                except (ValueError, TypeError):
+                    arguments = {}
+                arguments = dict(arguments)
+                arguments["confirmed"] = True
+                name = str(func.get("name") or "").strip()
+                if name and tc_id:
+                    return {"name": name, "arguments": arguments, "tool_call_id": tc_id}
+    return None
+
+
 def is_confirmation_text(text: str) -> bool:
     """Check if text is a short confirmation reply / 检查是否为简短确认回复"""
     return is_confirmation_reply(text)

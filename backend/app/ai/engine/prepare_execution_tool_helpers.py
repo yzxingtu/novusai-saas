@@ -4,6 +4,7 @@ Helpers for tool planning inside BaseEngine._prepare_execution().
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -248,6 +249,44 @@ def _direct_reply_discoverable_tools(
     return selected
 
 
+def _pending_confirmation_tools(
+    *,
+    all_tools: list[ToolDefinition],
+    messages: list[ChatMessage],
+    input_variables: dict[str, Any] | None,
+) -> list[ToolDefinition]:
+    """
+    When the history holds a pending tool confirmation, the follow-up user turn
+    (approve / reject / adjust) must keep the confirming tool's family
+    available, otherwise the model cannot resume the paused operation.
+    当历史中存在待确认的工具调用时，后续用户轮（同意/拒绝/调整）必须保留该
+    工具家族，否则模型无法继续被暂停的操作。
+    """
+    from .tool_processor_messages import find_pending_confirmation
+
+    pending = find_pending_confirmation(messages)
+    if not pending:
+        return []
+    pending_name = str(pending.get("name") or "").strip()
+    pending_tool = next(
+        (tool for tool in all_tools if tool.name == pending_name),
+        None,
+    )
+    if pending_tool is None:
+        return []
+    family = normalize_semantic_family(
+        tool_semantic_family(pending_tool, input_variables)
+    )
+    if family and family != "none":
+        return [
+            tool
+            for tool in all_tools
+            if normalize_semantic_family(tool_semantic_family(tool, input_variables))
+            == family
+        ]
+    return [pending_tool]
+
+
 def _single_metadata_family(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
@@ -418,6 +457,74 @@ def plan_execution_tools(
     all_tools: list[ToolDefinition],
     diagnostics: dict[str, Any],
 ) -> PreparedExecutionToolPlan:
+    # ── Confirmation Replay Shortcircuit ─────────────────────────────────────
+    # Only shortcircuit when THIS turn's interaction_updates contain an approved
+    # pending_confirmation (not rejected). We must NOT match historical resolved
+    # confirmations from earlier turns – resolved=True is persisted in message
+    # metadata forever, so we gate on the live interaction_updates signal.
+    # 只有当前轮 interaction_updates 带有批准的 pending_confirmation 时才短路；
+    # 历史消息里 resolved=True 是永久存储的，不能作为触发条件。
+    _has_current_confirmation_approval = any(
+        str(u.get("kind") or "") == "pending_confirmation"
+        and not bool(u.get("rejected"))
+        for u in (getattr(request, "interaction_updates", None) or [])
+        if isinstance(u, dict)
+    )
+    if _has_current_confirmation_approval:
+        from .tool_processor_messages import find_resolved_pending_confirmation
+
+        resolved_replay = find_resolved_pending_confirmation(messages)
+    else:
+        resolved_replay = None
+    if resolved_replay:
+        replay_tool_name = str(resolved_replay.get("name") or "").strip()
+        replay_tool = next(
+            (t for t in all_tools if t.name == replay_tool_name),
+            None,
+        )
+        if replay_tool is not None:
+            replay_intent = IntentPlan(
+                intent_id="intent-confirm-replay",
+                kind="confirmation_replay",
+                family="internal_ops",
+                order=1,
+                user_visible_label="confirmation_replay",
+                source_text="",
+                requires_tools=True,
+                shortcircuit=True,
+                allowed_tool_names=[replay_tool_name],
+                preferred_tool_names=[replay_tool_name],
+                metadata={
+                    "routing_mode": "deterministic_shortcircuit",
+                    "confirmation_replay": {
+                        "name": resolved_replay["name"],
+                        "arguments": json.dumps(resolved_replay["arguments"], ensure_ascii=False),
+                        "tool_call_id": resolved_replay["tool_call_id"],
+                    },
+                },
+            )
+            shortcircuit_policy = ToolUsePolicy(
+                family="internal_ops",
+                mode="required",
+                allowed_tool_names=[replay_tool_name],
+                retry_on_contract_breach=False,
+                reason="confirmation_replay",
+            )
+            return PreparedExecutionToolPlan(
+                tools=[replay_tool],
+                candidate_tool_names=[replay_tool_name],
+                tool_use_policy=shortcircuit_policy,
+                tool_planner={"intent": "confirmation_replay", "family": "internal_ops", "reason": "deterministic_shortcircuit"},
+                optimize_event={"total": len(all_tools), "selected": 1, "execution_path": "fast"},
+                intent_plan=[replay_intent],
+                intent_flags={"all_shortcircuit": True},
+                explicit_requested_families=["internal_ops"],
+                execution_path="fast",
+                execution_budget=BudgetGuard.build_default("fast", intent_count=1),
+                active_intent_id="intent-confirm-replay",
+            )
+    # ── End Confirmation Replay Shortcircuit ──────────────────────────────────
+
     raw_intent_plan = diagnostics.get("intent_plan")
     intent_plan = _deserialize_intent_plan_impl(raw_intent_plan)
     intent_flags = _intent_plan_gating_flags_impl(intent_plan, request=request)
@@ -488,6 +595,12 @@ def plan_execution_tools(
                 user_query=user_query,
                 limit=limit,
             )
+            if not tool_candidates:
+                tool_candidates = _pending_confirmation_tools(
+                    all_tools=all_tools,
+                    messages=messages,
+                    input_variables=request.input_variables,
+                )
             candidate_tool_names = [tool.name for tool in tool_candidates]
             if tool_candidates:
                 promoted_intent = _promote_direct_reply_metadata_intent(
@@ -656,6 +769,13 @@ def plan_execution_tools(
             "execution_path": execution_path,
             "intent_plan": [intent.to_dict() for intent in intent_plan],
         }
+
+    # Meta-tool chains need extra sequential rounds / 元工具链需要更多串行轮次
+    if any(
+        normalize_semantic_family(intent.family) == "internal_ops"
+        for intent in intent_plan
+    ):
+        execution_budget = BudgetGuard.relax_for_meta_tool_chain(execution_budget)
 
     return PreparedExecutionToolPlan(
         tools=tools,
