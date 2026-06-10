@@ -5,6 +5,7 @@ import { computed, ref, toRef, watch } from 'vue';
 import { generateWelcomeMessageApi } from '#/api/shared/ai-chat';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { useAIPanelStore } from '#/store';
 import { getAgentInputVariables } from '#/types/ai-chat';
 import { useUserStore } from '@vben/stores';
@@ -203,6 +204,7 @@ export function useAIChatSlidePanelShell(
             user_context: {
               user_nickname: userStore.userInfo?.realName || '',
               current_time: new Date().toISOString(),
+              locale: resolveRuntimeLocale(),
             },
           },
         );

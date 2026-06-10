@@ -120,11 +120,14 @@ def _build_context_additions(
     if user_context:
         nickname = str(user_context.get("user_nickname") or "").strip()
         current_time = str(user_context.get("current_time") or "").strip()
+        locale = str(user_context.get("locale") or "").strip()
         parts: list[str] = []
         if nickname:
             parts.append(f"当前用户昵称: {nickname}")
         if current_time:
             parts.append(f"当前时间: {current_time}")
+        if locale:
+            parts.append(f"用户语言偏好: {locale}")
         if parts:
             additions.append("[用户上下文] " + "; ".join(parts))
 
@@ -134,6 +137,7 @@ def _build_context_additions(
         page_desc = str(page_context.get("page_description") or "").strip()
         available_apis = page_context.get("available_apis") or []
         query_params = page_context.get("query_params") or {}
+        page_locale = str(page_context.get("locale") or "").strip()
 
         page_parts: list[str] = []
         if page_title:
@@ -146,6 +150,8 @@ def _build_context_additions(
             page_parts.append(f"查询参数: {query_params}")
         if available_apis:
             page_parts.append(f"可用API: {', '.join(available_apis)}")
+        if page_locale:
+            page_parts.append(f"语言偏好: {page_locale}")
         if page_parts:
             additions.append("[页面上下文] " + "; ".join(page_parts))
 

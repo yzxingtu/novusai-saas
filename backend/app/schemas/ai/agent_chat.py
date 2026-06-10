@@ -125,6 +125,10 @@ class PageContextPayload(BaseModel):
         default_factory=list,
         description="Available API endpoints / 可用 API 端点",
     )
+    locale: str = Field(
+        "",
+        description="User UI locale preference (e.g. zh-CN, en-US) / 用户界面语言偏好",
+    )
 
 
 class UserContextPayload(BaseModel):
@@ -132,6 +136,10 @@ class UserContextPayload(BaseModel):
 
     user_nickname: str = Field("", description="User nickname / 用户昵称")
     current_time: str = Field("", description="ISO 8601 current time / ISO 8601 当前时间")
+    locale: str = Field(
+        "",
+        description="User UI locale preference (e.g. zh-CN, en-US) / 用户界面语言偏好",
+    )
 
 
 class AgentChatRequest(BaseModel):

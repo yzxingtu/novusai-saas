@@ -396,6 +396,7 @@ export interface AgentChatRequestBody {
   /** 当前页面上下文 / Current page context for AI enrichment */
   page_context?: {
     available_apis: string[];
+    locale: string;
     page_description: string;
     page_title: string;
     query_params: Record<string, string>;
@@ -403,9 +404,10 @@ export interface AgentChatRequestBody {
     route_path: string;
   };
   trust_policy_ref?: TrustPolicyRef;
-  /** 用户上下文信息 / User context (nickname + time) */
+  /** 用户上下文信息 / User context (nickname + time + locale) */
   user_context?: {
     current_time: string;
+    locale: string;
     user_nickname: string;
   };
   variables?: Record<string, string>;

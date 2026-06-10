@@ -126,6 +126,9 @@ export function summarizePageContext(ctx: PageContext): string {
   if (ctx.page_description) {
     parts.push(`描述: ${ctx.page_description}`);
   }
+  if (ctx.locale) {
+    parts.push(`语言: ${ctx.locale}`);
+  }
   if (ctx.available_apis.length > 0) {
     parts.push(`可用接口: ${ctx.available_apis.join(', ')}`);
   }

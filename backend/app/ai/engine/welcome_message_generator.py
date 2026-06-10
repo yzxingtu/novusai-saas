@@ -27,7 +27,8 @@ _WELCOME_SYSTEM_PROMPT = """\
 2. 如果提供了页面上下文，欢迎语要结合当前页面场景
 3. 如果提供了时间信息，可以适当问候（早上/下午/晚上好）
 4. 操作建议要具体、可操作，帮助用户快速上手
-5. 严格返回 JSON 格式
+5. **必须使用用户的语言偏好来生成欢迎语和建议操作**（如 zh-CN 用中文，en-US 用英文）
+6. 严格返回 JSON 格式
 
 返回格式（严格 JSON，不要包裹在 markdown 代码块中）：
 {"welcome_message": "欢迎语内容", "suggested_actions": ["建议1", "建议2", "建议3"]}
@@ -49,16 +50,20 @@ def _build_welcome_user_prompt(
     if user_context:
         nickname = str(user_context.get("user_nickname") or "").strip()
         current_time = str(user_context.get("current_time") or "").strip()
+        locale = str(user_context.get("locale") or "").strip()
         if nickname:
             parts.append(f"用户昵称: {nickname}")
         if current_time:
             parts.append(f"当前时间: {current_time}")
+        if locale:
+            parts.append(f"用户语言偏好: {locale}")
 
     if page_context:
         page_title = str(page_context.get("page_title") or "").strip()
         route_path = str(page_context.get("route_path") or "").strip()
         page_desc = str(page_context.get("page_description") or "").strip()
         available_apis = page_context.get("available_apis") or []
+        page_locale = str(page_context.get("locale") or "").strip()
         if page_title:
             parts.append(f"当前页面: {page_title}")
         if route_path:
@@ -67,6 +72,8 @@ def _build_welcome_user_prompt(
             parts.append(f"页面描述: {page_desc}")
         if available_apis:
             parts.append(f"可用接口: {', '.join(available_apis)}")
+        if page_locale:
+            parts.append(f"语言偏好: {page_locale}")
 
     if memory_summary:
         parts.append(f"用户记忆摘要: {memory_summary}")

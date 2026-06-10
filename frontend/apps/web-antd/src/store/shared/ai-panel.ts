@@ -15,6 +15,7 @@ export type AIPanelMode = 'full' | 'panel';
 /** 页面上下文信息 / Page context payload */
 export interface PageContext {
   available_apis: string[];
+  locale: string;
   page_description: string;
   page_title: string;
   query_params: Record<string, string>;

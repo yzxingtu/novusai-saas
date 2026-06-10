@@ -17,6 +17,7 @@ import { unref } from 'vue';
 
 import { sendChatStreamApi } from '#/api/shared/ai-chat';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { useAIPanelStore } from '#/store';
 import { useUserStore } from '@vben/stores';
 import { getConsentedActions } from '#/utils/ai-consent';
@@ -156,10 +157,11 @@ export async function runStreamRequest(
       ...(aiPanelStore.pageContext
         ? { page_context: aiPanelStore.pageContext }
         : {}),
-      // User context (nickname + current time) / 用户上下文
+      // User context (nickname + current time + locale) / 用户上下文
       user_context: {
         user_nickname: userStore.userInfo?.realName || '',
         current_time: new Date().toISOString(),
+        locale: resolveRuntimeLocale(),
       },
     };
 
