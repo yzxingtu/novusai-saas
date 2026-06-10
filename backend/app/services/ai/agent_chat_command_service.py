@@ -115,6 +115,13 @@ def _build_context_additions(
 
     将页面上下文和用户上下文格式化为系统提示词追加段落。
     """
+    from app.core.logging import LogManager
+    _logger = LogManager.get_logger("ai.context_additions")
+    _logger.info(
+        "[DEBUG] _build_context_additions called: page_context={}, user_context={}",
+        page_context,
+        user_context,
+    )
     additions: list[str] = []
 
     if user_context:

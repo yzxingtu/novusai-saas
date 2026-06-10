@@ -164,6 +164,7 @@ export async function runStreamRequest(
         locale: resolveRuntimeLocale(),
       },
     };
+    console.debug('[AI Chat] Stream request body:', requestBody, 'pageContext from store:', aiPanelStore.pageContext);
 
     pendingInteractionUpdates.value = [];
     const requestAbortController = deps.streamControl.abortController;

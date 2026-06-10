@@ -207,24 +207,28 @@ export function useAIChatSlidePanelShell(
       welcomeTriggerInFlight = true;
       try {
         const userStore = useUserStore();
+        const welcomePayload = {
+          page_context: aiPanelStore.pageContext ?? undefined,
+          user_context: {
+            user_nickname: userStore.userInfo?.realName || '',
+            current_time: new Date().toISOString(),
+            locale: resolveRuntimeLocale(),
+          },
+        };
+        console.debug('[AI Panel] Welcome trigger payload:', welcomePayload, 'pageContext:', aiPanelStore.pageContext);
         const result = await generateWelcomeMessageApi(
           apiPrefix.value,
           agentId,
-          {
-            page_context: aiPanelStore.pageContext ?? undefined,
-            user_context: {
-              user_nickname: userStore.userInfo?.realName || '',
-              current_time: new Date().toISOString(),
-              locale: resolveRuntimeLocale(),
-            },
-          },
+          welcomePayload,
         );
+        console.debug('[AI Panel] Welcome result:', result);
         aiPanelStore.setDynamicWelcome(
           result.welcome_message,
           result.suggested_actions,
         );
-      } catch {
+      } catch (err) {
         // Silently fall back to static welcome message
+        console.warn('[AI Panel] Welcome message generation failed:', err);
       } finally {
         welcomeTriggerInFlight = false;
       }

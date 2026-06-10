@@ -6,7 +6,7 @@
  */
 import { useTabbarStore } from '@vben/stores';
 
-import { useRoute } from 'vue-router';
+import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router';
 
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 
@@ -76,14 +76,17 @@ function getCurrentTabTitle(routePath: string): string {
  * 收集当前页面上下文信息。
  * Collects the current page context for AI conversation enrichment.
  *
- * 在 Vue 组件 setup 或 composable 中调用（需要 Vue 实例上下文）。
- * Must be called within a Vue component setup or composable (requires Vue instance context).
+ * @param route - 可选，外部传入的路由对象。如果在非 setup 上下文中调用，
+ *                必须传入在 setup 阶段通过 useRoute() 捕获的路由引用。
+ *                If omitted, will attempt useRoute() internally (requires setup context).
  */
-export function collectCurrentPageContext(): PageContext {
-  const route = useRoute();
-  const routePath = route.path || '';
-  const routeName = (route.name as string) || '';
-  const routeMeta = (route.meta || {}) as Record<string, unknown>;
+export function collectCurrentPageContext(
+  route?: RouteLocationNormalizedLoaded,
+): PageContext {
+  const resolvedRoute = route ?? useRoute();
+  const routePath = resolvedRoute.path || '';
+  const routeName = (resolvedRoute.name as string) || '';
+  const routeMeta = (resolvedRoute.meta || {}) as Record<string, unknown>;
 
   // 页面标题：优先从路由 meta.title 获取，其次从 tabbar 获取
   const metaTitle =
@@ -92,7 +95,7 @@ export function collectCurrentPageContext(): PageContext {
 
   // 查询参数
   const queryParams: Record<string, string> = {};
-  for (const [key, value] of Object.entries(route.query)) {
+  for (const [key, value] of Object.entries(resolvedRoute.query)) {
     if (typeof value === 'string') {
       queryParams[key] = value;
     } else if (Array.isArray(value) && value.length > 0) {

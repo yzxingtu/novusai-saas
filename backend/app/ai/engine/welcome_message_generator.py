@@ -123,14 +123,30 @@ async def _resolve_agent_model(
     try:
         agent_repo = AgentRepository(db, tenant_id)
         agent = await agent_repo.get_by_id(agent_id)
+        logger.info(
+            "Welcome generator: resolve agent_id={} tenant_id={} agent_found={}",
+            agent_id,
+            tenant_id,
+            agent is not None,
+        )
         if not agent:
             return None, None
         model = getattr(agent, "model", None)
+        logger.info(
+            "Welcome generator: agent.name={} model_found={}",
+            getattr(agent, "name", None),
+            model is not None,
+        )
         if not model:
             return None, None
         provider = getattr(model, "provider", None)
         provider_code = getattr(provider, "code", None) if provider else None
         model_code = getattr(model, "code", None) if model else None
+        logger.info(
+            "Welcome generator: provider_code={} model_code={}",
+            provider_code,
+            model_code,
+        )
         return provider_code, model_code
     except Exception as exc:
         logger.warning(
