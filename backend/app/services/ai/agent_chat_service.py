@@ -372,6 +372,8 @@ class AgentChatService:
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
+        page_context: dict[str, Any] | None = None,
+        user_context: dict[str, Any] | None = None,
     ) -> StreamingResponse:
         return await AgentChatCommandService.stream_chat(
             self,
@@ -393,6 +395,8 @@ class AgentChatService:
             interaction_updates=interaction_updates,
             trust_policy_ref=trust_policy_ref,
             interaction_mode=interaction_mode,
+            page_context=page_context,
+            user_context=user_context,
         )
 
     # ========================================

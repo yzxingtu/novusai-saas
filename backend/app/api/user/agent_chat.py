@@ -35,6 +35,7 @@ from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentRouteRequest,
     UpdateConversationTitleRequest,
+    WelcomeMessageRequest,
 )
 from app.schemas.common.query import FilterRule
 from app.services.ai.account_ai_access_service import AccountAIAccessService
@@ -222,6 +223,12 @@ class UserAgentChatController(BaseController):
                 else None,
                 trust_policy_ref=data.trust_policy_ref.model_dump()
                 if data.trust_policy_ref
+                else None,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
+                user_context=data.user_context.model_dump()
+                if data.user_context
                 else None,
             )
 
@@ -493,6 +500,41 @@ class UserAgentChatController(BaseController):
                 owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             return success(data=items)
+
+        # ========================================
+        # 欢迎语生成 / Welcome Message Generation
+        # ========================================
+
+        @router.post(
+            "/{agent_id}/welcome",
+            summary="生成动态欢迎语 / Generate dynamic welcome message",
+        )
+        @auth_only
+        async def generate_welcome(
+            db: DbSession,
+            agent_id: int,
+            data: WelcomeMessageRequest,
+            current_user: ActiveTenantUser,
+        ):
+            """Generate personalized welcome message / 生成个性化欢迎语"""
+            await _ensure_ai_chat_enabled(db, current_user)
+            from app.ai.engine.welcome_message_generator import (
+                generate_welcome_message,
+            )
+
+            result = await generate_welcome_message(
+                db,
+                agent_id=agent_id,
+                tenant_id=current_user.tenant_id,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
+                user_context=data.user_context.model_dump()
+                if data.user_context
+                else None,
+                memory_summary=data.memory_summary,
+            )
+            return success(data=result)
 
 
 # 导出路由器 / Export router

@@ -106,6 +106,52 @@ def _ensure_no_invalid_runtime_mapping(payload: dict[str, Any] | None) -> None:
         _raise_invalid_runtime_input(exc)
 
 
+def _build_context_additions(
+    *,
+    page_context: dict[str, Any] | None = None,
+    user_context: dict[str, Any] | None = None,
+) -> list[str]:
+    """Build system prompt additions from page and user context.
+
+    将页面上下文和用户上下文格式化为系统提示词追加段落。
+    """
+    additions: list[str] = []
+
+    if user_context:
+        nickname = str(user_context.get("user_nickname") or "").strip()
+        current_time = str(user_context.get("current_time") or "").strip()
+        parts: list[str] = []
+        if nickname:
+            parts.append(f"当前用户昵称: {nickname}")
+        if current_time:
+            parts.append(f"当前时间: {current_time}")
+        if parts:
+            additions.append("[用户上下文] " + "; ".join(parts))
+
+    if page_context:
+        page_title = str(page_context.get("page_title") or "").strip()
+        route_path = str(page_context.get("route_path") or "").strip()
+        page_desc = str(page_context.get("page_description") or "").strip()
+        available_apis = page_context.get("available_apis") or []
+        query_params = page_context.get("query_params") or {}
+
+        page_parts: list[str] = []
+        if page_title:
+            page_parts.append(f"页面标题: {page_title}")
+        if route_path:
+            page_parts.append(f"路由: {route_path}")
+        if page_desc:
+            page_parts.append(f"描述: {page_desc}")
+        if query_params:
+            page_parts.append(f"查询参数: {query_params}")
+        if available_apis:
+            page_parts.append(f"可用API: {', '.join(available_apis)}")
+        if page_parts:
+            additions.append("[页面上下文] " + "; ".join(page_parts))
+
+    return additions
+
+
 class AgentChatCommandService:
     """Command entrypoints extracted from AgentChatService."""
 
@@ -408,6 +454,8 @@ class AgentChatCommandService:
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
+        page_context: dict[str, Any] | None = None,
+        user_context: dict[str, Any] | None = None,
     ) -> StreamingResponse:
         """Streaming chat orchestration."""
         variables = _normalize_chat_variables(variables)
@@ -514,6 +562,16 @@ class AgentChatCommandService:
             )
         )
         request = request_bundle.request
+
+        # Inject page_context / user_context as system prompt additions
+        # 将页面上下文和用户上下文注入系统提示词
+        context_additions = _build_context_additions(
+            page_context=page_context,
+            user_context=user_context,
+        )
+        if context_additions:
+            request.system_prompt_additions.extend(context_additions)
+
         service.runtime_support.prepare_request_memory_startup(
             request=request,
             conversation=conversation,

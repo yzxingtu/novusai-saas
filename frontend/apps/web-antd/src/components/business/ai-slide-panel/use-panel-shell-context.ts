@@ -57,6 +57,8 @@ interface UsePanelShellContextOptions {
     values: Record<string, string>,
     persist: boolean,
   ) => void;
+  /** Callback when page context is collected during panel open */
+  onPageContextCollected?: (ctx: unknown) => void;
 }
 
 export function usePanelShellContext(options: UsePanelShellContextOptions) {
@@ -102,6 +104,7 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     totalTokensUsed: options.totalTokensUsed,
     unpinAgent: options.unpinAgent,
     visible: options.visible,
+    onPageContextCollected: options.onPageContextCollected,
   });
 
   const varsEditor = usePanelVarsEditor({

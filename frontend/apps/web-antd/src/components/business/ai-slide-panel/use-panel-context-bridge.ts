@@ -7,6 +7,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { collectCurrentPageContext } from '#/utils/page-context-collector';
 
 interface DeferredSendContext {
   agentId: number;
@@ -59,6 +60,8 @@ interface UsePanelContextBridgeOptions {
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
   visible: Ref<boolean>;
+  /** Callback to update page context in the AI panel store */
+  onPageContextCollected?: (ctx: unknown) => void;
 }
 
 export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
@@ -325,6 +328,14 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
   async function initializePanelOnOpen(): Promise<void> {
     if (!options.visible.value) {
       return;
+    }
+
+    // 收集当前页面上下文并存入 store / Collect current page context
+    try {
+      const ctx = collectCurrentPageContext();
+      options.onPageContextCollected?.(ctx);
+    } catch {
+      // collectCurrentPageContext may fail outside Vue component context
     }
 
     const pendingAgentId = consumeQueuedPendingAgentId();
