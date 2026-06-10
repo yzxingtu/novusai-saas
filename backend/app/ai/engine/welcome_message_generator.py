@@ -14,7 +14,7 @@ from app.ai.internal_ai_service import InternalAIService
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
 from app.enums.ai import CallTypeEnum
-from app.repositories.ai.agent_repository import AgentRepository
+from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.welcome_generator")
 
@@ -119,17 +119,22 @@ async def _resolve_agent_model(
     agent_id: int,
     tenant_id: int,
 ) -> tuple[str | None, str | None]:
-    """Resolve the agent's model provider and code."""
+    """Resolve the agent's model provider and code.
+
+    Uses db.get() directly instead of AgentRepository to avoid
+    TenantScopeMixin filtering which rejects platform agents
+    (owner_tenant_id=NULL) for admin (tenant_id=0).
+    Access control is enforced by the controller layer.
+    """
     try:
-        agent_repo = AgentRepository(db, tenant_id)
-        agent = await agent_repo.get_by_id(agent_id)
+        agent = await db.get(Agent, agent_id)
         logger.info(
             "Welcome generator: resolve agent_id={} tenant_id={} agent_found={}",
             agent_id,
             tenant_id,
             agent is not None,
         )
-        if not agent:
+        if not agent or getattr(agent, "is_deleted", False):
             return None, None
         model = getattr(agent, "model", None)
         logger.info(
@@ -193,8 +198,7 @@ async def generate_welcome_message(
     # Resolve agent name for context
     agent_name = ""
     try:
-        agent_repo = AgentRepository(db, tenant_id)
-        agent = await agent_repo.get_by_id(agent_id)
+        agent = await db.get(Agent, agent_id)
         if agent:
             agent_name = getattr(agent, "name", "") or ""
     except Exception:
