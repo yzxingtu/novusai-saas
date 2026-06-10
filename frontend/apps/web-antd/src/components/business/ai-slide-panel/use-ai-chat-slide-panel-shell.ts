@@ -169,6 +169,17 @@ export function useAIChatSlidePanelShell(
   // ============ Welcome message trigger / 欢迎语触发 ============
   let welcomeTriggerInFlight = false;
 
+  // Clear dynamic welcome when conversation resets to new state
+  // 当对话重置为新会话时清除动态欢迎语
+  watch(
+    () => [activeConversationId.value, chatMessages.value.length] as const,
+    ([convId, msgCount]) => {
+      if (convId === null && msgCount === 0) {
+        aiPanelStore.clearDynamicWelcome();
+      }
+    },
+  );
+
   watch(
     () =>
       [

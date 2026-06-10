@@ -401,6 +401,12 @@ class ConversationContextEngine(ContextEngine):
             or memory_contribution.memory_injected
         )
 
+        # Merge external system_prompt_additions from ExecutionRequest
+        # (e.g. page context, user context injected by chat command service)
+        # 合并外部系统提示词追加项（如页面上下文、用户上下文）
+        if request.system_prompt_additions:
+            system_prompt_additions.extend(request.system_prompt_additions)
+
         messages = compaction_support.inject_system_prompt_additions(
             messages,
             system_prompt_additions,
