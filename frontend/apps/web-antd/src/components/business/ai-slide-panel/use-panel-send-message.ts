@@ -158,13 +158,10 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
       options.forceRerouteNextTurn.value = false;
     }
 
-    if (
-      !options.activeConversationId.value &&
-      options.manualNewConversationAgentId.value &&
-      options.selectedAgentId.value ===
-        options.manualNewConversationAgentId.value
-    ) {
-      const explicitAgentId = options.manualNewConversationAgentId.value;
+    // New conversation with explicit agent selection (manual or default copilot)
+    // 新建会话且有明确选中的智能体（手动选择或默认 Copilot）→ 直接发送，无需路由
+    if (!options.activeConversationId.value && options.selectedAgentId.value) {
+      const explicitAgentId = options.selectedAgentId.value;
       options.manualNewConversationAgentId.value = null;
       return options.sendMessage({
         agentId: explicitAgentId,
