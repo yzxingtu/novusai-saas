@@ -34,6 +34,7 @@ import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloat
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { GlobalPlainTextInputAiAssist } from '#/components/business/text-selection-ai-assist';
 import { useAIEntryPolicy } from '#/composables';
+import { useDefaultCopilot } from '#/composables/use-default-copilot';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
@@ -92,6 +93,22 @@ const apiPrefix = computed(() => {
   if (path.startsWith('/tenant')) return '/tenant';
   return '/tenant';
 });
+
+// ============ Default Copilot / 默认 Copilot 智能体 ============
+
+const { defaultCopilotAgentId } = useDefaultCopilot(apiPrefix);
+
+/** AI icon click handler: pinned > defaultCopilot > fallback / AI 图标点击：已 Pin > 默认 Copilot > 回退 */
+function onAIIConClick() {
+  const pinnedId = aiPanelStore.pinnedAgentId;
+  if (pinnedId) {
+    aiPanelStore.openWithContext({ agentId: pinnedId });
+  } else if (defaultCopilotAgentId.value) {
+    aiPanelStore.openWithContext({ agentId: defaultCopilotAgentId.value });
+  } else {
+    aiPanelStore.open();
+  }
+}
 
 // ============ Endpoint Indicator / 当前端点标识 ============
 
@@ -609,7 +626,7 @@ watch(
       >
         <div
           class="mr-1 flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
-          @click="aiPanelStore.open()"
+          @click="onAIIConClick"
         >
           <IconifyIcon icon="lucide:bot" class="size-4" />
         </div>
