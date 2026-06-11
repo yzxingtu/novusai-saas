@@ -560,3 +560,32 @@ export async function generateWelcomeMessageApi(
     body,
   );
 }
+
+// ============ Default Copilot Resolve / 默认 Copilot 解析 ============
+
+export interface DefaultCopilotResponse {
+  agent_id: null | number;
+  agent_name: null | string;
+  config: null | Record<string, unknown>;
+  feature_code: string;
+  is_active: boolean;
+}
+
+/**
+ * Resolve default Copilot agent by feature_code / 按功能代码解析默认 Copilot 智能体
+ *
+ * @param apiPrefix - API prefix (/admin or /tenant)
+ * @param featureCode - Feature code (admin_copilot or tenant_copilot)
+ */
+export async function resolveDefaultCopilotApi(
+  apiPrefix: string,
+  featureCode: string,
+): Promise<DefaultCopilotResponse> {
+  return requestClient.get<DefaultCopilotResponse>(
+    `${apiPrefix}/ai/agent-assignments/resolve/${featureCode}`,
+    {
+      showCodeMessage: false,
+      showErrorMessage: false,
+    },
+  );
+}
