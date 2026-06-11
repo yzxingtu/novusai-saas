@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column,
+    Computed,
     ForeignKey,
     Index,
     Integer,
@@ -120,12 +121,12 @@ class DocumentChunk(TenantModel):
 
     # ==================== 全文检索 ==================== / Full-text search
 
-    # tsvector 列，由 DB trigger trg_document_chunks_tsv 自动维护 /
-    # tsvector maintained by trigger
+    # tsvector 列，由 PostgreSQL GENERATED ALWAYS AS 自动维护 / 
+    # tsvector maintained automatically via GENERATED ALWAYS AS (STORED)
     # 用于 KeywordSearcher 全文检索 / Used by KeywordSearcher
     content_tsv = mapped_column(
         TSVECTOR,
-        nullable=True,
+        Computed("to_tsvector('simple', content)", persisted=True),
     )
 
     # ==================== 元数据 ==================== / Chunk metadata
