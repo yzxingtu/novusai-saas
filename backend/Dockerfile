@@ -65,7 +65,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--worker
 
 FROM runtime AS worker
 
-CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info"]
+CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info", "--pool=solo"]
 
 FROM runtime AS beat
 
