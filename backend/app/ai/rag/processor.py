@@ -132,6 +132,15 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
         await async_engine.dispose()
 
+        # Ensure Redis is initialized in Celery worker context
+        # (RedisManager.init() only runs in FastAPI lifespan, not in worker process)
+        # 确保 Celery Worker 上下文中 Redis 已初始化
+        # （RedisManager.init() 仅在 FastAPI lifespan 中调用，Worker 进程不会执行）
+        from app.core.redis import RedisManager
+
+        if RedisManager._pool is None:
+            await RedisManager.init()
+
         # Ensure AI adapters are registered (Celery worker may not have loaded registrations from celery_app.py)
         # 确保 AI 适配器已注册（Celery worker 可能未加载 celery_app.py 中的注册）
         from app.ai.adapters import AdapterRegistry, register_core_adapters
