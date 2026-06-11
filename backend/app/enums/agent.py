@@ -77,6 +77,8 @@ class ToolTypeEnum(LabeledStrEnum):
     HTTP = ("http", "enum.agent.tool_type.http")
     EMAIL = ("email", "enum.agent.tool_type.email")
     CODE_EXECUTION = ("code_execution", "enum.agent.tool_type.code_execution")
+    # 内部 API 自调用（运营 Copilot 元工具）/ Internal API self-call (copilot meta-tools)
+    INTERNAL_API = ("internal_api", "enum.agent.tool_type.internal_api")
 
 
 class ConversationStatusEnum(LabeledStrEnum):

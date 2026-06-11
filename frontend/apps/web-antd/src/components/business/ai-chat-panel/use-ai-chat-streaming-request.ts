@@ -17,6 +17,9 @@ import { unref } from 'vue';
 
 import { sendChatStreamApi } from '#/api/shared/ai-chat';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
+import { useAIPanelStore } from '#/store';
+import { useUserStore } from '@vben/stores';
 import { getConsentedActions } from '#/utils/ai-consent';
 import { normalizeSseTransportError } from '#/utils/request';
 
@@ -126,6 +129,10 @@ export async function runStreamRequest(
     ];
     deps.interactionModeEffective.value = interactionMode.value;
 
+    // Inject page_context and user_context from stores / 从 store 注入页面上下文和用户上下文
+    const aiPanelStore = useAIPanelStore();
+    const userStore = useUserStore();
+
     const requestBody = {
       message: text,
       conversation_id: lifecycle.streamConversationId,
@@ -146,7 +153,18 @@ export async function runStreamRequest(
       imageParams.value.n !== 1
         ? { image_params: imageParams.value }
         : {}),
+      // Page context from store (collected on panel open) / 页面上下文
+      ...(aiPanelStore.pageContext
+        ? { page_context: aiPanelStore.pageContext }
+        : {}),
+      // User context (nickname + current time + locale) / 用户上下文
+      user_context: {
+        user_nickname: userStore.userInfo?.realName || '',
+        current_time: new Date().toISOString(),
+        locale: resolveRuntimeLocale(),
+      },
     };
+    console.debug('[AI Chat] Stream request body:', requestBody, 'pageContext from store:', aiPanelStore.pageContext);
 
     pendingInteractionUpdates.value = [];
     const requestAbortController = deps.streamControl.abortController;

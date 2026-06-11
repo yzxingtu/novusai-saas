@@ -42,6 +42,29 @@ class BudgetGuard:
         )
 
     @staticmethod
+    def relax_for_meta_tool_chain(
+        budget: ExecutionBudget | None,
+    ) -> ExecutionBudget | None:
+        """
+        Relax limits for meta-tool chains (list -> describe -> invoke), which
+        legitimately need several sequential tool rounds within one intent.
+        为元工具链（list -> describe -> invoke）放宽预算：单意图合法地需要
+        多个串行工具轮次。
+        """
+        if budget is None:
+            return None
+        budget.max_tool_rounds = max(budget.max_tool_rounds, 6)
+        budget.max_elapsed_ms = max(budget.max_elapsed_ms, 120000)
+        budget.max_prompt_tokens = max(budget.max_prompt_tokens, 16000)
+        budget.max_completion_tokens = max(budget.max_completion_tokens, 6000)
+        budget.max_tool_result_bytes = max(budget.max_tool_result_bytes, 80000)
+        # The chain spans several rounds and models often narrate between
+        # steps, so allow more contract-recovery nudges per intent.
+        # 链条跨多轮，模型常在步骤间输出文本，需更多契约恢复重试次数。
+        budget.max_retry_per_intent = max(budget.max_retry_per_intent, 4)
+        return budget
+
+    @staticmethod
     def register_preparation(
         budget: ExecutionBudget,
         *,

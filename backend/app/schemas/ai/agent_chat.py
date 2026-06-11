@@ -110,6 +110,38 @@ class TrustPolicyRef(BaseModel):
         return self
 
 
+class PageContextPayload(BaseModel):
+    """页面上下文载荷 / Page context payload from frontend."""
+
+    route_path: str = Field("", description="Current route path / 当前路由路径")
+    route_name: str = Field("", description="Route name / 路由名称")
+    page_title: str = Field("", description="Page title / 页面标题")
+    query_params: dict[str, str] = Field(
+        default_factory=dict,
+        description="URL query params / URL 查询参数",
+    )
+    page_description: str = Field("", description="Page description / 页面描述")
+    available_apis: list[str] = Field(
+        default_factory=list,
+        description="Available API endpoints / 可用 API 端点",
+    )
+    locale: str = Field(
+        "",
+        description="User UI locale preference (e.g. zh-CN, en-US) / 用户界面语言偏好",
+    )
+
+
+class UserContextPayload(BaseModel):
+    """用户上下文载荷 / User context payload from frontend."""
+
+    user_nickname: str = Field("", description="User nickname / 用户昵称")
+    current_time: str = Field("", description="ISO 8601 current time / ISO 8601 当前时间")
+    locale: str = Field(
+        "",
+        description="User UI locale preference (e.g. zh-CN, en-US) / 用户界面语言偏好",
+    )
+
+
 class AgentChatRequest(BaseModel):
     """对话请求 / Agent chat request."""
 
@@ -126,7 +158,7 @@ class AgentChatRequest(BaseModel):
     def require_message_or_interaction(self) -> AgentChatRequest:
         single = (self.message or "").strip()
         has_interaction = bool(self.interaction_updates)
-        if not single and not has_interaction:
+        if not single and not has_interaction and not self.welcome_trigger:
             raise ValueError("message or interaction_updates required")
         ensure_no_disallowed_ai_runtime_input(self.variables)
         for update in self.interaction_updates or []:
@@ -164,6 +196,18 @@ class AgentChatRequest(BaseModel):
     interaction_updates: list[InteractionUpdate] | None = Field(
         None,
         description="Client-side interaction state updates to persist before processing the next turn",
+    )
+    page_context: PageContextPayload | None = Field(
+        None,
+        description="Current page context from frontend / 前端当前页面上下文",
+    )
+    user_context: UserContextPayload | None = Field(
+        None,
+        description="User context (nickname + time) from frontend / 前端用户上下文",
+    )
+    welcome_trigger: bool = Field(
+        False,
+        description="Whether this is a welcome message trigger / 是否为欢迎语触发请求",
     )
 
 
@@ -316,15 +360,49 @@ class AgentRouteResponse(BaseModel):
     )
 
 
+class WelcomeMessageRequest(BaseModel):
+    """欢迎语生成请求 / Welcome message generation request."""
+
+    page_context: PageContextPayload | None = Field(
+        None,
+        description="Current page context / 当前页面上下文",
+    )
+    user_context: UserContextPayload | None = Field(
+        None,
+        description="User context / 用户上下文",
+    )
+    memory_summary: str | None = Field(
+        None,
+        description="Memory summary / 记忆摘要",
+    )
+
+
+class WelcomeMessageResponse(BaseModel):
+    """欢迎语生成响应 / Welcome message generation response."""
+
+    welcome_message: str = Field(
+        "",
+        description="Generated welcome message / 生成的欢迎语",
+    )
+    suggested_actions: list[str] = Field(
+        default_factory=list,
+        description="Suggested actions / 建议操作",
+    )
+
+
 __all__ = [
     "ChatAttachment",
     "ImageParams",
     "TrustPolicyRef",
     "InteractionMode",
+    "PageContextPayload",
+    "UserContextPayload",
     "AgentChatRequest",
     "AgentChatResponse",
     "InteractionUpdate",
     "AgentRouteRequest",
     "AgentRouteResponse",
     "UpdateConversationInteractionStateRequest",
+    "WelcomeMessageRequest",
+    "WelcomeMessageResponse",
 ]

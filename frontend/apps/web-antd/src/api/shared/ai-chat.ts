@@ -393,8 +393,26 @@ export interface AgentChatRequestBody {
   }>;
   knowledge_base_ids?: number[];
   message?: string;
+  /** 当前页面上下文 / Current page context for AI enrichment */
+  page_context?: {
+    available_apis: string[];
+    locale: string;
+    page_description: string;
+    page_title: string;
+    query_params: Record<string, string>;
+    route_name: string;
+    route_path: string;
+  };
   trust_policy_ref?: TrustPolicyRef;
+  /** 用户上下文信息 / User context (nickname + time + locale) */
+  user_context?: {
+    current_time: string;
+    locale: string;
+    user_nickname: string;
+  };
   variables?: Record<string, string>;
+  /** 是否为欢迎语触发请求 / Whether this is a welcome message trigger */
+  welcome_trigger?: boolean;
 }
 
 export interface ConversationTimelineItem {
@@ -513,5 +531,32 @@ export async function sendChatStreamApi(
     `${chatBaseUrl(apiPrefix)}/${agentId}/chat/stream`,
     body,
     sseOptions,
+  );
+}
+
+// ============ Welcome Message / 欢迎语 ============
+
+export interface WelcomeMessageRequest {
+  page_context?: AgentChatRequestBody['page_context'];
+  user_context?: AgentChatRequestBody['user_context'];
+  memory_summary?: string;
+}
+
+export interface WelcomeMessageResponse {
+  suggested_actions: string[];
+  welcome_message: string;
+}
+
+/**
+ * Generate dynamic welcome message via LLM / 通过 LLM 生成动态欢迎语
+ */
+export async function generateWelcomeMessageApi(
+  apiPrefix: string,
+  agentId: number,
+  body: WelcomeMessageRequest,
+): Promise<WelcomeMessageResponse> {
+  return requestClient.post<WelcomeMessageResponse>(
+    `${chatBaseUrl(apiPrefix)}/${agentId}/welcome`,
+    body,
   );
 }

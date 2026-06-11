@@ -5,8 +5,10 @@ import type { InputVariable } from '#/types/ai-chat';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
+import { useRoute } from 'vue-router';
 
 import { $t } from '#/locales';
+import { collectCurrentPageContext } from '#/utils/page-context-collector';
 
 interface DeferredSendContext {
   agentId: number;
@@ -59,9 +61,15 @@ interface UsePanelContextBridgeOptions {
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
   visible: Ref<boolean>;
+  /** Callback to update page context in the AI panel store */
+  onPageContextCollected?: (ctx: unknown) => void;
 }
 
 export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
+  // Capture route during setup so it remains usable in watcher callbacks
+  // 在 setup 阶段捕获路由引用，以便在 watcher 回调中可用
+  const route = useRoute();
+
   const varsModalVisible = ref(false);
   const varsFormValues = reactive<Record<string, string>>({});
   const varsModalAgent = ref<null | VarsModalAgentState>(null);
@@ -325,6 +333,16 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
   async function initializePanelOnOpen(): Promise<void> {
     if (!options.visible.value) {
       return;
+    }
+
+    // 收集当前页面上下文并存入 store / Collect current page context
+    try {
+      const ctx = collectCurrentPageContext(route);
+      console.debug('[AI Panel] Collected page context:', ctx);
+      options.onPageContextCollected?.(ctx);
+    } catch (err) {
+      // collectCurrentPageContext may fail outside Vue component context
+      console.warn('[AI Panel] Failed to collect page context:', err);
     }
 
     const pendingAgentId = consumeQueuedPendingAgentId();

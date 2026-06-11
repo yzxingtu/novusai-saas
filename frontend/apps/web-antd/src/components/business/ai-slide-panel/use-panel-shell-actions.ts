@@ -12,11 +12,13 @@ interface StarterAgentLike {
 interface PanelStoreLike {
   close: () => void;
   docked: boolean;
+  dynamicWelcomeMessage: null | string;
   minimize: () => void;
   toggleDock: () => void;
   toggleMode: () => void;
   togglePin: (agentId: number, agentName: string) => void;
   visible: boolean;
+  welcomeSuggestedActions: string[];
 }
 
 interface UsePanelShellActionsOptions {
@@ -65,11 +67,18 @@ export function usePanelShellActions(options: UsePanelShellActionsOptions) {
 
   const starterAgent = computed(() => selectedAgent.value ?? null);
   const effectiveWelcomeMessage = computed(
-    () => starterAgent.value?.welcome_message || '',
+    () =>
+      aiPanelStore.dynamicWelcomeMessage ||
+      starterAgent.value?.welcome_message ||
+      '',
   );
-  const effectiveSuggestedQuestions = computed<string[]>(() =>
-    normalizeStarterQuestions(starterAgent.value?.suggested_questions),
-  );
+  const effectiveSuggestedQuestions = computed<string[]>(() => {
+    // Prefer dynamic suggested actions from store if available
+    if (aiPanelStore.welcomeSuggestedActions.length > 0) {
+      return aiPanelStore.welcomeSuggestedActions;
+    }
+    return normalizeStarterQuestions(starterAgent.value?.suggested_questions);
+  });
 
   function askSuggested(question: string) {
     inputMessage.value = question;

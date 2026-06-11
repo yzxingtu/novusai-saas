@@ -600,6 +600,21 @@ watch(
     <template #global-search>
       <!-- Replaced by unified CommandBar (AI + search) / 由统一的 CommandBar（AI + 搜索）替代 -->
     </template>
+    <template #header-right-50>
+      <!-- AI 助手入口按钮 / AI Assistant entry button -->
+      <Tooltip
+        v-if="aiChatEnabled"
+        :title="$t('common.aiPanel.title')"
+        placement="bottom"
+      >
+        <div
+          class="mr-1 flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
+          @click="aiPanelStore.open()"
+        >
+          <IconifyIcon icon="lucide:bot" class="size-4" />
+        </div>
+      </Tooltip>
+    </template>
     <template #header-right-51>
       <div
         v-if="commandBarEnabled"

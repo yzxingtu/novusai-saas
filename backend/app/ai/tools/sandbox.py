@@ -164,6 +164,10 @@ class ToolSandbox:
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
+        # Internal API executor (copilot meta-tools) / 内部 API 执行器（Copilot 元工具）
+        from app.ai.tools.executors.internal_api_executor import InternalApiExecutor
+
+        self._executors[ToolTypeEnum.INTERNAL_API.value] = InternalApiExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""

@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # 后端自访问基础 URL（用于 LLM 多模态拉取本系统相对附件路径；生产填公网或内网网关地址）
     # Base URL for server-side HTTP fetch of relative attachment paths (LLM vision); set in production
     APP_INTERNAL_BASE_URL: str = "http://127.0.0.1:8000"
+    # AI 代理 token 有效期（秒），供内置 Copilot 以用户身份调用内部 API
+    # AI proxy token TTL (seconds) for built-in copilot internal API calls on behalf of users
+    AI_PROXY_TOKEN_EXPIRE_SECONDS: int = 300
     # 允许跨域的前端 Origin（支持 JSON 数组或逗号分隔）
     # Allowed frontend CORS origins (supports JSON array or comma-separated values)
     CORS_ORIGINS: str = ""

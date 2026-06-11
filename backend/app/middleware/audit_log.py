@@ -434,6 +434,7 @@ class AuditLogMiddleware:
             "user_id": None,
             "username": None,
             "nickname": None,
+            "ai_proxy": None,
         }
 
         if not auth_header.startswith("Bearer "):
@@ -455,6 +456,14 @@ class AuditLogMiddleware:
 
         if not user_id:
             return user_info
+
+        # AI proxy request: keep the real user identity, but record AI actor
+        # info so audit logs distinguish agent-driven operations.
+        # AI 代理请求：保留真实用户身份，同时记录 AI 操作者信息以便审计区分。
+        if payload.get("actor") == "ai_agent":
+            ai_proxy = payload.get("ai_proxy")
+            if isinstance(ai_proxy, dict):
+                user_info["ai_proxy"] = ai_proxy
 
         # Admin impersonating tenant case / 平台管理员一键登录企业的情况：
         # token scope is tenant_admin, but has impersonated_by flag
@@ -554,6 +563,13 @@ class AuditLogMiddleware:
         if not action:
             action = METHOD_ACTION_MAP.get(method, "other")
 
+        # AI proxy operations carry actor info in identity_snapshot
+        # AI 代理操作在 identity_snapshot 中携带操作者信息
+        identity_snapshot = None
+        ai_proxy = user_info.get("ai_proxy")
+        if isinstance(ai_proxy, dict):
+            identity_snapshot = {"actor": "ai_agent", **ai_proxy}
+
         # Async write / 异步写入
         create_log_async(
             trace_id=trace_id or None,
@@ -575,6 +591,7 @@ class AuditLogMiddleware:
             ip=request_info.get("ip"),
             user_agent=request_info.get("user_agent"),
             duration_ms=duration_ms,
+            identity_snapshot=identity_snapshot,
         )
 
 

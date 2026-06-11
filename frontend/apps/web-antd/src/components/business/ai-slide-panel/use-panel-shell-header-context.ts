@@ -58,6 +58,8 @@ interface UsePanelShellHeaderContextOptions {
   totalTokensUsed: Ref<number>;
   unpinAgent: () => void;
   visible: Ref<boolean>;
+  /** Callback when page context is collected during panel open */
+  onPageContextCollected?: (ctx: null | Record<string, unknown>) => void;
 }
 
 export function usePanelShellHeaderContext(
@@ -139,6 +141,9 @@ export function usePanelShellHeaderContext(
     storePendingConversationId: options.storePendingConversationId,
     storePendingMessage: options.storePendingMessage,
     visible: options.visible,
+    onPageContextCollected: options.onPageContextCollected as
+      | undefined
+      | ((ctx: unknown) => void),
   });
 
   const header = usePanelHeader({

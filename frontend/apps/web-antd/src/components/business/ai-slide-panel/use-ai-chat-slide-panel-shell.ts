@@ -1,11 +1,14 @@
 import type { ComponentPublicInstance } from 'vue';
 
-import { computed, ref, toRef } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 
+import { generateWelcomeMessageApi } from '#/api/shared/ai-chat';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { useAIPanelStore } from '#/store';
 import { getAgentInputVariables } from '#/types/ai-chat';
+import { useUserStore } from '@vben/stores';
 
 import { useAgentRouter } from './use-agent-router';
 import { useAIChatSlidePanelShellBindings } from './use-ai-chat-slide-panel-shell-bindings';
@@ -163,6 +166,76 @@ export function useAIChatSlidePanelShell(
     activeConversationId,
   });
 
+  // ============ Welcome message trigger / 欢迎语触发 ============
+  let welcomeTriggerInFlight = false;
+
+  // Clear dynamic welcome when conversation resets to new state
+  // 当对话重置为新会话时清除动态欢迎语
+  watch(
+    () => [activeConversationId.value, chatMessages.value.length] as const,
+    ([convId, msgCount]) => {
+      if (convId === null && msgCount === 0) {
+        aiPanelStore.clearDynamicWelcome();
+      }
+    },
+  );
+
+  watch(
+    () =>
+      [
+        activeConversationId.value,
+        selectedAgent.value?.id ?? null,
+        chatMessages.value.length,
+        aiPanelStore.visible,
+      ] as const,
+    async ([convId, agentId, msgCount, visible]) => {
+      // Only trigger for new conversations with no messages when panel is visible
+      if (
+        convId !== null ||
+        agentId === null ||
+        msgCount > 0 ||
+        !visible ||
+        welcomeTriggerInFlight
+      ) {
+        return;
+      }
+      // Don't re-trigger if already set
+      if (aiPanelStore.dynamicWelcomeMessage) {
+        return;
+      }
+
+      welcomeTriggerInFlight = true;
+      try {
+        const userStore = useUserStore();
+        const welcomePayload = {
+          page_context: aiPanelStore.pageContext ?? undefined,
+          user_context: {
+            user_nickname: userStore.userInfo?.realName || '',
+            current_time: new Date().toISOString(),
+            locale: resolveRuntimeLocale(),
+          },
+        };
+        console.debug('[AI Panel] Welcome trigger payload:', welcomePayload, 'pageContext:', aiPanelStore.pageContext);
+        const result = await generateWelcomeMessageApi(
+          apiPrefix.value,
+          agentId,
+          welcomePayload,
+        );
+        console.debug('[AI Panel] Welcome result:', result);
+        aiPanelStore.setDynamicWelcome(
+          result.welcome_message,
+          result.suggested_actions,
+        );
+      } catch (err) {
+        // Silently fall back to static welcome message
+        console.warn('[AI Panel] Welcome message generation failed:', err);
+      } finally {
+        welcomeTriggerInFlight = false;
+      }
+    },
+    { immediate: true },
+  );
+
   const panelShellContext = usePanelShellContext({
     activeConversationId,
     agents,
@@ -186,6 +259,11 @@ export function useAIChatSlidePanelShell(
     loadConversations,
     onConversationRestored: () => emit('conversationRestored'),
     onMessageSent: () => emit('messageSent'),
+    onPageContextCollected: (ctx) => {
+      aiPanelStore.setPageContext(
+        ctx as Parameters<typeof aiPanelStore.setPageContext>[0],
+      );
+    },
     pendingConversationId: toRef(props, 'pendingConversationId'),
     pendingMessage: toRef(props, 'pendingMessage'),
     routing,

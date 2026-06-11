@@ -822,7 +822,16 @@ class _TurnRunLoop:
         if self.state.preparation_diagnostics.get(
             "deterministic_shortcircuit_tool_call"
         ):
-            return False
+            # confirmation_replay shortcircuits the LLM for the tool call but
+            # should still get a follow-up round to generate a natural summary.
+            # confirmation_replay 跳过了工具调用前的 LLM，但仍需后续摘要轮次。
+            if (
+                self.state.preparation_diagnostics.get(
+                    "deterministic_shortcircuit_intent_kind"
+                )
+                != "confirmation_replay"
+            ):
+                return False
         return bool(
             self.decision is None
             and self.tool_results

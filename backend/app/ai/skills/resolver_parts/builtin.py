@@ -146,6 +146,15 @@ def resolve_builtin(
     result: Any,
     build_params_from_schema: Callable[[dict[str, Any] | None], list[ToolParameter]],
 ) -> None:
+    # Internal-ops meta-tools are code-defined; the skill row is only a marker
+    # 内部操作元工具由代码定义；技能记录仅作标记
+    if str(config.get("builtin_type") or "").strip() == "internal_ops":
+        from app.ai.internal_ops.tools import build_internal_ops_tool_definitions
+
+        for tool in build_internal_ops_tool_definitions(skill=skill, config=config):
+            result.tools.append(tool)
+        return
+
     tools_config = config.get("tools")
     tool_type_override = config.get("tool_type", ToolTypeEnum.BUILTIN.value)
 

@@ -35,6 +35,7 @@ from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentRouteRequest,
     UpdateConversationTitleRequest,
+    WelcomeMessageRequest,
 )
 from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.ai.agent_chat_service import AgentChatService
@@ -222,6 +223,12 @@ class TenantAgentChatController(TenantController):
                 else None,
                 trust_policy_ref=data.trust_policy_ref.model_dump()
                 if data.trust_policy_ref
+                else None,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
+                user_context=data.user_context.model_dump()
+                if data.user_context
                 else None,
             )
 
@@ -493,6 +500,53 @@ class TenantAgentChatController(TenantController):
             )
             await db.commit()
             return success(data=snapshot or {})
+
+        # ========================================
+        # 欢迎语生成 / Welcome Message Generation
+        # ========================================
+
+        @router.post(
+            "/{agent_id}/welcome",
+            summary="生成动态欢迎语",
+        )
+        @action_read("action.agent_chat.read_conversation")
+        async def generate_welcome(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            data: WelcomeMessageRequest,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            根据页面上下文、用户信息生成个性化欢迎语 / Generate personalized welcome message
+
+            权限 / Permission: agent_chat:read_conversation
+            """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
+            await _check_agent_access(
+                db,
+                tenant_admin.tenant_id,
+                agent_id,
+                tenant_admin.id,
+                tenant_admin.role_id,
+            )
+            from app.ai.engine.welcome_message_generator import (
+                generate_welcome_message,
+            )
+
+            result = await generate_welcome_message(
+                db,
+                agent_id=agent_id,
+                tenant_id=tenant_admin.tenant_id,
+                page_context=data.page_context.model_dump()
+                if data.page_context
+                else None,
+                user_context=data.user_context.model_dump()
+                if data.user_context
+                else None,
+                memory_summary=data.memory_summary,
+            )
+            return success(data=result)
 
 
 # 导出路由器 / Export router
