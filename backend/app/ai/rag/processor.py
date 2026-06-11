@@ -126,11 +126,17 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
     async def _execute() -> dict:
         from sqlalchemy import select
 
-        # Clean up DB connections left from previous event loop (required for Windows --pool=solo)
-        # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
+        # Clean up DB connections left from previous event loop (required for --pool=solo)
+        # 清理上一次 event loop 残留的 DB 连接（--pool=solo 必需）
+        # RuntimeError ("attached to a different loop") is expected when the
+        # previous loop is already closed — the stale connection is still
+        # force-closed, so we silently ignore the error.
         from app.core.database import async_engine
 
-        await async_engine.dispose()
+        try:
+            await async_engine.dispose()
+        except RuntimeError:
+            pass
 
         # Ensure Redis is initialized in Celery worker context
         # (RedisManager.init() only runs in FastAPI lifespan, not in worker process)
