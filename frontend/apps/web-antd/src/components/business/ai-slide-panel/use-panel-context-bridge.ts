@@ -3,9 +3,10 @@ import type { Ref } from 'vue';
 import type { InputVariable } from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-
-import { message } from 'ant-design-vue';
 import { useRoute } from 'vue-router';
+
+import { useDebounceFn } from '@vueuse/core';
+import { message } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { collectCurrentPageContext } from '#/utils/page-context-collector';
@@ -338,11 +339,10 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     // 收集当前页面上下文并存入 store / Collect current page context
     try {
       const ctx = collectCurrentPageContext(route);
-      console.debug('[AI Panel] Collected page context:', ctx);
       options.onPageContextCollected?.(ctx);
-    } catch (err) {
+    } catch (error) {
       // collectCurrentPageContext may fail outside Vue component context
-      console.warn('[AI Panel] Failed to collect page context:', err);
+      console.warn('[AI Panel] Failed to collect page context:', error);
     }
 
     const pendingAgentId = consumeQueuedPendingAgentId();
@@ -420,6 +420,35 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       }
     },
     { flush: 'sync' },
+  );
+
+  // ── Route change watcher: refresh pageContext when route changes while panel is open ──
+  // ── 路由变化监听器：面板打开期间路由切换时自动刷新页面上下文 ──
+  const debouncedRefreshPageContext = useDebounceFn(() => {
+    if (!options.visible.value) {
+      return;
+    }
+    try {
+      const ctx = collectCurrentPageContext(route);
+      options.onPageContextCollected?.(ctx);
+    } catch (error) {
+      console.warn(
+        '[AI Panel] Failed to refresh page context on route change:',
+        error,
+      );
+    }
+  }, 300);
+
+  watch(
+    () => route.path,
+    () => {
+      // Only refresh when panel is visible; next open will re-collect anyway
+      // 仅在面板可见时刷新；下次打开时会重新采集
+      if (options.visible.value) {
+        void debouncedRefreshPageContext();
+      }
+    },
+    { flush: 'post' },
   );
 
   watch(options.visible, (visible) => {
