@@ -105,6 +105,8 @@ const props = withDefaults(
     showScrollToTop?: boolean;
     streaming?: boolean;
     totalTokensUsed?: number;
+    welcomeLoading?: boolean;
+    welcomeLoadingHint?: string;
   }>(),
   {
     activeConversationId: null,
@@ -153,6 +155,8 @@ const props = withDefaults(
     showScrollToTop: false,
     streaming: false,
     totalTokensUsed: 0,
+    welcomeLoading: false,
+    welcomeLoadingHint: '',
   },
 );
 
@@ -198,6 +202,23 @@ const emit = defineEmits<{
 }>();
 
 const panelBodyRoot = ref<HTMLDivElement | null>(null);
+
+function emitComposerKeydown(event: KeyboardEvent) {
+  if (props.welcomeLoading) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+    }
+    return;
+  }
+  emit('keydown', event);
+}
+
+function emitComposerSend() {
+  if (props.welcomeLoading) {
+    return;
+  }
+  emit('send');
+}
 
 watch(
   () => props.showHistory,
@@ -251,6 +272,8 @@ watch(
         :show-scroll-to-bottom="showScrollToBottom"
         :show-scroll-to-top="showScrollToTop"
         :streaming="streaming"
+        :welcome-loading="welcomeLoading"
+        :welcome-loading-hint="welcomeLoadingHint"
         @ask-suggested="emit('askSuggested', $event)"
         @copy="emit('copy', $event)"
         @confirm="emit('confirm', $event)"
@@ -276,13 +299,13 @@ watch(
 
       <AIChatComposer
         :model-value="inputMessage"
-        :disabled="agents.length === 0 || sending"
+        :disabled="agents.length === 0 || sending || welcomeLoading"
         :max-length="32000"
         :character-count="characterCount"
         :send-state="sendState"
-        :send-disabled="sendDisabled"
+        :send-disabled="sendDisabled || welcomeLoading"
         :show-attachments="showAttachments"
-        :attach-disabled="attachDisabled"
+        :attach-disabled="attachDisabled || welcomeLoading"
         :attachment-accept="attachmentAccept"
         :attachments="attachments"
         :attachment-limit-hint="attachmentLimitHint"
@@ -299,7 +322,7 @@ watch(
         @dragover="emit('dragover', $event)"
         @drop="emit('drop', $event)"
         @file-select="emit('fileSelect', $event)"
-        @keydown="emit('keydown', $event)"
+        @keydown="emitComposerKeydown"
         @paste="emit('paste', $event)"
         @remove-attachment="emit('removeAttachment', $event)"
         @remove-selected-knowledge-base="
@@ -309,7 +332,7 @@ watch(
           emit('removeSelectedSkillPackage', $event)
         "
         @select-mention-candidate="emit('selectMentionCandidate', $event)"
-        @send="emit('send')"
+        @send="emitComposerSend"
         @stop="emit('stop')"
       />
     </div>

@@ -1,4 +1,9 @@
 // @vitest-environment happy-dom
+/**
+ * Test type: behavioral
+ * Verifies: the slide-panel composer keeps legacy mode controls hidden and enforces disabled input/send/attachment contracts.
+ * Mock strategy: Ant Design Vue shell components are stubbed, while AIChatComposer event guards run real.
+ */
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
@@ -21,14 +26,18 @@ vi.mock('ant-design-vue', () => {
   const TextArea = defineComponent({
     name: 'TextAreaStub',
     props: {
+      disabled: {
+        default: false,
+        type: Boolean,
+      },
       value: {
         default: '',
         type: String,
       },
     },
-    emits: ['update:value'],
+    emits: ['keydown', 'paste', 'update:value'],
     template:
-      '<textarea :value="value" @input="$emit(\'update:value\', $event.target.value)" />',
+      '<textarea :disabled="disabled" :value="value" @input="$emit(\'update:value\', $event.target.value)" @keydown="$emit(\'keydown\', $event)" @paste="$emit(\'paste\', $event)" />',
   });
 
   return {
@@ -53,5 +62,44 @@ describe('aiChatComposer', () => {
     expect(text).not.toContain('common.globalAiChat.modeConfirm');
     expect(text).not.toContain('common.globalAiChat.modeTrustedAuto');
     expect(text).toContain('common.globalAiChat.shiftEnterHint');
+  });
+
+  it('keeps input, attachment, and send event paths disabled while disabled', async () => {
+    const wrapper = mount(AIChatComposer, {
+      props: {
+        attachDisabled: true,
+        disabled: true,
+        modelValue: '用户草稿',
+        sendDisabled: true,
+        shiftEnterHint: 'common.globalAiChat.shiftEnterHint',
+      },
+    });
+
+    expect(wrapper.get('textarea').attributes('disabled')).toBeDefined();
+    expect(
+      wrapper
+        .get('button[aria-label="common.globalAiChat.addAttachment"]')
+        .attributes('disabled'),
+    ).toBeDefined();
+    expect(
+      wrapper
+        .get('button[aria-label="common.commandBar.send"]')
+        .attributes('disabled'),
+    ).toBeDefined();
+
+    await wrapper
+      .get('button[aria-label="common.commandBar.send"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('send')).toBeUndefined();
+
+    await wrapper.setProps({
+      sendState: 'streaming',
+    });
+    await wrapper
+      .get('button[aria-label="common.globalAiChat.stop"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('stop')).toHaveLength(1);
   });
 });

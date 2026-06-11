@@ -135,6 +135,8 @@ interface UsePanelShellBodyBindingsOptions {
   stopGeneration: () => void;
   streaming: Ref<boolean>;
   totalTokensUsed: Ref<number>;
+  welcomeLoading: Readonly<Ref<boolean>>;
+  welcomeLoadingHint: Readonly<Ref<string>>;
 }
 
 export function usePanelShellBodyBindings(
@@ -188,6 +190,8 @@ export function usePanelShellBodyBindings(
     showScrollToTop: options.showScrollToTop.value,
     streaming: options.streaming.value,
     totalTokensUsed: options.totalTokensUsed.value,
+    welcomeLoading: options.welcomeLoading.value,
+    welcomeLoadingHint: options.welcomeLoadingHint.value,
   }));
 
   async function onCopyMessage(content: string) {
@@ -198,10 +202,23 @@ export function usePanelShellBodyBindings(
     if (options.handleInputKeyDown(event)) {
       return;
     }
+    if (options.welcomeLoading.value) {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       void options.handleSendMessage();
     }
+  }
+
+  async function handleSend() {
+    if (options.welcomeLoading.value) {
+      return false;
+    }
+    return options.handleSendMessage();
   }
 
   const panelBodyListeners = {
@@ -232,7 +249,7 @@ export function usePanelShellBodyBindings(
     scrollToTop: options.scrollToTop,
     selectConversation: options.onSelectConversation,
     selectMentionCandidate: options.onSelectMentionCandidate,
-    send: options.handleSendMessage,
+    send: handleSend,
     startEditTitle: options.startEditTitle,
     stop: options.stopGeneration,
     'update:conversationSearch': (value: string) => {

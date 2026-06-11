@@ -28,6 +28,18 @@ vi.mock('@vben/icons', () => ({
   }),
 }));
 
+vi.mock('ant-design-vue', () => ({
+  Spin: defineComponent({
+    name: 'SpinStub',
+    template: '<span data-testid="spin-stub" />',
+  }),
+}));
+
+vi.mock('#/utils/image', () => ({
+  toAvatarDisplayUrl: (value: null | string | undefined) =>
+    value ? `resolved:${value}` : '',
+}));
+
 describe('aiChatMessageViewport', () => {
   it('renders the empty transcript-first welcome state and forwards suggested questions', async () => {
     const wrapper = mount(AIChatMessageViewport, {
@@ -59,6 +71,88 @@ describe('aiChatMessageViewport', () => {
     expect(wrapper.emitted('askSuggested')?.[0]).toEqual([
       '帮我总结今天页面上的重点',
     ]);
+  });
+
+  it('renders the welcome-loading overlay instead of the empty welcome state', () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [],
+        effectiveSuggestedQuestions: ['建议一'],
+        effectiveWelcomeMessage: '动态欢迎语',
+        routing: false,
+        selectedAgent: {
+          avatar: '42',
+          description: null,
+          id: 7,
+          name: 'Copilot',
+          status: 'published',
+          tenant_id: 1,
+        },
+        sending: false,
+        welcomeLoading: true,
+        welcomeLoadingHint: 'Copilot 正在准备开场建议',
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    const loading = wrapper.get('[data-testid="ai-chat-welcome-loading"]');
+    expect(loading.attributes('role')).toBe('status');
+    expect(wrapper.get('.transcript-scroll').attributes('aria-busy')).toBe(
+      'true',
+    );
+    expect(loading.text()).toContain('Copilot');
+    expect(loading.text()).toContain('Copilot 正在准备开场建议');
+    expect(loading.get('img').attributes('src')).toBe('resolved:42');
+    expect(wrapper.find('.ai-chat-empty-state').exists()).toBe(false);
+    expect(wrapper.find('.ai-chat-empty-question').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('动态欢迎语');
+  });
+
+  it('restores the normal empty state and suggested-question actions after welcome loading finishes', async () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [],
+        effectiveSuggestedQuestions: ['继续提问'],
+        effectiveWelcomeMessage: '动态欢迎语',
+        routing: false,
+        sending: false,
+        welcomeLoading: true,
+        welcomeLoadingHint: '正在准备',
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(
+      wrapper.find('[data-testid="ai-chat-welcome-loading"]').exists(),
+    ).toBe(true);
+
+    await wrapper.setProps({ welcomeLoading: false });
+
+    expect(
+      wrapper.find('[data-testid="ai-chat-welcome-loading"]').exists(),
+    ).toBe(false);
+    expect(wrapper.find('.ai-chat-empty-state').exists()).toBe(true);
+    expect(wrapper.text()).toContain('动态欢迎语');
+
+    await wrapper.get('.ai-chat-empty-question').trigger('click');
+
+    expect(wrapper.emitted('askSuggested')?.[0]).toEqual(['继续提问']);
   });
 
   it('forwards assistant action button payload as messageIndex + value', async () => {

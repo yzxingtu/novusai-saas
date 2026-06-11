@@ -108,12 +108,18 @@ const inputModel = computed({
 });
 
 function openFilePicker() {
+  if (props.disabled || props.attachDisabled) {
+    return;
+  }
   fileInputEl.value?.click();
 }
 
 function onSendClick() {
   if (props.sendState === 'streaming') {
     emit('stop');
+    return;
+  }
+  if (props.disabled || props.sendDisabled) {
     return;
   }
   emit('send');
@@ -254,6 +260,7 @@ function onSendClick() {
 
     <div
       class="ai-composer-shell overflow-hidden rounded-[18px] border transition-all"
+      :class="disabled ? 'ai-composer-shell-disabled' : ''"
     >
       <Transition name="mention-panel">
         <div
@@ -352,7 +359,8 @@ function onSendClick() {
         >
           <button
             class="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-            :disabled="attachDisabled"
+            :aria-label="$t('common.globalAiChat.addAttachment')"
+            :disabled="disabled || attachDisabled"
             @click="openFilePicker"
           >
             <IconifyIcon icon="lucide:paperclip" class="size-3.5" />
@@ -444,6 +452,12 @@ function onSendClick() {
   box-shadow:
     0 14px 28px -24px hsl(var(--foreground) / 12%),
     0 0 0 3px hsl(var(--foreground) / 4%);
+}
+
+.ai-composer-shell-disabled {
+  background: hsl(var(--muted) / 18%);
+  border-color: hsl(var(--border) / 24%);
+  box-shadow: none;
 }
 
 .ai-chat-textarea :deep(.ant-input) {

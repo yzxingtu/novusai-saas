@@ -167,13 +167,111 @@ export function useAIChatSlidePanelShell(
   });
 
   // ============ Welcome message trigger / 欢迎语触发 ============
-  let welcomeTriggerInFlight = false;
+  const welcomeTriggerInFlight = ref(false);
+  let welcomeRequestSeq = 0;
+  let queuedWelcomeAgentId: null | number = null;
+  const hasPendingStarterMessage = computed(() => {
+    const propMessage = props.pendingMessage?.trim();
+    const storeMessage = aiPanelStore.pendingMessage?.trim();
+    return Boolean(propMessage || storeMessage);
+  });
+  const welcomeLoading = computed(
+    () =>
+      welcomeTriggerInFlight.value &&
+      aiPanelStore.visible &&
+      activeConversationId.value === null &&
+      chatMessages.value.length === 0 &&
+      !hasPendingStarterMessage.value &&
+      !sending.value &&
+      !routing.value,
+  );
+  const welcomeLoadingHint = computed(() => {
+    const agentName = selectedAgent.value?.name?.trim();
+    if (agentName) {
+      return $t('common.globalAiChat.welcomeLoadingWithAgent', {
+        agent: agentName,
+      });
+    }
+    return $t('common.globalAiChat.welcomeLoading');
+  });
+
+  function canGenerateWelcomeForAgent(agentId: number) {
+    return (
+      aiPanelStore.visible &&
+      activeConversationId.value === null &&
+      chatMessages.value.length === 0 &&
+      !hasPendingStarterMessage.value &&
+      selectedAgent.value?.id === agentId &&
+      !aiPanelStore.dynamicWelcomeMessage
+    );
+  }
+
+  async function runWelcomeRequest(agentId: number) {
+    if (welcomeTriggerInFlight.value) {
+      queuedWelcomeAgentId = agentId;
+      return;
+    }
+
+    const requestSeq = welcomeRequestSeq + 1;
+    welcomeRequestSeq = requestSeq;
+    welcomeTriggerInFlight.value = true;
+    try {
+      const userStore = useUserStore();
+      const welcomePayload = {
+        page_context: aiPanelStore.pageContext ?? undefined,
+        user_context: {
+          user_nickname: userStore.userInfo?.realName || '',
+          current_time: new Date().toISOString(),
+          locale: resolveRuntimeLocale(),
+        },
+      };
+      const result = await generateWelcomeMessageApi(
+        apiPrefix.value,
+        agentId,
+        welcomePayload,
+      );
+      if (
+        requestSeq !== welcomeRequestSeq ||
+        !aiPanelStore.visible ||
+        activeConversationId.value !== null ||
+        chatMessages.value.length > 0 ||
+        selectedAgent.value?.id !== agentId ||
+        hasPendingStarterMessage.value
+      ) {
+        return;
+      }
+      aiPanelStore.setDynamicWelcome(
+        result.welcome_message,
+        result.suggested_actions,
+      );
+    } catch {
+      // Silently fall back to static welcome message
+    } finally {
+      if (requestSeq === welcomeRequestSeq) {
+        welcomeTriggerInFlight.value = false;
+        const queuedAgentId = queuedWelcomeAgentId;
+        queuedWelcomeAgentId = null;
+        if (
+          queuedAgentId !== null &&
+          queuedAgentId !== agentId &&
+          canGenerateWelcomeForAgent(queuedAgentId)
+        ) {
+          void runWelcomeRequest(queuedAgentId);
+        }
+      }
+    }
+  }
 
   // Clear dynamic welcome when conversation resets to new state
   // 当对话重置为新会话时清除动态欢迎语
   watch(
-    () => [activeConversationId.value, chatMessages.value.length] as const,
-    ([convId, msgCount]) => {
+    () =>
+      [
+        activeConversationId.value,
+        selectedAgent.value?.id ?? null,
+        chatMessages.value.length,
+      ] as const,
+    ([convId, , msgCount]) => {
       if (convId === null && msgCount === 0) {
         aiPanelStore.clearDynamicWelcome();
       }
@@ -187,51 +285,27 @@ export function useAIChatSlidePanelShell(
         selectedAgent.value?.id ?? null,
         chatMessages.value.length,
         aiPanelStore.visible,
+        hasPendingStarterMessage.value,
       ] as const,
-    async ([convId, agentId, msgCount, visible]) => {
+    async ([convId, agentId, msgCount, visible, hasPendingMessage]) => {
       // Only trigger for new conversations with no messages when panel is visible
       if (
         convId !== null ||
         agentId === null ||
         msgCount > 0 ||
         !visible ||
-        welcomeTriggerInFlight
+        hasPendingMessage
       ) {
+        queuedWelcomeAgentId = null;
         return;
       }
       // Don't re-trigger if already set
       if (aiPanelStore.dynamicWelcomeMessage) {
+        queuedWelcomeAgentId = null;
         return;
       }
 
-      welcomeTriggerInFlight = true;
-      try {
-        const userStore = useUserStore();
-        const welcomePayload = {
-          page_context: aiPanelStore.pageContext ?? undefined,
-          user_context: {
-            user_nickname: userStore.userInfo?.realName || '',
-            current_time: new Date().toISOString(),
-            locale: resolveRuntimeLocale(),
-          },
-        };
-        console.debug('[AI Panel] Welcome trigger payload:', welcomePayload, 'pageContext:', aiPanelStore.pageContext);
-        const result = await generateWelcomeMessageApi(
-          apiPrefix.value,
-          agentId,
-          welcomePayload,
-        );
-        console.debug('[AI Panel] Welcome result:', result);
-        aiPanelStore.setDynamicWelcome(
-          result.welcome_message,
-          result.suggested_actions,
-        );
-      } catch (err) {
-        // Silently fall back to static welcome message
-        console.warn('[AI Panel] Welcome message generation failed:', err);
-      } finally {
-        welcomeTriggerInFlight = false;
-      }
+      void runWelcomeRequest(agentId);
     },
     { immediate: true },
   );
@@ -335,6 +409,9 @@ export function useAIChatSlidePanelShell(
   });
 
   async function handleSendMessage() {
+    if (welcomeLoading.value) {
+      return false;
+    }
     return dispatchPanelMessage();
   }
 
@@ -478,6 +555,8 @@ export function useAIChatSlidePanelShell(
     totalTokensUsed,
     uploadUrl,
     uploading,
+    welcomeLoading,
+    welcomeLoadingHint,
   });
 
   return {
