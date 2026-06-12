@@ -14,7 +14,7 @@ import asyncio
 from app.ai.rag.processor_document_support import load_and_parse_document
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
-from app.tasks.base import TenantTask, register_task
+from app.tasks.base import PlatformAwareTenantTask, TenantTask, register_task
 
 logger = LogManager.get_logger("ai.rag.processor")
 
@@ -97,7 +97,7 @@ async def get_document_progress(document_id: int) -> dict | None:
     queue="ai_gateway",
     description="Async knowledge base document processing (Parse→Chunk→Embedding→Store) / 异步处理知识库文档（解析→分块→Embedding→存储）",
     max_retries=3,
-    base=TenantTask,
+    base=PlatformAwareTenantTask,
     soft_time_limit=600,
     time_limit=660,
     acks_late=True,

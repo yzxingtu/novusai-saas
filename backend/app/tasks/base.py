@@ -815,9 +815,13 @@ class TenantTask(BaseTask):
 
     Automatically extracts tenant_id from task params and sets it to context.
     自动从任务参数中提取 tenant_id 并设置到上下文
+
+    Set ``allow_null_tenant = True`` on subclasses/tasks that support
+    platform-level execution (e.g. admin-only KB document processing).
     """
 
     abstract = True
+    allow_null_tenant: bool = False
     _tenant_id: int | None = None
 
     @staticmethod
@@ -839,8 +843,13 @@ class TenantTask(BaseTask):
         _ = (task_id, args)
         tenant_id = self._normalize_tenant_id(kwargs.get("tenant_id"))
         if tenant_id is None:
-            logger.warning("Rejected tenant task without tenant_id: task={}", self.name)
-            raise Ignore()
+            if not self.allow_null_tenant:
+                logger.warning("Rejected tenant task without tenant_id: task={}", self.name)
+                raise Ignore()
+            # Platform-level task: tenant_id=None is valid
+            self._tenant_id = None
+            logger.info("Task platform context (no tenant): task={}", self.name)
+            return
 
         headers = getattr(self.request, "headers", None) or {}
         if isinstance(headers, dict):
@@ -923,6 +932,18 @@ class TenantTask(BaseTask):
     @property
     def tenant_id(self) -> int | None:
         return self._tenant_id
+
+
+class PlatformAwareTenantTask(TenantTask):
+    """
+    Tenant task that also supports platform-level (tenant_id=None) execution.
+
+    Use for tasks like KB document processing that may run for admin-only
+    knowledge bases where tenant_id is None.
+    """
+
+    abstract = True
+    allow_null_tenant: bool = True
 
 
 def register_task(
