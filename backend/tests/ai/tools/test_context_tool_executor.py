@@ -5,6 +5,7 @@ Mocked dependencies: long-term memory provider and KB binding loader.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -105,8 +106,9 @@ async def test_context_tool_search_treats_zero_tenant_as_platform_context() -> N
         )
 
     assert result.success is True
-    assert '"status": "ok"' in result.output
-    assert "https://nvuai.cc" in result.output
+    output = json.loads(result.output)
+    assert output["status"] == "ok"
+    assert output["snippets"][0]["content"] == "官网：https://nvuai.cc"
     admin_repo_cls.assert_called_once_with(context.db)
     tenant_repo_cls.assert_not_called()
     retriever_cls.assert_called_once_with(context.db, None)
