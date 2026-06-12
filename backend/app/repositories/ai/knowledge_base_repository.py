@@ -24,7 +24,15 @@ _ASSIGNED_SCOPES = (
 
 
 def _kb_visible_condition(tenant_id: int | None):
-    """当前企业可见的知识库条件 / KB visible to tenant."""
+    """当前企业可见的知识库条件 / KB visible to tenant.
+
+    When tenant_id is None (platform/admin context), all platform-owned KBs
+    are visible regardless of scope — including admin_only KBs.
+    """
+    # Platform/admin context: all platform-owned KBs are visible
+    if tenant_id is None:
+        return KnowledgeBase.owner_tenant_id.is_(None)
+
     assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
     tenant_owned_visible = and_(
         KnowledgeBase.owner_tenant_id == tenant_id,
@@ -52,12 +60,19 @@ def _kb_visible_condition(tenant_id: int | None):
 
 
 def _kb_child_visible_condition(tenant_id: int | None, child_tenant_column):
-    """当前企业可读的 KB 子资源条件 / KB child rows readable by current tenant."""
+    """当前企业可读的 KB 子资源条件 / KB child rows readable by current tenant.
+
+    When tenant_id is None (platform/admin context), child rows are visible
+    if their tenant_id matches the parent KB's owner_tenant_id.
+    This correctly covers:
+    - admin_only KB (both NULL) ✅
+    - global_shared KB (both NULL) ✅
+    - all_tenants KB owned by tenant (both = tenant_id) ✅
+    """
     if tenant_id is None:
-        return and_(
-            KnowledgeBase.owner_tenant_id.is_(None),
-            child_tenant_column.is_(None),
-        )
+        # Platform context: child tenant must match KB owner (both NULL or both same tenant)
+        return child_tenant_column == KnowledgeBase.owner_tenant_id
+
     return or_(
         and_(
             KnowledgeBase.owner_tenant_id == tenant_id,
