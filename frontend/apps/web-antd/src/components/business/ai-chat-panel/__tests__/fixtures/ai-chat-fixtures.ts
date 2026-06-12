@@ -109,6 +109,22 @@ export const buildRichToolHistoryMessages = () => [
       },
       pending_confirmation: {
         action: 'query',
+        approval_presentation: {
+          details: [
+            { label: '统计范围', value: '今天' },
+            { label: '内部令牌', sensitive: true, value: 'hidden-token' },
+          ],
+          menuLabel: '调用日志',
+          permissionCode: 'ai_call_logs:query',
+          riskLevel: 'low',
+          summary: 'AI 助手将查看调用日志中的今日统计数据。',
+          target: { name: 'ai_call_logs', type: '数据表' },
+          technical: {
+            operation_id: 'query_records',
+            preview: { sql: 'SELECT 1' },
+          },
+          title: '查询调用日志',
+        },
         preview: { sql: 'SELECT 1' },
         table: 'ai_call_logs',
         tool_name: 'query_records',
