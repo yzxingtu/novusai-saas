@@ -63,28 +63,33 @@ def build_chunk_rows(
     document_id: int,
     knowledge_base_id: int,
     tenant_id: int | None,
+    embedding_dimensions: int = 1536,
 ) -> list[dict[str, Any]]:
     if len(chunks) != len(embeddings):
         raise ValueError(
             f"Embedding row count mismatch: expected {len(chunks)}, got {len(embeddings)}"
         )
 
+    # Resolve the target embedding column key based on KB dimensions
+    # 根据知识库维度确定写入的列名
+    embedding_key = f"embedding_{embedding_dimensions}"
+
     rows: list[dict[str, Any]] = []
     for chunk, embedding in zip(chunks, embeddings, strict=True):
-        rows.append(
-            {
-                "document_id": document_id,
-                "knowledge_base_id": knowledge_base_id,
-                "chunk_index": chunk.chunk_index,
-                "content": chunk.content,
-                "content_hash": chunk.content_hash,
-                "char_count": chunk.char_count,
-                "token_count": 0,
-                "embedding": embedding,
-                "metadata_": chunk.metadata,
-                "tenant_id": tenant_id,
-            }
-        )
+        row: dict[str, Any] = {
+            "document_id": document_id,
+            "knowledge_base_id": knowledge_base_id,
+            "chunk_index": chunk.chunk_index,
+            "content": chunk.content,
+            "content_hash": chunk.content_hash,
+            "char_count": chunk.char_count,
+            "token_count": 0,
+            "metadata_": chunk.metadata,
+            "tenant_id": tenant_id,
+        }
+        # Write embedding to the dimension-specific column
+        row[embedding_key] = embedding
+        rows.append(row)
     return rows
 
 

@@ -34,6 +34,16 @@ export function getModelTierOptions() {
   ];
 }
 
+/** Supported embedding output dimensions / 支持的 Embedding 输出维度 */
+export const SUPPORTED_EMBEDDING_DIMENSIONS = [1024, 1536] as const;
+
+export function getEmbeddingDimensionsOptions() {
+  return SUPPORTED_EMBEDDING_DIMENSIONS.map((dim) => ({
+    label: `${dim}`,
+    value: dim,
+  }));
+}
+
 export function getModelTierText(tier: null | string | undefined): string {
   if (!tier) return '-';
   return $t(`admin.ai.model.tier_options.${tier}` as never, tier);
@@ -70,5 +80,6 @@ export function getFormDefaults(): Record<string, unknown> {
     max_image_count: 5,
     max_image_size_mb: 10,
     tier: null,
+    embedding_dimensions: null,
   };
 }

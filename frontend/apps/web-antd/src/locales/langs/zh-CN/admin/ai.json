@@ -118,6 +118,7 @@
     "maxImageSizeMb": "单图最大 (MB)",
     "isActive": "启用状态",
     "tier": "模型级别",
+    "embeddingDimensions": "嵌入维度",
     "fallbackModel": "备用模型",
     "rpmLimit": "RPM 限制",
     "tpmLimit": "TPM 限制",
@@ -166,6 +167,7 @@
       "inputTpmLimit": "每分钟 Token 数限制（留空不限制）",
       "selectFallback": "选择备用模型（可选）",
       "selectTier": "选择模型级别（可选）",
+      "selectEmbeddingDimensions": "请选择嵌入维度",
       "inputMaxImageCount": "如 5",
       "inputMaxImageSizeMb": "如 10"
     },
@@ -185,6 +187,7 @@
       "code": "填写上游 API 实际接受的模型 ID，如 gpt-4 或 gpt-5.4。旧的别名记录会在编辑时自动转换为规范化配置。",
       "reasoningEffort": "仅对 GPT-5 / o 系列等支持 reasoning 的模型生效。像 Claude 这类模型不会显示也不会下发这个参数。",
       "type": "对话模型用于聊天和文本生成；向量模型用于知识库文档嵌入；图像模型用于图片生成",
+      "embeddingDimensions": "嵌入模型的向量维度，创建知识库时会自动继承此设置",
       "contextWindow": "单次请求可容纳的总 Token 预算（系统提示词 + 历史消息 + 用户输入 + RAG 上下文 + 模型输出）。如果你想调大“输入能吃多少”，优先改这里。",
       "maxOutputTokens": "单次请求允许模型生成的最大输出 Token 数，只限制这次回答最多输出多少，不会增加可输入上下文",
       "functionCalling": "启用后模型可调用工具函数。需要模型本身支持 Function Calling 能力",

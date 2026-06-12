@@ -213,6 +213,14 @@ class AIModel(BaseModel):
         JSON, nullable=True, comment=_("enum.ai_model.config")
     )
 
+    # Embedding 输出维度（仅 model_type=embedding 时生效） /
+    # Embedding output dimensions (only effective when model_type=embedding)
+    embedding_dimensions: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment=_("enum.ai_model.embedding_dimensions"),
+    )
+
     # 模型级别（用于多模型路由策略） / Tier for routing policy
     tier: Mapped[str | None] = mapped_column(
         String(20),

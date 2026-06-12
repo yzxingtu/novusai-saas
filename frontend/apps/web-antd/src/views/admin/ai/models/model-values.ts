@@ -53,6 +53,10 @@ export function buildModelPayload(
     ),
     fallback_model_id: values.fallback_model_id || null,
     tier: values.tier || null,
+    embedding_dimensions:
+      values.type === 'embedding'
+        ? values.embedding_dimensions || null
+        : null,
   };
 }
 
@@ -87,6 +91,7 @@ export function buildModelFormValues(
     ),
     fallback_model_id: data.fallback_model_id,
     tier: data.tier,
+    embedding_dimensions: data.embedding_dimensions,
   };
 }
 

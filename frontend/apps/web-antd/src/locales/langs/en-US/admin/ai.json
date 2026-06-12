@@ -118,6 +118,7 @@
     "maxImageSizeMb": "Max Image Size (MB)",
     "isActive": "Status",
     "tier": "Model Tier",
+    "embeddingDimensions": "Embedding Dimensions",
     "fallbackModel": "Fallback Model",
     "rpmLimit": "RPM Limit",
     "tpmLimit": "TPM Limit",
@@ -166,6 +167,7 @@
       "inputTpmLimit": "Tokens per minute limit (leave empty for unlimited)",
       "selectFallback": "Select fallback model (optional)",
       "selectTier": "Select model tier (optional)",
+      "selectEmbeddingDimensions": "Select embedding dimensions",
       "inputMaxImageCount": "e.g. 5",
       "inputMaxImageSizeMb": "e.g. 10"
     },
@@ -185,6 +187,7 @@
       "code": "Enter the upstream model ID actually accepted by the provider API, such as gpt-4 or gpt-5.4. Legacy alias rows are normalized automatically when edited.",
       "reasoningEffort": "Only applies to GPT-5 / o-series style reasoning models. Models like Claude will neither show nor send this parameter.",
       "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
+      "embeddingDimensions": "Vector dimensions of the embedding model. Knowledge bases automatically inherit this setting when created",
       "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first.",
       "maxOutputTokens": "Maximum generated tokens per request. This only limits how much the model can output in one reply and does not increase input context capacity",
       "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",

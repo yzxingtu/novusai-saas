@@ -17,6 +17,7 @@ import { $t } from '#/locales';
 import {
   getModelTierOptions,
   getModelTypeOptions,
+  getEmbeddingDimensionsOptions,
   getReasoningEffortOptions,
 } from './model-options';
 import { supportsAdvancedRuntimeParams } from './model-runtime';
@@ -215,6 +216,25 @@ export function useFormSchema(
         placeholder: $t('admin.ai.model.placeholder.selectType'),
       }),
       help: $t('admin.ai.model.help.type'),
+    },
+    {
+      ...select(
+        'embedding_dimensions',
+        $t('admin.ai.model.embeddingDimensions'),
+        {
+          options: getEmbeddingDimensionsOptions(),
+          required: true,
+          placeholder: $t(
+            'admin.ai.model.placeholder.selectEmbeddingDimensions',
+          ),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'embedding',
+      },
+      help: $t('admin.ai.model.help.embeddingDimensions'),
     },
     {
       ...numberField('context_window', $t('admin.ai.model.contextWindow'), {
