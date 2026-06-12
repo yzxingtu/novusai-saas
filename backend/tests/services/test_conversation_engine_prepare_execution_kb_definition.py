@@ -121,3 +121,64 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
         "Knowledge-base context is available this turn." not in prep.messages[0].content
     )
     inject_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_injects_bound_kb_for_plain_question() -> None:
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=7,
+        messages=[ChatMessage(role="user", content="仓库地址是多少")],
+        input_variables={},
+    )
+
+    async def _fake_inject_rag_context(
+        _db,
+        _agent,
+        messages,
+        _tenant_id,
+        kb_ids=None,
+        rag_config=None,
+        kb_weights=None,
+    ):
+        _ = _db, _agent, _tenant_id, rag_config, kb_weights
+        assert kb_ids == [101]
+        return (
+            messages
+            + [ChatMessage(role="system", content="[KB HIT] repository-url")],
+            [{"kb_id": 101, "chunk_id": "repository-url"}],
+        )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([101], {101: 1.0})),
+        ),
+        patch(
+            "app.ai.rag_injector.inject_rag_context",
+            new=AsyncMock(side_effect=_fake_inject_rag_context),
+        ) as inject_mock,
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.execution_path == "fast"
+    assert prep.rag_source_kinds == ["formal_kb"]
+    assert prep.diagnostics["intent_flags"]["has_bound_kb"] is True
+    assert prep.diagnostics["intent_flags"]["has_knowledge_intent"] is False
+    assert prep.diagnostics["rag_attempted"] is True
+    assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
+    assert (
+        "knowledge_base"
+        in prep.diagnostics["runtime_capability_summary"]["context_source_kinds"]
+    )
+    inject_mock.assert_awaited_once()

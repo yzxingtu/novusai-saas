@@ -563,6 +563,43 @@ async def test_context_engine_injects_limited_knowledge_base_capabilities() -> N
 
 
 @pytest.mark.asyncio
+async def test_context_engine_injects_bound_kb_for_generic_turns() -> None:
+    """
+    中文: 测试类型 behavioral；绑定知识库的普通轮次也会执行 RAG 与能力上下文。
+    EN: Test type behavioral; generic turns with bound KB still run retrieval and
+    capability context.
+    """
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="仓库地址是多少")],
+        ),
+        skill_result=None,
+        settings=TenantCapabilityAwarenessSettings(
+            capability_description_style="concise",
+            max_capability_items_per_category=2,
+        ),
+        kb_ids=[101],
+        kb_bindings=[
+            {
+                "kb_id": 101,
+                "kb_name": "项目知识库",
+                "kb_description": "包含仓库地址与部署说明",
+                "kb_document_count": 3,
+            },
+        ],
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert assembly.diagnostics["intent_flags"]["has_bound_kb"] is True
+    assert assembly.diagnostics["intent_flags"]["has_knowledge_intent"] is False
+    assert assembly.diagnostics["rag_attempted"] is True
+    assert assembly.diagnostics["rag_retrieval_status"] == "attempted_no_results"
+    assert "[RUNTIME KNOWLEDGE CONTEXT METADATA]" in assembly.messages[0].content
+    assert "项目知识库" in assembly.messages[0].content
+    assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
+
+
+@pytest.mark.asyncio
 async def test_context_engine_does_not_inject_capability_block_when_disabled() -> None:
     """
     中文: 测试类型 behavioral；关闭租户能力感知后不会注入运行时能力块。

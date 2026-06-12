@@ -219,8 +219,8 @@ class ConversationContextEngine(ContextEngine):
             rag_config=agent.rag_config or {},
             kb_weights=agent_kb_weights,
             enabled=(
-                not intent_flags["all_shortcircuit"]
-                and intent_flags["has_knowledge_intent"]
+                intent_flags["has_bound_kb"]
+                and not intent_flags["should_skip_bound_kb_rag"]
             ),
         )
         messages = list(rag_contribution.messages or messages)

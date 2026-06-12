@@ -187,7 +187,7 @@ class ContextAssembler:
         )
 
         provider_names = ["skills"]
-        if not flags.all_shortcircuit and flags.has_knowledge_intent:
+        if flags.has_bound_kb and not flags.should_skip_bound_kb_rag:
             provider_names.append("knowledge_base")
         if memory_policy.memory_context_enabled or has_session_memory_context:
             provider_names.append("memory")
