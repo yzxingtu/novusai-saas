@@ -99,15 +99,17 @@ async def test_prepare_execution_exposes_context_tool_for_definition_question() 
             skill_result=_build_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["context_tools_query"]
-    assert prep.execution_path == "normal"
+    # After fix: plain question without semantic tool match stays direct_reply
+    # with context tools as optional (mode="auto"), NOT promoted to required.
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.rag_source_kinds == []
     assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in [tool.name for tool in prep.tools]
     assert TOOL_SAVE_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
     assert TOOL_RECALL_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
     assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in prep.tool_use_policy.allowed_tool_names
-    assert prep.tool_use_policy.family == "context_tools"
-    assert prep.tool_use_policy.mode == "required"
+    assert prep.tool_use_policy.family == "none"
+    assert prep.tool_use_policy.mode == "auto"
+    assert prep.tool_use_policy.reason == "direct_reply_optional_context_tools"
     assert prep.diagnostics["rag_attempted"] is False
     assert prep.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
@@ -151,15 +153,17 @@ async def test_prepare_execution_exposes_context_tool_for_plain_question() -> No
             skill_result=_build_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["context_tools_query"]
-    assert prep.execution_path == "normal"
+    # After fix: plain question without semantic tool match stays direct_reply
+    # with context tools as optional (mode="auto"), NOT promoted to required.
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.rag_source_kinds == []
     assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in [tool.name for tool in prep.tools]
     assert TOOL_SAVE_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
     assert TOOL_RECALL_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
     assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in prep.tool_use_policy.allowed_tool_names
-    assert prep.tool_use_policy.family == "context_tools"
-    assert prep.tool_use_policy.mode == "required"
+    assert prep.tool_use_policy.family == "none"
+    assert prep.tool_use_policy.mode == "auto"
+    assert prep.tool_use_policy.reason == "direct_reply_optional_context_tools"
     assert prep.diagnostics["intent_flags"]["has_bound_kb"] is True
     assert prep.diagnostics["intent_flags"]["has_knowledge_intent"] is False
     assert prep.diagnostics["rag_attempted"] is False

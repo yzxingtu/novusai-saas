@@ -610,6 +610,7 @@ def plan_execution_tools(
                 user_query=user_query,
                 limit=limit,
             )
+            _from_default_context_fallback = False
             if not tool_candidates:
                 tool_candidates = _pending_confirmation_tools(
                     all_tools=all_tools,
@@ -621,42 +622,56 @@ def plan_execution_tools(
                     all_tools=all_tools,
                     limit=limit,
                 )
+                if tool_candidates:
+                    _from_default_context_fallback = True
             candidate_tool_names = [tool.name for tool in tool_candidates]
             if tool_candidates:
-                promoted_intent = _promote_direct_reply_metadata_intent(
-                    intent_plan=intent_plan,
-                    tool_candidates=tool_candidates,
-                    input_variables=request.input_variables,
-                )
-                if promoted_intent is not None:
-                    actionable_intents = [promoted_intent]
-                    explicit_requested_families = (
-                        _ordered_requested_families_from_intents_impl(
-                            intents=intent_plan
-                        )
-                    )
-                    execution_path = PathSelector.select(intent_plan)
-                    execution_budget = BudgetGuard.build_default(
-                        execution_path,
-                        intent_count=len(intent_plan),
-                    )
-                    intent_flags = _intent_plan_gating_flags_impl(
-                        intent_plan,
-                        request=request,
-                    )
-                else:
-                    explicit_request = _looks_like_explicit_tool_request(user_query)
+                # Default context-tools fallback must NOT be promoted to
+                # required; keep them as optional (mode="auto") so the model
+                # can freely choose plain text for greetings / chit-chat.
+                if _from_default_context_fallback:
                     tool_use_policy = ToolUsePolicy(
                         family="none",
-                        mode="required" if explicit_request else "auto",
+                        mode="auto",
                         allowed_tool_names=list(candidate_tool_names),
-                        retry_on_contract_breach=explicit_request,
-                        reason=(
-                            "direct_reply_explicit_tool_request"
-                            if explicit_request
-                            else "direct_reply_discoverable_tools"
-                        ),
+                        retry_on_contract_breach=False,
+                        reason="direct_reply_optional_context_tools",
                     )
+                else:
+                    promoted_intent = _promote_direct_reply_metadata_intent(
+                        intent_plan=intent_plan,
+                        tool_candidates=tool_candidates,
+                        input_variables=request.input_variables,
+                    )
+                    if promoted_intent is not None:
+                        actionable_intents = [promoted_intent]
+                        explicit_requested_families = (
+                            _ordered_requested_families_from_intents_impl(
+                                intents=intent_plan
+                            )
+                        )
+                        execution_path = PathSelector.select(intent_plan)
+                        execution_budget = BudgetGuard.build_default(
+                            execution_path,
+                            intent_count=len(intent_plan),
+                        )
+                        intent_flags = _intent_plan_gating_flags_impl(
+                            intent_plan,
+                            request=request,
+                        )
+                    else:
+                        explicit_request = _looks_like_explicit_tool_request(user_query)
+                        tool_use_policy = ToolUsePolicy(
+                            family="none",
+                            mode="required" if explicit_request else "auto",
+                            allowed_tool_names=list(candidate_tool_names),
+                            retry_on_contract_breach=explicit_request,
+                            reason=(
+                                "direct_reply_explicit_tool_request"
+                                if explicit_request
+                                else "direct_reply_discoverable_tools"
+                            ),
+                        )
         if not tool_candidates and actionable_intents:
             fallback_allowed_names = _allowed_tool_names_for_families_impl(
                 explicit_requested_families,
