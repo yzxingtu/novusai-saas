@@ -145,4 +145,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   totalTokensUsed: ComputedRef<number>;
   uploadUrl: Ref<string>;
   uploading: Ref<boolean>;
+  welcomeLoading: Readonly<Ref<boolean>>;
+  welcomeLoadingHint: ComputedRef<string>;
 }

@@ -209,4 +209,94 @@ describe('ai chat panel body', () => {
       wrapper.get('[data-testid="transcript-shell"]').classes(),
     ).not.toContain('blur-[1px]');
   });
+
+  it('forwards welcome loading state and disables the composer while welcome is being generated', async () => {
+    const wrapper = mount(AIChatPanelBody, {
+      props: {
+        agents: [
+          {
+            avatar: null,
+            description: null,
+            id: 1,
+            name: 'Copilot',
+            status: 'published',
+            tenant_id: 1,
+          },
+        ],
+        apiPrefix: '/tenant',
+        attachDisabled: false,
+        inputMessage: '用户草稿',
+        selectedAgent: {
+          avatar: '42',
+          description: null,
+          id: 1,
+          name: 'Copilot',
+          status: 'published',
+          tenant_id: 1,
+        },
+        sendDisabled: false,
+        sending: false,
+        welcomeLoading: true,
+        welcomeLoadingHint: 'Copilot 正在准备开场建议',
+      },
+      global: {
+        stubs: {
+          AIChatComposer: defineComponent({
+            name: 'AIChatComposerProbe',
+            emits: ['send'],
+            props: {
+              attachDisabled: { type: Boolean, required: false },
+              disabled: { type: Boolean, required: false },
+              sendDisabled: { type: Boolean, required: false },
+            },
+            template:
+              '<button data-testid="composer-probe" :data-disabled="String(disabled)" :data-send-disabled="String(sendDisabled)" :data-attach-disabled="String(attachDisabled)" @click="$emit(\'send\')" />',
+          }),
+          AIChatConversationFooter: defineComponent({
+            name: 'AIChatConversationFooterStub',
+            template: '<div data-testid="conversation-footer-stub" />',
+          }),
+          AIChatHistoryPane: defineComponent({
+            name: 'AIChatHistoryPaneStub',
+            template: '<div data-testid="history-pane-stub" />',
+          }),
+          AIChatMessageViewport: defineComponent({
+            name: 'AIChatMessageViewportProbe',
+            props: {
+              selectedAgent: {
+                type: Object,
+                required: false,
+                default: null,
+              },
+              welcomeLoading: {
+                type: Boolean,
+                required: false,
+              },
+              welcomeLoadingHint: {
+                type: String,
+                required: false,
+                default: '',
+              },
+            },
+            template:
+              '<div data-testid="viewport-welcome-probe" :data-welcome-loading="String(welcomeLoading)" :data-agent-name="String(selectedAgent?.name || \'\')" :data-welcome-hint="welcomeLoadingHint" />',
+          }),
+        },
+      },
+    });
+
+    const viewport = wrapper.get('[data-testid="viewport-welcome-probe"]');
+    expect(viewport.attributes('data-welcome-loading')).toBe('true');
+    expect(viewport.attributes('data-agent-name')).toBe('Copilot');
+    expect(viewport.attributes('data-welcome-hint')).toBe(
+      'Copilot 正在准备开场建议',
+    );
+
+    const composer = wrapper.get('[data-testid="composer-probe"]');
+    expect(composer.attributes('data-disabled')).toBe('true');
+    expect(composer.attributes('data-send-disabled')).toBe('true');
+    expect(composer.attributes('data-attach-disabled')).toBe('true');
+    await composer.trigger('click');
+    expect(wrapper.emitted('send')).toBeUndefined();
+  });
 });

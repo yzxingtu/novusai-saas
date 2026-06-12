@@ -12,10 +12,13 @@ import { computed, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
+import { Spin } from 'ant-design-vue';
+
 import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { toTurnFlowFirstChatMessage } from '#/components/business/ai-chat-panel/turn-flow-first-message';
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
@@ -38,6 +41,8 @@ const props = withDefaults(
     showScrollToBottom?: boolean;
     showScrollToTop?: boolean;
     streaming?: boolean;
+    welcomeLoading?: boolean;
+    welcomeLoadingHint?: string;
   }>(),
   {
     agents: () => [],
@@ -58,6 +63,8 @@ const props = withDefaults(
     showScrollToBottom: false,
     showScrollToTop: false,
     streaming: false,
+    welcomeLoading: false,
+    welcomeLoadingHint: '',
   },
 );
 
@@ -179,6 +186,43 @@ const visibleSuggestedQuestions = computed(() =>
   props.effectiveSuggestedQuestions.slice(0, 4),
 );
 
+const welcomeLoadingVisible = computed(
+  () =>
+    props.welcomeLoading &&
+    props.chatMessages.length === 0 &&
+    !props.sending &&
+    !props.routing,
+);
+
+const welcomeLoadingAgentName = computed(() => {
+  const agentName = props.selectedAgent?.name?.trim();
+  return agentName || $t('common.globalAiChat.assistant');
+});
+
+const welcomeLoadingHintText = computed(() => {
+  if (props.welcomeLoadingHint.trim()) {
+    return props.welcomeLoadingHint.trim();
+  }
+  const agentName = props.selectedAgent?.name?.trim();
+  if (agentName) {
+    return $t('common.globalAiChat.welcomeLoadingWithAgent', {
+      agent: agentName,
+    });
+  }
+  return $t('common.globalAiChat.welcomeLoading');
+});
+
+const welcomeLoadingAvatarUrl = computed(() =>
+  props.selectedAgent?.avatar
+    ? toAvatarDisplayUrl(props.selectedAgent.avatar)
+    : '',
+);
+
+const welcomeLoadingAvatarText = computed(() => {
+  const firstChar = welcomeLoadingAgentName.value.trim().charAt(0);
+  return firstChar || 'AI';
+});
+
 const visibleAssistantAgentIds = computed(() => {
   const ids = new Set<number>();
   for (const message of normalizedChatMessages.value) {
@@ -260,17 +304,67 @@ watch(
 <template>
   <div
     :ref="(element) => registerContainer?.(element as HTMLDivElement | null)"
-    class="transcript-scroll flex-1 overflow-y-auto"
+    class="transcript-scroll relative flex-1 overflow-y-auto"
     :class="
       compact
         ? 'px-2 py-2 sm:px-2.5 sm:py-2.5'
         : 'px-3 py-3 sm:px-4 sm:py-3.5 lg:px-5 lg:py-4'
     "
+    :aria-busy="welcomeLoadingVisible ? 'true' : 'false'"
     @scroll="emit('scroll')"
   >
+    <Transition name="fade">
+      <div
+        v-if="welcomeLoadingVisible"
+        data-testid="ai-chat-welcome-loading"
+        role="status"
+        aria-live="polite"
+        class="absolute inset-0 z-20 flex items-center justify-center bg-background/95 px-4 py-8 backdrop-blur-[2px]"
+      >
+        <div
+          class="flex w-full max-w-[22rem] flex-col items-center text-center"
+        >
+          <div
+            class="ai-chat-welcome-loading-avatar flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-semibold text-primary"
+          >
+            <img
+              v-if="welcomeLoadingAvatarUrl"
+              :src="welcomeLoadingAvatarUrl"
+              :alt="
+                $t('common.globalAiChat.welcomeLoadingAvatarAlt', {
+                  agent: welcomeLoadingAgentName,
+                })
+              "
+              class="size-full object-cover"
+            />
+            <span v-else aria-hidden="true">
+              {{ welcomeLoadingAvatarText }}
+            </span>
+          </div>
+          <div
+            class="mt-3 w-full truncate text-[14px] font-semibold leading-5 text-foreground"
+            :title="welcomeLoadingAgentName"
+          >
+            {{ welcomeLoadingAgentName }}
+          </div>
+          <p
+            class="text-muted-foreground/72 mt-1.5 line-clamp-2 w-full break-words text-[12.5px] leading-5"
+          >
+            {{ welcomeLoadingHintText }}
+          </p>
+          <Spin class="mt-3" size="small" />
+        </div>
+      </div>
+    </Transition>
+
     <div :class="contentShellClass">
       <div
-        v-if="chatMessages.length === 0 && !sending && !routing"
+        v-if="
+          chatMessages.length === 0 &&
+          !sending &&
+          !routing &&
+          !welcomeLoadingVisible
+        "
         class="flex justify-center pt-7 sm:pt-9"
       >
         <div class="ai-chat-empty-state w-full max-w-[27rem] px-3 text-left">
@@ -443,6 +537,12 @@ watch(
   background: hsl(var(--background) / 82%);
   border-color: hsl(var(--border) / 24%);
   box-shadow: 0 8px 20px -24px hsl(var(--foreground) / 16%);
+}
+
+.ai-chat-welcome-loading-avatar {
+  background: hsl(var(--primary) / 7.5%);
+  border: 1px solid hsl(var(--primary) / 12%);
+  box-shadow: 0 12px 28px -24px hsl(var(--foreground) / 18%);
 }
 
 .routing-card {

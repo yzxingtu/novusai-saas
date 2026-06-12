@@ -558,6 +558,10 @@ export async function generateWelcomeMessageApi(
   return requestClient.post<WelcomeMessageResponse>(
     `${chatBaseUrl(apiPrefix)}/${agentId}/welcome`,
     body,
+    {
+      showCodeMessage: false,
+      showErrorMessage: false,
+    },
   );
 }
 

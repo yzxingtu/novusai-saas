@@ -127,7 +127,10 @@ export function useAIChatSlidePanelShellBindings(
     attachmentLimitHint: composerAttachmentLimitHint,
     attachments: composerAttachments,
     attachDisabled: computed(
-      () => options.agents.value.length === 0 || options.sending.value,
+      () =>
+        options.welcomeLoading.value ||
+        options.agents.value.length === 0 ||
+        options.sending.value,
     ),
     boundKnowledgeBases: composerBoundKnowledgeBases,
     cancelEditTitle: options.cancelEditTitle,
@@ -181,7 +184,9 @@ export function useAIChatSlidePanelShellBindings(
     selectedAgent: options.selectedAgent,
     selectedKnowledgeBases: composerSelectedKnowledgeBases,
     selectedSkillPackages: composerSelectedSkillPackages,
-    sendDisabled: composerSendDisabled,
+    sendDisabled: computed(
+      () => options.welcomeLoading.value || composerSendDisabled.value,
+    ),
     sending: options.sending,
     sendState: composerSendState,
     shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
@@ -193,6 +198,8 @@ export function useAIChatSlidePanelShellBindings(
     stopGeneration: options.stopGeneration,
     streaming: options.streaming,
     totalTokensUsed: options.totalTokensUsed,
+    welcomeLoading: options.welcomeLoading,
+    welcomeLoadingHint: options.welcomeLoadingHint,
   });
 
   const {
