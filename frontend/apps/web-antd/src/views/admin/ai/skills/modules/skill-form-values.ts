@@ -161,6 +161,35 @@ export function buildSkillFormPayload(values: Record<string, unknown>) {
 
 export const transformSkillFormValues = buildSkillFormPayload;
 
+/**
+ * Build synthetic BuiltinToolInfo entries for code-defined builtin types.
+ * These tools live in backend code, not in config.tools.
+ */
+function getCodeDefinedBuiltinTools(
+  builtinType: string,
+): BuiltinToolInfo[] {
+  if (builtinType === 'internal_ops') {
+    return [
+      {
+        name: 'list_internal_operations',
+        description:
+          'Search the management-console operation catalog available to the current user.',
+      },
+      {
+        name: 'describe_internal_operation',
+        description:
+          'Get the full parameter specification of one internal operation.',
+      },
+      {
+        name: 'invoke_internal_operation',
+        description:
+          'Invoke one internal operation on behalf of the current user.',
+      },
+    ];
+  }
+  return [];
+}
+
 export function toSkillFormValues(
   data: AdminSkillInfo,
   options: SkillFormValueOptions,
@@ -170,10 +199,19 @@ export function toSkillFormValues(
   options.isPluginSkill.value = !!data.source_plugin;
   options.pluginSourceName.value = data.source_plugin || '';
 
-  options.builtinTools.value =
-    data.type === 'builtin' && Array.isArray(cfg.tools)
-      ? (cfg.tools as BuiltinToolInfo[])
-      : [];
+  // config.tools 型 builtin / config.tools-based builtin
+  if (data.type === 'builtin' && Array.isArray(cfg.tools)) {
+    options.builtinTools.value = cfg.tools as BuiltinToolInfo[];
+  } else if (
+    // 代码定义型 builtin / code-defined builtin (e.g. internal_ops)
+    data.type === 'builtin' &&
+    typeof cfg.builtin_type === 'string' &&
+    cfg.builtin_type
+  ) {
+    options.builtinTools.value = getCodeDefinedBuiltinTools(cfg.builtin_type);
+  } else {
+    options.builtinTools.value = [];
+  }
 
   if (data.source_plugin && Array.isArray(data.plugin_tools)) {
     options.pluginTools.value = data.plugin_tools;

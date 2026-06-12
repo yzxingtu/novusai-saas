@@ -114,6 +114,17 @@ function isRuntimeActiveSkill(record: AdminSkillInfo): boolean {
           :title="`${((record.config as Record<string, unknown>).tools as unknown[]).length} tools`"
           class="ml-1"
         />
+        <Tag
+          v-else-if="
+            record.type === 'builtin' &&
+            (record.config as Record<string, unknown>)?.builtin_type
+          "
+          color="geekblue"
+          class="ml-1"
+          style="padding: 0 4px; font-size: 10px; line-height: 16px"
+        >
+          code-defined
+        </Tag>
       </template>
 
       <template v-else-if="column.key === 'is_active'">

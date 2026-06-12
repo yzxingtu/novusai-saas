@@ -73,6 +73,56 @@ def _test_builtin(
     config: dict[str, Any],
 ) -> dict[str, Any]:
     """测试 Builtin Skill：验证内置功能标识 / Test Builtin skill: validate built-in function identifier"""
+    # 代码定义型 builtin：internal_ops 元工具 / Code-defined builtin: internal_ops meta-tools
+    builtin_type = str(config.get("builtin_type") or "").strip()
+    if builtin_type == "internal_ops":
+        try:
+            from app.ai.internal_ops.tools import (
+                TOOL_DESCRIBE_OPERATION,
+                TOOL_INVOKE_OPERATION,
+                TOOL_LIST_OPERATIONS,
+                build_internal_ops_tool_definitions,
+            )
+
+            tools = build_internal_ops_tool_definitions(skill=skill, config=config)
+            tool_names = [t.name for t in tools]
+            expected = [
+                TOOL_LIST_OPERATIONS,
+                TOOL_DESCRIBE_OPERATION,
+                TOOL_INVOKE_OPERATION,
+            ]
+            missing = [n for n in expected if n not in tool_names]
+            if missing:
+                return {
+                    "success": False,
+                    "message": _(
+                        "skill.test.internal_ops_missing_tools",
+                        missing=", ".join(missing),
+                    ),
+                    "details": {"tool_names": tool_names, "missing": missing},
+                }
+            return {
+                "success": True,
+                "message": _(
+                    "skill.test.internal_ops_ok",
+                    tools=len(tools),
+                ),
+                "details": {
+                    "builtin_type": builtin_type,
+                    "tool_names": tool_names,
+                    "tool_count": len(tools),
+                },
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "message": _(
+                    "skill.test.internal_ops_error",
+                    error=str(exc),
+                ),
+                "details": None,
+            }
+
     builtin_name = config.get("builtin_name", "") or config.get("name", "")
 
     if not builtin_name:
