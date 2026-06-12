@@ -94,9 +94,11 @@ vi.mock('#/constants/upload', () => ({
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
+  i18n: { global: { locale: { value: 'zh-CN' } } },
 }));
 
 vi.mock('#/store', () => ({
+  useAIPanelStore: () => aiPanelStoreMocks,
   useSocketIOStore: () => ({
     connect: socketStoreMocks.connect,
     emit: socketStoreMocks.emit,
@@ -106,6 +108,10 @@ vi.mock('#/store', () => ({
 
 vi.mock('#/store/shared/ai-panel', () => ({
   useAIPanelStore: () => aiPanelStoreMocks,
+}));
+
+vi.mock('@vben/stores', () => ({
+  useUserStore: () => ({ userInfo: { realName: 'Test User' } }),
 }));
 
 vi.mock('#/utils/ai-consent', () => ({
@@ -1495,8 +1501,9 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '总结一下';
-    await chat.sendMessage();
+    const sendPromise = chat.sendMessage();
     await flushStreamSend();
+    await sendPromise;
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1506,12 +1513,63 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.turnFlow?.completionReason).toBe(
       'provider_failure_after_partial_progress',
     );
+    expect(assistantMessage?.partial).toBe(true);
+    expect(assistantMessage?.requestFailedRetry).toBe(true);
+    expect(assistantMessage?.streaming).toBeFalsy();
+    expect(assistantMessage?.turnFlow?.turnOutcome).toBe('partial');
     expect(
       timeline.some(
         (stage) => stage.type === 'failed' && stage.status === 'error',
       ),
     ).toBe(true);
     expect(timeline.some((stage) => stage.status === 'running')).toBe(false);
+  });
+
+  it('projects provider timeout completion reason as failed even without explicit final status', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: 'NovusAI 的仓库地址是：' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'provider_timeout',
+            event: 'done',
+            total_tokens: 9,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查一下仓库地址';
+    const sendPromise = chat.sendMessage();
+    await flushStreamSend();
+    await sendPromise;
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+
+    expect(assistantMessage?.content).toBe('NovusAI 的仓库地址是：');
+    expect(assistantMessage?.requestFailedRetry).toBe(true);
+    expect(assistantMessage?.turnFlow?.finalStageStatus).toBe('error');
+    expect(assistantMessage?.turnFlow?.completionReason).toBe(
+      'provider_timeout',
+    );
+    expect(assistantMessage?.streaming).toBeFalsy();
   });
 
   it('clears stale running canonical turn stages after lifecycle finalization', async () => {
@@ -2946,7 +3004,15 @@ describe('useAIChat interrupted stream recovery', () => {
       'consented_actions',
       'conversation_id',
       'message',
+      'user_context',
     ]);
+    expect(requestBody?.user_context).toEqual(
+      expect.objectContaining({
+        current_time: expect.any(String),
+        locale: 'zh-CN',
+        user_nickname: 'Test User',
+      }),
+    );
   });
 
   it('sends chat with only explicit chat request fields', async () => {
@@ -2984,7 +3050,15 @@ describe('useAIChat interrupted stream recovery', () => {
       'consented_actions',
       'conversation_id',
       'message',
+      'user_context',
     ]);
+    expect(requestBody?.user_context).toEqual(
+      expect.objectContaining({
+        current_time: expect.any(String),
+        locale: 'zh-CN',
+        user_nickname: 'Test User',
+      }),
+    );
     expect(requestBody).not.toHaveProperty('messages');
     expect(socketStoreMocks.connect).not.toHaveBeenCalled();
   });

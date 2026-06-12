@@ -177,13 +177,17 @@ export interface TurnFallbackRecordPayload {
 
 /** Turn-level diagnostics payload / 轮次级诊断负载 */
 export interface TurnRecordPayload {
+  completion_reason?: string;
   context_sources?: TurnContextSourcePayload[];
   fallback_history?: TurnFallbackRecordPayload[];
+  failure_kind?: string;
+  final_stage_status?: string;
   metadata?: Record<string, unknown>;
   protocol_path?: string;
   selected_skill_names?: string[];
   selected_tool_names?: string[];
   termination_reason?: string;
+  turn_flow?: Record<string, unknown>;
   turn_outcome?: string;
 }
 

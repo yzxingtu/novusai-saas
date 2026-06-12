@@ -50,6 +50,9 @@ export {
 const FAILURE_REASON_SET = new Set([
   'error',
   'failed',
+  'content_filter',
+  'incomplete',
+  'length',
   'no_answer_quality_evidence',
   'provider_error',
   'provider_failure_after_partial_progress',
@@ -59,6 +62,8 @@ const FAILURE_REASON_SET = new Set([
   'tool_error',
   'tool_round_failed',
   'untrusted_final_output_source',
+  'cancelled',
+  'canceled',
 ]);
 
 const FAILURE_OUTCOME_SET = new Set(['error', 'failed', 'tool_round_failed']);

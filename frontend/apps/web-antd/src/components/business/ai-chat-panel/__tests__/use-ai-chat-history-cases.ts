@@ -156,6 +156,66 @@ export function registerUseAIChatHistoryCases(
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
   });
 
+  it('keeps provider timeout from reloaded history as a retryable failure', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail(
+        [
+          buildUserMessage('查一下仓库地址'),
+          buildAssistantMessage('NovusAI 的仓库地址是：', {
+            metadata: {
+              completion_reason: 'provider_timeout',
+              termination_reason: 'provider_timeout',
+              turn_record: {
+                completion_reason: 'provider_timeout',
+                termination_reason: 'provider_timeout',
+                turn_outcome: 'partial',
+              },
+            },
+          }),
+        ],
+        { interaction_mode_effective: 'trusted_auto' },
+      ),
+    );
+
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onEnd: () => Promise<void>;
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: 'NovusAI 的仓库地址是：' }),
+        );
+        await options.onEnd();
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查一下仓库地址';
+
+    await chat.sendMessage();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value[1];
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
+    expect(assistantMessage?.content).toBe('NovusAI 的仓库地址是：');
+    expect(assistantMessage?.partial).toBe(true);
+    expect(assistantMessage?.completionReason).toBe('provider_timeout');
+    expect(assistantMessage?.terminationReason).toBe('provider_timeout');
+    expect(assistantMessage?.requestFailedRetry).toBe(true);
+  });
+
   it('keeps the anchored conversation binding after transient local state loss', async () => {
     apiMocks.getChatAgentsApi.mockResolvedValue(
       buildAgentList([

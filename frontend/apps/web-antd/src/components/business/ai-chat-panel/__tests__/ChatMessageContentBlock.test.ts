@@ -221,6 +221,18 @@ function mountContentBlock(msg: ChatMessage) {
 }
 
 describe('chatMessageContentBlock', () => {
+  it('shows an incomplete marker for benign partial assistant content', () => {
+    const wrapper = mountContentBlock({
+      clientKey: 'partial-without-failure',
+      content: 'NovusAI 的仓库地址是：',
+      partial: true,
+      role: 'assistant',
+      streaming: false,
+    } as ChatMessage);
+
+    expect(wrapper.text()).toContain('common.globalAiChat.generationIncomplete');
+  });
+
   it('resets to collapsed state when message identity changes on the same component instance', async () => {
     const wrapper = mount(ChatMessageContentBlock, {
       props: {

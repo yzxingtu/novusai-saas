@@ -792,16 +792,9 @@ def _resolve_exception_final_output_source(
     state: Any,
     tool_results: list[Any],
 ) -> str | None:
+    _ = state, tool_results
     if not str(partial_output or "").strip():
         return None
-    intent_plan = (
-        list(getattr(state, "intent_plan", []) or []) if state is not None else []
-    )
-    if RecoveryManager.has_completed_output_evidence(
-        intent_plan,
-        tool_results=tool_results,
-    ):
-        return "recovery_evidence"
     return "partial_output"
 
 
@@ -914,6 +907,7 @@ async def _build_stream_exception_artifacts(
         )
         if rebuilt_completed_output:
             partial_output = rebuilt_completed_output
+            recovered_from_provider_failure = True
             state.preparation_diagnostics = dict(
                 getattr(state, "preparation_diagnostics", {}) or {}
             )
