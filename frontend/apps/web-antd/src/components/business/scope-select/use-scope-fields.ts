@@ -210,11 +210,14 @@ export function extractScopePayload(
   const scope = values[scopeField] as string;
   const result: Record<string, unknown> = {
     [scopeField]: scope,
-    tenant_id:
-      withTenantId && scope === 'all_tenants'
-        ? (values.tenant_id ?? null)
-        : null,
   };
+
+  // Only include tenant_id when explicitly requested (withTenantId=true)
+  // 仅在显式要求时包含 tenant_id，避免触发后端废弃字段校验
+  if (withTenantId) {
+    result.tenant_id =
+      scope === 'all_tenants' ? (values.tenant_id ?? null) : null;
+  }
 
   if (scopeNeedsAssignment(scope)) {
     result.tenant_ids = values.tenant_ids ?? [];
