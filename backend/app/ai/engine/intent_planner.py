@@ -99,8 +99,6 @@ class _IntentPlannerOrchestrator:
             metadata: dict[str, Any] = dict(signal.metadata or {})
             allow_text_response = False
             cached_result = None
-            if signal.kind == "memory_save":
-                cached_result = "已记住。"
             order = len(plans) + 1
             plans.append(
                 IntentPlan(

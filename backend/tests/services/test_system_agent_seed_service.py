@@ -11,6 +11,9 @@ import pytest
 from app.enums.agent import AgentStatusEnum
 from app.exceptions import BusinessException
 from app.services.system.system_agent_seed_service import (
+    CONTEXT_KB_SKILL_KEY,
+    CONTEXT_MEMORY_SKILL_KEY,
+    CONTEXT_SKILL_PACKAGE_NAME,
     SYSTEM_AGENT_FEATURES,
     SystemAgentSeedService,
 )
@@ -58,6 +61,30 @@ class FakeSeedRepository:
     ):
         _ = key, include_deleted
         return None
+
+    async def get_platform_system_skill_package_by_name(
+        self,
+        name: str,
+        *,
+        include_deleted: bool = False,
+    ):
+        _ = name, include_deleted
+        return None
+
+    async def get_platform_system_skill_by_key(
+        self,
+        key: str,
+        *,
+        include_deleted: bool = False,
+    ):
+        _ = key, include_deleted
+        return None
+
+    async def create_skill_package(self, data):
+        return SimpleNamespace(id=1, is_deleted=False, **data)
+
+    async def create_skill(self, data):
+        return SimpleNamespace(id=len(getattr(self, "created_skills", [])) + 10, is_deleted=False, **data)
 
 
 class FakeDb:
@@ -324,3 +351,44 @@ async def test_ensure_skill_rejects_non_system_key_conflict() -> None:
 
     with pytest.raises(BusinessException):
         await service._ensure_skill(SimpleNamespace(id=1))
+
+
+@pytest.mark.asyncio
+async def test_ensure_context_tool_skills_creates_db_visible_system_package() -> None:
+    class ContextSkillRepo(FakeSeedRepository):
+        def __init__(self) -> None:
+            super().__init__(model=_model(), provider=_provider())
+            self.created_packages = []
+            self.created_skills = []
+
+        async def create_skill_package(self, data):
+            self.created_packages.append(data)
+            return SimpleNamespace(id=88, is_deleted=False, **data)
+
+        async def create_skill(self, data):
+            self.created_skills.append(data)
+            return SimpleNamespace(
+                id=100 + len(self.created_skills),
+                is_deleted=False,
+                **data,
+            )
+
+    repo = ContextSkillRepo()
+    service = _service(repo)
+
+    package, skills = await service._ensure_context_tool_skills()
+
+    assert package.name == CONTEXT_SKILL_PACKAGE_NAME
+    assert package.is_system is True
+    assert [skill.key for skill in skills] == [
+        CONTEXT_KB_SKILL_KEY,
+        CONTEXT_MEMORY_SKILL_KEY,
+    ]
+    assert repo.created_skills[0]["config"] == {
+        "builtin_type": "context_tools",
+        "tools": ["search_agent_knowledge_base"],
+    }
+    assert repo.created_skills[1]["config"] == {
+        "builtin_type": "context_tools",
+        "tools": ["save_long_term_memory", "recall_long_term_memory"],
+    }

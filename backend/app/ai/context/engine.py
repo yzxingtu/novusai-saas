@@ -218,10 +218,7 @@ class ConversationContextEngine(ContextEngine):
             kb_ids=list(merged_kb_ids or []),
             rag_config=agent.rag_config or {},
             kb_weights=agent_kb_weights,
-            enabled=(
-                intent_flags["has_bound_kb"]
-                and not intent_flags["should_skip_bound_kb_rag"]
-            ),
+            enabled=False,
         )
         messages = list(rag_contribution.messages or messages)
         rag_sources = rag_contribution.rag_sources

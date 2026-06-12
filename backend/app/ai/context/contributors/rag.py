@@ -43,7 +43,7 @@ class RAGContributor:
         if not enabled:
             return RAGContextContribution(
                 messages=list(messages),
-                rag_retrieval_status="skipped_shortcircuit",
+                rag_retrieval_status="skipped_tool_managed",
             )
 
         from app.ai.rag_injector import inject_rag_context

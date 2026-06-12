@@ -29,7 +29,7 @@ def _request(
     )
 
 
-def test_context_pipeline_orchestrator_enables_runtime_memory_for_generic_turns() -> (
+def test_context_pipeline_orchestrator_leaves_memory_to_context_tools() -> (
     None
 ):
     flags = ContextPipelineOrchestrator.compute_intent_flags(
@@ -38,12 +38,12 @@ def test_context_pipeline_orchestrator_enables_runtime_memory_for_generic_turns(
     )
 
     assert flags.has_memory_intent is False
-    assert flags.memory_context_enabled is True
+    assert flags.memory_context_enabled is False
     assert flags.allow_memory_even_if_shortcircuit is False
     assert flags.session_memory_runtime_enabled is True
     assert flags.long_term_memory_runtime_enabled is True
     assert flags.should_run_memory_profile is False
-    assert flags.should_run_memory_vector_recall is True
+    assert flags.should_run_memory_vector_recall is False
     assert flags.should_skip_bound_kb_rag is False
 
 
@@ -67,7 +67,7 @@ def test_context_pipeline_orchestrator_keeps_session_memory_without_long_term_re
     )
 
     assert flags.has_memory_intent is False
-    assert flags.memory_context_enabled is True
+    assert flags.memory_context_enabled is False
     assert flags.allow_memory_even_if_shortcircuit is False
     assert flags.session_memory_runtime_enabled is True
     assert flags.long_term_memory_runtime_enabled is False
@@ -75,7 +75,7 @@ def test_context_pipeline_orchestrator_keeps_session_memory_without_long_term_re
     assert flags.should_run_memory_vector_recall is False
 
 
-def test_context_pipeline_orchestrator_runs_profile_and_recall_for_memory_recall() -> (
+def test_context_pipeline_orchestrator_does_not_auto_recall_for_legacy_memory_intent() -> (
     None
 ):
     flags = ContextPipelineOrchestrator.compute_intent_flags(
@@ -84,12 +84,12 @@ def test_context_pipeline_orchestrator_runs_profile_and_recall_for_memory_recall
     )
 
     assert flags.has_memory_intent is True
-    assert flags.memory_context_enabled is True
+    assert flags.memory_context_enabled is False
     assert flags.has_memory_recall_intent is True
-    assert flags.allow_memory_even_if_shortcircuit is True
-    assert flags.should_skip_bound_kb_rag is True
-    assert flags.should_run_memory_profile is True
-    assert flags.should_run_memory_vector_recall is True
+    assert flags.allow_memory_even_if_shortcircuit is False
+    assert flags.should_skip_bound_kb_rag is False
+    assert flags.should_run_memory_profile is False
+    assert flags.should_run_memory_vector_recall is False
 
 
 def test_context_pipeline_orchestrator_keeps_memory_save_write_only() -> None:
@@ -99,7 +99,7 @@ def test_context_pipeline_orchestrator_keeps_memory_save_write_only() -> None:
     )
 
     assert flags.has_memory_intent is True
-    assert flags.memory_context_enabled is True
+    assert flags.memory_context_enabled is False
     assert flags.has_memory_save_intent is True
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False

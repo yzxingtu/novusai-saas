@@ -249,6 +249,21 @@ def _direct_reply_discoverable_tools(
     return selected
 
 
+def _default_context_tools_for_direct_reply(
+    *,
+    all_tools: list[ToolDefinition],
+    limit: int,
+) -> list[ToolDefinition]:
+    if limit <= 0:
+        return []
+    selected = [
+        tool
+        for tool in all_tools
+        if normalize_semantic_family(tool_semantic_family(tool)) == "context_tools"
+    ]
+    return selected[:limit]
+
+
 def _pending_confirmation_tools(
     *,
     all_tools: list[ToolDefinition],
@@ -600,6 +615,11 @@ def plan_execution_tools(
                     all_tools=all_tools,
                     messages=messages,
                     input_variables=request.input_variables,
+                )
+            if not tool_candidates:
+                tool_candidates = _default_context_tools_for_direct_reply(
+                    all_tools=all_tools,
+                    limit=limit,
                 )
             candidate_tool_names = [tool.name for tool in tool_candidates]
             if tool_candidates:

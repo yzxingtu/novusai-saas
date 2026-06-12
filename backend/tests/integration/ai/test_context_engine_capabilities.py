@@ -252,18 +252,12 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
 
 
 @pytest.mark.asyncio
-async def test_context_engine_enables_long_term_memory_recall_on_generic_turns() -> (
+async def test_context_engine_leaves_long_term_memory_recall_to_context_tools() -> (
     None
 ):
-    memory_contribution = MemoryContextContribution(
-        memory_recalled=True,
-        memory_recall_slice={"count": 2, "scope_type": "user_agent"},
-        memory_injected=True,
-    )
-
     with patch(
         "app.ai.context.contributors.memory.MemoryContributor.contribute",
-        new=AsyncMock(return_value=memory_contribution),
+        new=AsyncMock(return_value=MemoryContextContribution()),
     ) as contribute_mock:
         assembly = await _assemble_context(
             request=_build_request(
@@ -276,16 +270,20 @@ async def test_context_engine_enables_long_term_memory_recall_on_generic_turns()
         )
 
     contribute_kwargs = contribute_mock.await_args.kwargs
-    assert contribute_kwargs["enabled"] is True
+    assert contribute_kwargs["enabled"] is False
     assert contribute_kwargs["should_run_memory_profile"] is False
-    assert contribute_kwargs["should_run_memory_vector_recall"] is True
-    assert assembly.memory_recalled is True
+    assert contribute_kwargs["should_run_memory_vector_recall"] is False
+    assert assembly.memory_recalled is False
     assert assembly.capability_bundle is not None
-    assert {
+    active_source_kinds = {
         source.kind
         for source in assembly.capability_bundle.context_sources
         if source.active
-    } >= {"long_term_memory"}
+    }
+    assert "long_term_memory" not in active_source_kinds
+    assert assembly.diagnostics["intent_flags"]["long_term_memory_runtime_enabled"] is (
+        True
+    )
 
 
 @pytest.mark.asyncio
@@ -563,11 +561,11 @@ async def test_context_engine_injects_limited_knowledge_base_capabilities() -> N
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_bound_kb_for_generic_turns() -> None:
+async def test_context_engine_reports_tool_managed_bound_kb_for_generic_turns() -> None:
     """
-    中文: 测试类型 behavioral；绑定知识库的普通轮次也会执行 RAG 与能力上下文。
-    EN: Test type behavioral; generic turns with bound KB still run retrieval and
-    capability context.
+    中文: 测试类型 behavioral；绑定知识库的普通轮次暴露能力上下文，RAG 由上下文工具管理。
+    EN: Test type behavioral; generic turns with bound KB surface capability
+    context while retrieval is managed by context tools.
     """
     assembly = await _assemble_context(
         request=_build_request(
@@ -592,8 +590,8 @@ async def test_context_engine_injects_bound_kb_for_generic_turns() -> None:
 
     assert assembly.diagnostics["intent_flags"]["has_bound_kb"] is True
     assert assembly.diagnostics["intent_flags"]["has_knowledge_intent"] is False
-    assert assembly.diagnostics["rag_attempted"] is True
-    assert assembly.diagnostics["rag_retrieval_status"] == "attempted_no_results"
+    assert assembly.diagnostics["rag_attempted"] is False
+    assert assembly.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
     assert "[RUNTIME KNOWLEDGE CONTEXT METADATA]" in assembly.messages[0].content
     assert "项目知识库" in assembly.messages[0].content
     assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]

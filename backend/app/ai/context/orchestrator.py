@@ -68,12 +68,7 @@ class ContextPipelineOrchestrator:
             request is not None
             and bool(getattr(request, "_has_bound_knowledge_base", False))
         )
-        deterministic_shortcircuit_kinds = {
-            "confirmation_replay",
-            "memory_recall",
-            "memory_save",
-            "time_query",
-        }
+        deterministic_shortcircuit_kinds = {"confirmation_replay", "time_query"}
         should_skip_bound_kb_rag = bool(normalized_plan) and all(
             bool(getattr(intent, "shortcircuit", False))
             and (
@@ -96,22 +91,14 @@ class ContextPipelineOrchestrator:
         long_term_memory_runtime_enabled = bool(
             memory_policy.long_term_memory_runtime_enabled
         )
-        allow_memory_even_if_shortcircuit = (
-            has_memory_save_intent or has_memory_recall_intent
-        )
         has_memory_intent = bool(has_memory_save_intent or has_memory_recall_intent)
-        memory_context_enabled = bool(
-            has_memory_intent
-            or (memory_policy.memory_context_enabled and not all_shortcircuit)
-        )
-        should_run_memory_profile = has_memory_recall_intent
-        should_run_memory_vector_recall = bool(
-            has_memory_recall_intent
-            or (
-                memory_policy.long_term_memory_recall_state == "enabled"
-                and not all_shortcircuit
-            )
-        )
+        # Long-term memory is now exposed as system context tools. The context
+        # pipeline only reports runtime capability state; read/write decisions
+        # are made by the model via normal tool calls.
+        allow_memory_even_if_shortcircuit = False
+        memory_context_enabled = False
+        should_run_memory_profile = False
+        should_run_memory_vector_recall = False
         return IntentPlanFlags(
             all_shortcircuit=all_shortcircuit,
             has_knowledge_intent=has_knowledge_intent,

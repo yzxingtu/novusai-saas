@@ -307,14 +307,19 @@ def _preview_tool_names_for_skill(
     if skill_type == "builtin":
         tools_config = config.get("tools")
         if isinstance(tools_config, list):
+            tool_names: list[str] = []
+            for tool_cfg in tools_config:
+                if isinstance(tool_cfg, str):
+                    raw_tool_name = tool_cfg
+                elif isinstance(tool_cfg, dict):
+                    raw_tool_name = tool_cfg.get("name") or ""
+                else:
+                    continue
+                tool_name = str(raw_tool_name or "").strip()
+                if tool_name and tool_name not in _RUNTIME_BUILTIN_TOOL_NAMES:
+                    tool_names.append(tool_name)
             return _live_runtime_references(
-                [
-                    str((tool_cfg or {}).get("name") or "").strip()
-                    for tool_cfg in tools_config
-                    if str((tool_cfg or {}).get("name") or "").strip()
-                    and str((tool_cfg or {}).get("name") or "").strip()
-                    not in _RUNTIME_BUILTIN_TOOL_NAMES
-                ]
+                tool_names
             )
         tool_name = str(getattr(skill, "name", "") or "").strip()
         if tool_name in _RUNTIME_BUILTIN_TOOL_NAMES:

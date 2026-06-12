@@ -26,13 +26,45 @@ class _EmptyExecuteResult:
         return None
 
 
-class _StatementCaptureDb:
-    def __init__(self) -> None:
-        self.statements: list[Any] = []
+class _SingleExecuteResult:
+    def __init__(self, value: Any) -> None:
+        self.value = value
 
-    async def execute(self, stmt: Any) -> _EmptyExecuteResult:
+    def scalar_one_or_none(self) -> Any:
+        return self.value
+
+
+class _ListScalarResult:
+    def __init__(self, values: list[Any]) -> None:
+        self.values = values
+
+    def all(self) -> list[Any]:
+        return self.values
+
+
+class _ListExecuteResult:
+    def __init__(self, values: list[Any]) -> None:
+        self.values = values
+
+    def scalars(self) -> _ListScalarResult:
+        return _ListScalarResult(self.values)
+
+
+class _StatementCaptureDb:
+    def __init__(self, result: Any | None = None) -> None:
+        self.statements: list[Any] = []
+        self.result = result or _EmptyExecuteResult()
+
+    async def execute(self, stmt: Any) -> Any:
         self.statements.append(stmt)
-        return _EmptyExecuteResult()
+        return self.result
+
+
+def _select_loads_skill_package(stmt: Any) -> bool:
+    return any(
+        "Skill.package" in str(getattr(option, "path", ""))
+        for option in getattr(stmt, "_with_options", ())
+    )
 
 
 @pytest.mark.asyncio
@@ -293,6 +325,49 @@ async def test_bind_skill_rejects_inactive_package_skill() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bind_skill_allows_platform_system_skill_with_loaded_package() -> None:
+    from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
+
+    active_package = SimpleNamespace(
+        id=11,
+        name="智能体上下文技能包（内置）",
+        tenant_id=None,
+        is_active=True,
+        is_deleted=False,
+    )
+    context_skill = SimpleNamespace(
+        id=3,
+        name="知识库检索工具",
+        key="agent_context_knowledge_search",
+        source_ref="agent_context_knowledge_search",
+        tenant_id=None,
+        is_active=True,
+        is_deleted=False,
+        package=active_package,
+    )
+    created_grant = SimpleNamespace(id=17, agent_id=59, skill_id=3)
+
+    service = AgentSkillGrantService.__new__(AgentSkillGrantService)
+    service.db = AsyncMock()
+    service.tenant_id = 9
+    service.agent_repo = AsyncMock()
+    service.agent_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=59, owner_tenant_id=9),
+    )
+    service.skill_repo = AsyncMock()
+    service.skill_repo.get_by_id = AsyncMock(return_value=context_skill)
+    service.grant_repo = AsyncMock()
+    service.grant_repo.get_grant = AsyncMock(return_value=None)
+    service.grant_repo.create = AsyncMock(return_value=created_grant)
+
+    grant = await service.bind_skill(agent_id=59, skill_id=3)
+
+    assert grant is created_grant
+    service.grant_repo.create.assert_awaited_once()
+    assert service.grant_repo.create.await_args.args[0]["tenant_id"] == 9
+
+
+@pytest.mark.asyncio
 async def test_bind_skill_rejects_retired_online_search_skill() -> None:
     from app.exceptions import NotFoundException
     from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
@@ -356,3 +431,67 @@ async def test_grant_repository_queries_filter_retired_skill_catalog() -> None:
         assert "replace" in sql
         assert "web_search" in params
         assert "searchprovider" in params
+
+
+@pytest.mark.asyncio
+async def test_skill_repository_get_by_id_eager_loads_package_for_binding() -> None:
+    from app.repositories.ai.skill_repository import SkillRepository
+
+    active_package = SimpleNamespace(
+        tenant_id=None,
+        is_active=True,
+        is_deleted=False,
+        name="智能体上下文技能包（内置）",
+    )
+    skill = SimpleNamespace(
+        id=3,
+        tenant_id=None,
+        package_id=11,
+        name="知识库检索工具",
+        key="agent_context_knowledge_search",
+        source_ref="agent_context_knowledge_search",
+        is_active=True,
+        is_deleted=False,
+        package=active_package,
+    )
+    db = _StatementCaptureDb(_SingleExecuteResult(skill))
+    repo = SkillRepository(db, tenant_id=9)
+
+    found = await repo.get_by_id(3)
+
+    assert found is skill
+    assert len(db.statements) == 1
+    assert _select_loads_skill_package(db.statements[0])
+
+
+@pytest.mark.asyncio
+async def test_skill_repository_get_by_ids_eager_loads_package_for_batch_binding() -> (
+    None
+):
+    from app.repositories.ai.skill_repository import SkillRepository
+
+    active_package = SimpleNamespace(
+        tenant_id=None,
+        is_active=True,
+        is_deleted=False,
+        name="智能体上下文技能包（内置）",
+    )
+    skill = SimpleNamespace(
+        id=3,
+        tenant_id=None,
+        package_id=11,
+        name="长期记忆读写工具",
+        key="agent_context_memory_tools",
+        source_ref="agent_context_memory_tools",
+        is_active=True,
+        is_deleted=False,
+        package=active_package,
+    )
+    db = _StatementCaptureDb(_ListExecuteResult([skill]))
+    repo = SkillRepository(db, tenant_id=9)
+
+    found = await repo.get_by_ids([3])
+
+    assert found == [skill]
+    assert len(db.statements) == 1
+    assert _select_loads_skill_package(db.statements[0])

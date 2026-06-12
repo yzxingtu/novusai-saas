@@ -4,13 +4,13 @@ Regression for: conversation_id=2412
 Original symptom: the user asked "看看绑定的知识库有什么内容"; the turn was a
 knowledge_query with active KB id=1, but the prompt had no stable KB status and
 the assistant claimed it could not inspect the bound knowledge base.
-Scope: context assembly and RAG status contract for bound-KB/no-source turns.
+Scope: context assembly and RAG status contract for bound-KB/tool-managed turns.
 Real dependencies: ConversationContextEngine, prompt contract renderer, runtime
 capability finalization, and diagnostics shaping.
 Mocked dependencies: tenant config, KB binding read model, intent fixture, model
-capability lookup, and RAG retrieval transport returning no sources.
+capability lookup, and RAG retrieval transport guard.
 Why this is not self-fulfilling: no LLM response is mocked; the test asserts
-the runtime-provided context contract that the model receives before generation.
+the runtime-provided context contract that tells the model to use context tools.
 """
 
 from __future__ import annotations
@@ -78,16 +78,13 @@ def _knowledge_intent() -> list[IntentPlan]:
 
 
 @pytest.mark.asyncio
-async def test_conversation_2412_bound_kb_no_source_turn_gets_prompt_visible_status() -> (
+async def test_conversation_2412_bound_kb_turn_gets_tool_managed_prompt_status() -> (
     None
 ):
     context_engine = ConversationContextEngine(
         db=object(),
         base_engine=_BaseEngineStub(),
     )
-
-    async def _rag_no_sources(_db, _agent, messages, _tenant_id, **_kwargs):
-        return messages, None
 
     with (
         patch(
@@ -109,8 +106,8 @@ async def test_conversation_2412_bound_kb_no_source_turn_gets_prompt_visible_sta
         ),
         patch(
             "app.ai.rag_injector.inject_rag_context",
-            new=AsyncMock(side_effect=_rag_no_sources),
-        ),
+            new=AsyncMock(),
+        ) as inject_mock,
         patch(
             "app.ai.context.engine_runtime_support.load_compaction_snapshot",
             new=AsyncMock(return_value=None),
@@ -143,17 +140,18 @@ async def test_conversation_2412_bound_kb_no_source_turn_gets_prompt_visible_sta
     assert "[RUNTIME KNOWLEDGE CONTEXT METADATA]" in system_prompt
     assert "测试知识库" in system_prompt
     assert '"document_count":2' in system_prompt
-    assert '"status":"attempted_no_results"' in system_prompt
+    assert '"status":"skipped_tool_managed"' in system_prompt
     assert 'Only retrieval.status="injected"' in system_prompt
 
     assert assembly.rag_sources is None
     assert assembly.diagnostics["effective_knowledge_base_ids"] == [1]
-    assert assembly.diagnostics["rag_attempted"] is True
-    assert assembly.diagnostics["rag_retrieval_status"] == "attempted_no_results"
-    assert assembly.diagnostics["rag_no_hit_reason"] == "retrieval_returned_no_sources"
+    assert assembly.diagnostics["rag_attempted"] is False
+    assert assembly.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
+    assert assembly.diagnostics["rag_no_hit_reason"] is None
     assert assembly.diagnostics["capability_injection_decision"]["kb_injected"] is (
         False
     )
+    inject_mock.assert_not_awaited()
 
     knowledge_sources = [
         source
@@ -182,9 +180,9 @@ async def test_conversation_2412_bound_kb_no_source_turn_gets_prompt_visible_sta
                 "binding_restriction_applied": False,
                 "rag_source_count": 0,
                 "rag_source_kinds": [],
-                "rag_attempted": True,
-                "rag_retrieval_status": "attempted_no_results",
-                "rag_no_hit_reason": "retrieval_returned_no_sources",
+                "rag_attempted": False,
+                "rag_retrieval_status": "skipped_tool_managed",
+                "rag_no_hit_reason": None,
                 "rag_matched_chunk_count": 0,
             },
         }

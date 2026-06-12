@@ -42,14 +42,17 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能 / Get skill by ID (global + assigned package)."""
-        instance = await BaseRepository.get_by_id(self, id, include_deleted)
+        stmt = select(Skill).options(selectinload(Skill.package)).where(Skill.id == id)
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+        result = await self.db.execute(stmt)
+        instance = result.scalar_one_or_none()
         if instance and hasattr(instance, "tenant_id"):
             if is_retired_skill_instance(instance):
                 return None
             if not self._is_skill_tenant_visible(instance):
                 return None
-            pkg = await self.db.get(SkillPackage, instance.package_id)
-            if not self._is_package_visible(pkg):
+            if not self._is_package_visible(instance.package):
                 return None
         return instance
 
@@ -120,15 +123,25 @@ class SkillRepository(TenantRepository[Skill]):
         include_deleted: bool = False,
     ) -> list[Skill]:
         """Get skills by IDs with tenant-visible package fallback."""
-        instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
+        if not ids:
+            return []
+
+        stmt = (
+            select(Skill)
+            .options(selectinload(Skill.package))
+            .where(Skill.id.in_(ids))
+        )
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+        result = await self.db.execute(stmt)
+        instances = list(result.scalars().all())
         visible: list[Skill] = []
         for instance in instances:
             if is_retired_skill_instance(instance):
                 continue
             if not self._is_skill_tenant_visible(instance):
                 continue
-            pkg = await self.db.get(SkillPackage, instance.package_id)
-            if self._is_package_visible(pkg):
+            if self._is_package_visible(instance.package):
                 visible.append(instance)
         return visible
 
@@ -358,7 +371,11 @@ class AdminSkillRepository(BaseRepository[Skill]):
     model = Skill
 
     async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
-        instance = await super().get_by_id(id, include_deleted)
+        stmt = select(Skill).options(selectinload(Skill.package)).where(Skill.id == id)
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+        result = await self.db.execute(stmt)
+        instance = result.scalar_one_or_none()
         if instance and is_retired_skill_instance(instance):
             return None
         return instance
@@ -368,7 +385,18 @@ class AdminSkillRepository(BaseRepository[Skill]):
         ids: list[int],
         include_deleted: bool = False,
     ) -> list[Skill]:
-        instances = await super().get_by_ids(ids, include_deleted)
+        if not ids:
+            return []
+
+        stmt = (
+            select(Skill)
+            .options(selectinload(Skill.package))
+            .where(Skill.id.in_(ids))
+        )
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+        result = await self.db.execute(stmt)
+        instances = list(result.scalars().all())
         return [item for item in instances if not is_retired_skill_instance(item)]
 
     async def query_list(

@@ -3,11 +3,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from app.ai.context_tools.tools import build_context_tool_definitions
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.enums.agent import ToolTypeEnum
 
+CONTEXT_BUILTIN_TOOL_NAMES = (
+    "search_agent_knowledge_base",
+    "save_long_term_memory",
+    "recall_long_term_memory",
+)
 BASELINE_RUNTIME_BUILTINS = ("get_current_time",)
 RUNTIME_BUILTINS = frozenset(BASELINE_RUNTIME_BUILTINS)
 
@@ -79,7 +85,7 @@ def build_baseline_builtin_tool(
     return tool
 
 
-def inject_baseline_runtime_builtins(
+def inject_time_runtime_builtin(
     *,
     result: Any,
     apply_tool_semantics: Callable[[ToolDefinition], None],
@@ -91,7 +97,7 @@ def inject_baseline_runtime_builtins(
         if str(descriptor.kind or "").strip() == "capability_pack"
     }
 
-    for tool_name in BASELINE_RUNTIME_BUILTINS:
+    for tool_name in ("get_current_time",):
         if tool_name in existing_tool_names:
             continue
 
@@ -126,13 +132,24 @@ def inject_baseline_runtime_builtins(
         existing_tool_names.add(tool.name)
 
 
+def inject_baseline_runtime_builtins(
+    *,
+    result: Any,
+    apply_tool_semantics: Callable[[ToolDefinition], None],
+) -> None:
+    inject_time_runtime_builtin(
+        result=result,
+        apply_tool_semantics=apply_tool_semantics,
+    )
+
+
 def build_time_only_runtime_result(
     *,
     result_factory: Callable[[], Any],
     apply_tool_semantics: Callable[[ToolDefinition], None],
 ) -> Any:
     result = result_factory()
-    inject_baseline_runtime_builtins(
+    inject_time_runtime_builtin(
         result=result,
         apply_tool_semantics=apply_tool_semantics,
     )
@@ -155,13 +172,22 @@ def resolve_builtin(
             result.tools.append(tool)
         return
 
+    if str(config.get("builtin_type") or "").strip() == "context_tools":
+        for tool in build_context_tool_definitions(skill=skill, config=config):
+            result.tools.append(tool)
+        return
+
     tools_config = config.get("tools")
     tool_type_override = config.get("tool_type", ToolTypeEnum.BUILTIN.value)
 
     if tools_config and isinstance(tools_config, list):
         for tool_cfg in tools_config:
             tool_name = tool_cfg.get("name", "")
-            if not tool_name or str(tool_name).strip() in RUNTIME_BUILTINS:
+            normalized_tool_name = str(tool_name).strip()
+            if not normalized_tool_name or normalized_tool_name in {
+                *RUNTIME_BUILTINS,
+                *CONTEXT_BUILTIN_TOOL_NAMES,
+            }:
                 continue
             tool_params = build_params_from_schema(tool_cfg.get("parameters"))
             description = augment_builtin_tool_description(

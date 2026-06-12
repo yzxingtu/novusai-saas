@@ -8,6 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.ai.context_tools.tools import (
+    TOOL_RECALL_LONG_TERM_MEMORY,
+    TOOL_SAVE_LONG_TERM_MEMORY,
+    TOOL_SEARCH_AGENT_KNOWLEDGE_BASE,
+    build_context_tool_definitions,
+)
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest
 from app.ai.skills.resolver import SkillResolveResult
@@ -43,6 +49,7 @@ def _build_skill_result() -> SkillResolveResult:
     return SkillResolveResult(
         tools=[
             ToolDefinition(name="query_records", description="Query platform data"),
+            *build_context_tool_definitions(),
         ]
     )
 
@@ -63,7 +70,7 @@ def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_injects_bound_kb_for_definition_question() -> None:
+async def test_prepare_execution_exposes_context_tool_for_definition_question() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -75,23 +82,6 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
         input_variables={},
     )
 
-    async def _fake_inject_rag_context(
-        _db,
-        _agent,
-        messages,
-        _tenant_id,
-        kb_ids=None,
-        rag_config=None,
-        kb_weights=None,
-    ):
-        _ = _db, _agent, _tenant_id, rag_config, kb_weights
-        assert kb_ids == [101]
-        return (
-            messages
-            + [ChatMessage(role="system", content="[KB HIT] novusai-overview")],
-            [{"kb_id": 101, "chunk_id": "novusai-overview"}],
-        )
-
     with (
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
@@ -99,7 +89,7 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
         ),
         patch(
             "app.ai.rag_injector.inject_rag_context",
-            new=AsyncMock(side_effect=_fake_inject_rag_context),
+            new=AsyncMock(),
         ) as inject_mock,
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
     ):
@@ -109,9 +99,17 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
             skill_result=_build_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["knowledge_query"]
+    assert [intent.kind for intent in prep.intent_plan] == ["context_tools_query"]
     assert prep.execution_path == "normal"
-    assert prep.rag_source_kinds == ["formal_kb"]
+    assert prep.rag_source_kinds == []
+    assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in [tool.name for tool in prep.tools]
+    assert TOOL_SAVE_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
+    assert TOOL_RECALL_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
+    assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in prep.tool_use_policy.allowed_tool_names
+    assert prep.tool_use_policy.family == "context_tools"
+    assert prep.tool_use_policy.mode == "required"
+    assert prep.diagnostics["rag_attempted"] is False
+    assert prep.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
     assert (
         "knowledge_base"
@@ -120,11 +118,11 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
     assert (
         "Knowledge-base context is available this turn." not in prep.messages[0].content
     )
-    inject_mock.assert_awaited_once()
+    inject_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_injects_bound_kb_for_plain_question() -> None:
+async def test_prepare_execution_exposes_context_tool_for_plain_question() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -136,23 +134,6 @@ async def test_prepare_execution_injects_bound_kb_for_plain_question() -> None:
         input_variables={},
     )
 
-    async def _fake_inject_rag_context(
-        _db,
-        _agent,
-        messages,
-        _tenant_id,
-        kb_ids=None,
-        rag_config=None,
-        kb_weights=None,
-    ):
-        _ = _db, _agent, _tenant_id, rag_config, kb_weights
-        assert kb_ids == [101]
-        return (
-            messages
-            + [ChatMessage(role="system", content="[KB HIT] repository-url")],
-            [{"kb_id": 101, "chunk_id": "repository-url"}],
-        )
-
     with (
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
@@ -160,7 +141,7 @@ async def test_prepare_execution_injects_bound_kb_for_plain_question() -> None:
         ),
         patch(
             "app.ai.rag_injector.inject_rag_context",
-            new=AsyncMock(side_effect=_fake_inject_rag_context),
+            new=AsyncMock(),
         ) as inject_mock,
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
     ):
@@ -170,15 +151,22 @@ async def test_prepare_execution_injects_bound_kb_for_plain_question() -> None:
             skill_result=_build_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
-    assert prep.execution_path == "fast"
-    assert prep.rag_source_kinds == ["formal_kb"]
+    assert [intent.kind for intent in prep.intent_plan] == ["context_tools_query"]
+    assert prep.execution_path == "normal"
+    assert prep.rag_source_kinds == []
+    assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in [tool.name for tool in prep.tools]
+    assert TOOL_SAVE_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
+    assert TOOL_RECALL_LONG_TERM_MEMORY in [tool.name for tool in prep.tools]
+    assert TOOL_SEARCH_AGENT_KNOWLEDGE_BASE in prep.tool_use_policy.allowed_tool_names
+    assert prep.tool_use_policy.family == "context_tools"
+    assert prep.tool_use_policy.mode == "required"
     assert prep.diagnostics["intent_flags"]["has_bound_kb"] is True
     assert prep.diagnostics["intent_flags"]["has_knowledge_intent"] is False
-    assert prep.diagnostics["rag_attempted"] is True
+    assert prep.diagnostics["rag_attempted"] is False
+    assert prep.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
     assert (
         "knowledge_base"
         in prep.diagnostics["runtime_capability_summary"]["context_source_kinds"]
     )
-    inject_mock.assert_awaited_once()
+    inject_mock.assert_not_awaited()

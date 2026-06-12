@@ -13,6 +13,7 @@ import pytest
 
 from app.ai.context import get_context_engine
 from app.ai.context.engine import ConversationContextEngine
+from app.ai.context_tools.tools import build_context_tool_definitions
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.conversation_sync_io_adapter import _SyncIOAdapter
@@ -55,6 +56,10 @@ def _build_skill_result() -> SkillResolveResult:
             ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
+
+
+def _build_context_skill_result() -> SkillResolveResult:
+    return SkillResolveResult(tools=[*build_context_tool_definitions()])
 
 
 def _build_structured_skill_result() -> SkillResolveResult:
@@ -770,7 +775,7 @@ async def test_context_engine_after_turn_refreshes_compaction_snapshot() -> None
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() -> None:
+async def test_prepare_execution_exposes_memory_recall_context_tool_when_enabled() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -810,7 +815,7 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
         ),
         patch(
             "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=_build_intent_plan("memory_recall"),
+            return_value=_build_intent_plan("direct_reply"),
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
@@ -821,16 +826,20 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
         prep = await engine._prepare_execution(
             agent,
             request,
-            skill_result=_build_skill_result(),
+            skill_result=_build_context_skill_result(),
         )
 
-    assert prep.memory_recalled is True
-    assert prep.memory_recall_slice == {"count": 1, "scope_type": "user_agent"}
-    assert "[LONG-TERM MEMORY RECALL]" in prep.messages[0].content
+    provider.profile.assert_not_awaited()
+    provider.recall.assert_not_awaited()
+    assert prep.memory_recalled is False
+    assert prep.memory_recall_slice is None
+    assert "[LONG-TERM MEMORY RECALL]" not in prep.messages[0].content
+    assert "recall_long_term_memory" in [tool.name for tool in prep.tools]
+    assert "recall_long_term_memory" in prep.tool_use_policy.allowed_tool_names
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_injects_profile_snapshot_before_recall() -> None:
+async def test_prepare_execution_leaves_profile_snapshot_to_memory_tool() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -867,7 +876,7 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
         ),
         patch(
             "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=_build_intent_plan("memory_recall"),
+            return_value=_build_intent_plan("direct_reply"),
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
@@ -878,16 +887,16 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
         prep = await engine._prepare_execution(
             agent,
             request,
-            skill_result=_build_skill_result(),
+            skill_result=_build_context_skill_result(),
         )
 
-    assert prep.memory_recalled is True
-    assert prep.memory_recall_slice == {
-        "count": 0,
-        "profile_snapshot": True,
-        "scope_type": "user_agent",
-    }
-    assert "[PROFILE SNAPSHOT]" in prep.messages[0].content
+    provider.profile.assert_not_awaited()
+    provider.recall.assert_not_awaited()
+    assert prep.memory_recalled is False
+    assert prep.memory_recall_slice is None
+    assert "[PROFILE SNAPSHOT]" not in prep.messages[0].content
+    assert "recall_long_term_memory" in [tool.name for tool in prep.tools]
+    assert "recall_long_term_memory" in prep.tool_use_policy.allowed_tool_names
 
 
 @pytest.mark.asyncio
