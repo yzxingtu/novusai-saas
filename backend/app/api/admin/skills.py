@@ -366,7 +366,7 @@ class AdminSkillController(GlobalController):
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            from app.api.admin._skill_test import test_skill
+            from app.api.shared._skill_test import test_skill
 
             result = await test_skill(db, skill)
             return success(data=result)
