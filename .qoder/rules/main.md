@@ -23,6 +23,7 @@ trigger: always_on
 | [`project-context-and-docs`](./project-context-and-docs.md) | 项目背景与 `docs/` 目录规范 | 新增/修改文档、开始新模块前 |
 | [`github-issues-workflow`](./github-issues-workflow.md) | Issue/PR 写法、`gh` 命令 | 创建/编辑 Issue、开 PR、查看 CI |
 | [`branching-strategy`](./branching-strategy.md) | 分支命名、生命周期、保护规则 | 切分支、合并、处理 hotfix |
+| [`pr-tested-pass-auto-merge`](./pr-tested-pass-auto-merge.md) | PR 测试通过与自动合并流程 | PR 已测试通过、需要 approve 并触发自动合并 |
 
 ## 约束
 

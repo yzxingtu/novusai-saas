@@ -1,0 +1,136 @@
+name: Auto Merge Tested PR
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - labeled
+      - opened
+      - ready_for_review
+      - reopened
+      - review_requested
+      - synchronize
+      - unlabeled
+  pull_request_review:
+    types:
+      - submitted
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to evaluate
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge after approval and tested-pass
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.base.ref == 'main' ||
+      github.event.review.state == 'approved'
+    steps:
+      - name: Resolve pull request number
+        id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_PULL_REQUEST_URL: ${{ github.event.review.pull_request_url }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            pr_number="$DISPATCH_PR_NUMBER"
+          elif [ -n "${PULL_REQUEST_NUMBER:-}" ]; then
+            pr_number="$PULL_REQUEST_NUMBER"
+          else
+            pr_number="${REVIEW_PULL_REQUEST_URL##*/}"
+          fi
+
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "Unable to resolve pull request number" >&2
+            exit 1
+          fi
+
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate merge gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+            --json baseRefName,isDraft,labels,reviewDecision,state)"
+
+          state="$(jq -r '.state' <<< "$pr_json")"
+          base_ref="$(jq -r '.baseRefName' <<< "$pr_json")"
+          is_draft="$(jq -r '.isDraft' <<< "$pr_json")"
+          review_decision="$(jq -r '.reviewDecision // ""' <<< "$pr_json")"
+          has_tested_pass="$(jq -r 'any(.labels[].name; . == "tested-pass")' <<< "$pr_json")"
+
+          echo "state=$state"
+          echo "base_ref=$base_ref"
+          echo "is_draft=$is_draft"
+          echo "review_decision=$review_decision"
+          echo "has_tested_pass=$has_tested_pass"
+
+          if [ "$state" != "OPEN" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=PR is not open" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$base_ref" != "main" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=PR does not target main" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$is_draft" = "true" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=PR is draft" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$has_tested_pass" != "true" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=PR does not have tested-pass label" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$review_decision" != "APPROVED" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=PR is not approved" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "reason=approved and tested-pass" >> "$GITHUB_OUTPUT"
+
+      - name: Enable GitHub auto-merge
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --squash \
+            --auto \
+            --delete-branch
+
+      - name: Report skipped merge
+        if: steps.gate.outputs.ready != 'true'
+        run: |
+          echo "Auto-merge skipped: ${{ steps.gate.outputs.reason }}"
