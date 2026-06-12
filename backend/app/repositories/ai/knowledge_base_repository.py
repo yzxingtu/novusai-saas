@@ -70,8 +70,9 @@ def _kb_child_visible_condition(tenant_id: int | None, child_tenant_column):
     - all_tenants KB owned by tenant (both = tenant_id) ✅
     """
     if tenant_id is None:
-        # Platform context: child tenant must match KB owner (both NULL or both same tenant)
-        return child_tenant_column == KnowledgeBase.owner_tenant_id
+        # Platform context: child tenant must match KB owner (NULL-safe comparison)
+        # SQL "NULL = NULL" returns NULL, so use IS NOT DISTINCT FROM instead
+        return child_tenant_column.isnot_distinct_from(KnowledgeBase.owner_tenant_id)
 
     return or_(
         and_(
