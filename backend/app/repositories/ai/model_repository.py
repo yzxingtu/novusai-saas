@@ -124,6 +124,30 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_ready_chat_with_active_provider(self, model_id: int) -> AIModel | None:
+        """
+        获取可用于智能体的启用对话模型（供应商也必须启用）。
+        Get an active chat model whose provider is also active.
+        """
+        from app.models.ai import AIProvider
+
+        stmt = (
+            select(AIModel)
+            .join(AIProvider, AIProvider.id == AIModel.provider_id)
+            .where(
+                AIModel.id == model_id,
+                AIModel.type == ModelTypeEnum.CHAT.value,
+                AIModel.is_active.is_(True),
+                AIModel.is_deleted.is_(False),
+                AIProvider.is_active.is_(True),
+                AIProvider.is_deleted.is_(False),
+            )
+            .options(selectinload(AIModel.provider))
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_active_by_name_and_provider(
         self, name: str, provider_id: int
     ) -> AIModel | None:

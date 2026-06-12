@@ -1,11 +1,12 @@
 import type { AgentListItem } from '#/api/tenant/agents';
 
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
 import { message } from 'ant-design-vue';
 
+import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import {
   deleteAgentApi,
   getAgentListApi,
@@ -18,12 +19,21 @@ import { buildFormExtraData } from '#/utils/form-extra-data';
 import { getFormDefaults, getStatusText } from '../data';
 import AgentForm from '../modules/AgentForm.vue';
 import VersionHistory from '../modules/VersionHistory.vue';
+import {
+  hasTenantActiveChatModel,
+  resolveTenantAgentSetupState,
+} from './setup-state';
+
+export type { TenantAgentSetupState } from './setup-state';
 
 export function useAgentListPage() {
   const agentFormRef = ref<InstanceType<typeof AgentForm>>();
   const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
     null,
   );
+  const hasActiveChatModel = ref<boolean | null>(null);
+  const modelCheckError = ref(false);
+  const modelCheckLoading = ref(false);
   const filterStatus = ref<string>();
   const publishModalOpen = ref(false);
   const publishChangeLog = ref('');
@@ -72,6 +82,22 @@ export function useAgentListPage() {
     },
   });
 
+  async function refreshModelStatus() {
+    modelCheckLoading.value = true;
+    modelCheckError.value = false;
+    try {
+      const models = await getTenantAIModelsApi(undefined, {
+        showCodeMessage: false,
+      });
+      hasActiveChatModel.value = hasTenantActiveChatModel(models);
+    } catch {
+      modelCheckError.value = true;
+      hasActiveChatModel.value = null;
+    } finally {
+      modelCheckLoading.value = false;
+    }
+  }
+
   const recycleBinCount = computed(
     () => recycleBinRef.value?.deletedCount ?? 0,
   );
@@ -81,6 +107,10 @@ export function useAgentListPage() {
   }
 
   function onCreateAgent(defaults: Record<string, unknown> = {}) {
+    if (hasActiveChatModel.value !== true) {
+      message.warning($t('tenant.ai.agent.setup.missingModelTitle'));
+      return;
+    }
     agentFormRef.value?.openNew(buildCreateExtraData(defaults));
   }
 
@@ -143,6 +173,26 @@ export function useAgentListPage() {
     () => !!searchKeyword.value || !!filterStatus.value,
   );
 
+  const setupState = computed(() =>
+    resolveTenantAgentSetupState(
+      hasActiveChatModel.value,
+      modelCheckLoading.value,
+      modelCheckError.value,
+    ),
+  );
+
+  const showSetupState = computed(
+    () =>
+      setupState.value === 'checking' ||
+      (setupState.value === 'missing-model' &&
+        list.value.length === 0 &&
+        total.value === 0),
+  );
+  const showSetupNotice = computed(
+    () => setupState.value === 'missing-model' && !showSetupState.value,
+  );
+  const canCreateAgent = computed(() => hasActiveChatModel.value === true);
+
   const stats = computed(() => ({
     total: total.value,
     published: list.value.filter((agent) => agent.status === 'published')
@@ -204,9 +254,14 @@ export function useAgentListPage() {
     return chips;
   });
 
+  onMounted(() => {
+    refreshModelStatus();
+  });
+
   return {
     VersionHistoryDrawer,
     agentFormRef,
+    canCreateAgent,
     currentPage,
     doSearch,
     filterStatus,
@@ -217,6 +272,7 @@ export function useAgentListPage() {
     list,
     loadList,
     loading,
+    modelCheckLoading,
     onClearFilters,
     onCreateAgent,
     onEditAgent: openAgentEdit,
@@ -231,7 +287,11 @@ export function useAgentListPage() {
     publishModalOpen,
     recycleBinCount,
     recycleBinRef,
+    refreshModelStatus,
     searchKeyword,
+    setupState,
+    showSetupNotice,
+    showSetupState,
     total,
   };
 }

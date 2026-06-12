@@ -117,6 +117,75 @@ export interface AIAgentMemoryUpdateRequest {
   enabled: boolean;
 }
 
+export type AIAgentBootstrapState =
+  | 'missing_model'
+  | 'missing_provider'
+  | 'ready'
+  | 'seed_system';
+
+export type AIAgentBootstrapAssignmentState =
+  | 'bad_agent'
+  | 'custom_ready'
+  | 'inactive_assignment'
+  | 'missing_agent'
+  | 'missing_assignment'
+  | 'ready';
+
+export interface AIAgentBootstrapAssignment {
+  feature_code: string;
+  feature_name: string;
+  required_scope: string;
+  assignment_exists: boolean;
+  assignment_id: null | number;
+  assignment_active: boolean;
+  assignment_deleted: boolean;
+  agent_id: null | number;
+  agent_name: null | string;
+  agent_scope: null | string;
+  agent_status: null | string;
+  agent_is_system: boolean | null;
+  state: AIAgentBootstrapAssignmentState;
+  repairable: boolean;
+  preserve_custom_assignment: boolean;
+}
+
+export interface AIAgentBootstrapStatus {
+  bootstrap_state: AIAgentBootstrapState;
+  runtime_ready: boolean;
+  has_active_provider: boolean;
+  has_active_chat_model: boolean;
+  active_provider: null | {
+    code: string;
+    id: number;
+    is_active: boolean;
+    name: string;
+    sort_order: number;
+  };
+  active_chat_model: null | {
+    code: string;
+    id: number;
+    is_active: boolean;
+    name: string;
+    provider_code: null | string;
+    provider_id: number;
+    provider_name: null | string;
+    status: string;
+    type: string;
+  };
+  system_agents_ready: boolean;
+  needs_seed: boolean;
+  system_assignments: AIAgentBootstrapAssignment[];
+  seed_summary?: {
+    created_agents: number;
+    created_assignments: number;
+    created_grants: number;
+    preserved_assignments: number;
+    repaired_assignments: number;
+    updated_agents: number;
+    updated_grants: number;
+  };
+}
+
 // ============================================================
 // Type definitions - Agent skill grants / 类型定义 - 智能体技能授权
 // ============================================================
@@ -179,6 +248,27 @@ const AGENT_PREFIX = '/admin/ai/agents';
 /** Get agent select options / 获取智能体下拉选项 */
 export async function getAIAgentSelectApi(params?: Record<string, unknown>) {
   return requestClient.get(`${AGENT_PREFIX}/select`, { params });
+}
+
+/** Get agent bootstrap status / 获取智能体初始化状态 */
+export async function getAIAgentBootstrapStatusApi(
+  options?: ApiRequestOptions,
+): Promise<AIAgentBootstrapStatus> {
+  return requestClient.get<AIAgentBootstrapStatus>(
+    `${AGENT_PREFIX}/bootstrap-status`,
+    options,
+  );
+}
+
+/** Seed built-in system agents / 初始化系统内置智能体 */
+export async function seedSystemAgentsApi(
+  options?: ApiRequestOptions,
+): Promise<AIAgentBootstrapStatus> {
+  return requestClient.post<AIAgentBootstrapStatus>(
+    `${AGENT_PREFIX}/seed-system`,
+    {},
+    options,
+  );
 }
 
 /** Get agent list / 获取智能体列表 */

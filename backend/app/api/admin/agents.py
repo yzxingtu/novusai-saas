@@ -48,6 +48,7 @@ from app.services.system.plugin_managed_agent_sync_service import (
     PluginManagedAgentSyncService,
     SourcePluginInfo,
 )
+from app.services.system.system_agent_seed_service import SystemAgentSeedService
 
 RESOURCE_SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
@@ -175,6 +176,44 @@ class AdminAgentController(GlobalController):
                 page_size=page_size,
             )
             return success(data=response, message=_("common.success"))
+
+        @router.get("/bootstrap-status", summary="获取智能体初始化状态")
+        @action_read("action.ai_agent.bootstrap_status")
+        async def get_bootstrap_status(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取系统智能体初始化状态 / Get system agent bootstrap status.
+
+            权限 / Permission: ai_agent:bootstrap_status
+            """
+            service = SystemAgentSeedService(db)
+            return success(
+                data=await service.get_bootstrap_status(),
+                message=_("agent.bootstrap.status_checked"),
+            )
+
+        @router.post("/seed-system", summary="初始化系统内置智能体")
+        @action_create("action.ai_agent.seed_system")
+        async def seed_system_agents(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """
+            初始化并修复系统内置智能体 / Seed and repair built-in system agents.
+
+            权限 / Permission: ai_agent:seed_system
+            """
+            service = SystemAgentSeedService(db)
+            data = await service.seed_system_agents()
+            await db.commit()
+            return success(
+                data=data,
+                message=_("agent.bootstrap.seed_completed"),
+            )
 
         @router.get("", summary="全企业智能体列表")
         @action_read("action.ai_agent.list")

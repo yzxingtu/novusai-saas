@@ -72,11 +72,15 @@ class TenantAIConfigController(TenantController):
             权限 / Permission: ai_config:models
             """
             service = AIModelService(db)
+            provider_service = AIProviderService(db)
 
             if provider_id:
-                models = await service.get_by_provider(provider_id)
+                provider = await provider_service.get_by_id(provider_id)
+                if provider and provider.is_active and not provider.is_deleted:
+                    models = await service.get_by_provider(provider_id)
+                else:
+                    models = []
             else:
-                provider_service = AIProviderService(db)
                 providers = await provider_service.get_active_providers()
                 models = []
                 for provider in providers:

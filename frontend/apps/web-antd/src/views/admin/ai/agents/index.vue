@@ -13,6 +13,7 @@ import { useAgentListPage } from './composables/use-agent-list-page';
 import AgentListGrid from './modules/AgentListGrid.vue';
 import AgentListPublishModal from './modules/AgentListPublishModal.vue';
 import AgentListToolbar from './modules/AgentListToolbar.vue';
+import AgentSetupEmptyState from './modules/AgentSetupEmptyState.vue';
 import AgentForm from './modules/form.vue';
 
 defineOptions({ name: 'AIAgentList' });
@@ -20,6 +21,8 @@ defineOptions({ name: 'AIAgentList' });
 const {
   VersionDrawer,
   agentFormRef,
+  bootstrapLoading,
+  canSeedSystemAgents,
   currentPage,
   doSearch,
   filterScope,
@@ -34,9 +37,12 @@ const {
   onClearFilters,
   onCreateAgent,
   onEditAgent,
+  onGoModels,
+  onGoProviders,
   onPageChange,
   onPublish,
   onPublishConfirm,
+  onSeedSystemAgents,
   onToggleStatus,
   onVersions,
   openRecycleBin,
@@ -46,7 +52,11 @@ const {
   publishModalOpen,
   recycleBinCount,
   recycleBinRef,
+  refreshBootstrapStatus,
   searchKeyword,
+  seedLoading,
+  setupState,
+  showSetupState,
   total,
 } = useAgentListPage();
 
@@ -89,6 +99,7 @@ const setRecycleBinRef: VNodeRef = (value) => {
     />
 
     <AgentListToolbar
+      v-if="!showSetupState"
       :filter-scope="filterScope"
       :filter-status="filterStatus"
       :has-active-filters="hasActiveFilters"
@@ -103,7 +114,20 @@ const setRecycleBinRef: VNodeRef = (value) => {
       @update:search-keyword="searchKeyword = $event"
     />
 
+    <AgentSetupEmptyState
+      v-if="showSetupState"
+      :loading="bootstrapLoading"
+      :can-seed-system="canSeedSystemAgents"
+      :seed-loading="seedLoading"
+      :state="setupState"
+      @go-models="onGoModels"
+      @go-providers="onGoProviders"
+      @refresh="refreshBootstrapStatus"
+      @seed-system="onSeedSystemAgents"
+    />
+
     <AgentListGrid
+      v-else
       :agents="list"
       :loading="loading"
       @create-agent="onCreateAgent"
@@ -114,7 +138,7 @@ const setRecycleBinRef: VNodeRef = (value) => {
       @versions="onVersions"
     />
 
-    <div v-if="total > pageSize" class="flex justify-end">
+    <div v-if="!showSetupState && total > pageSize" class="flex justify-end">
       <Pagination
         :current="currentPage"
         :page-size="pageSize"

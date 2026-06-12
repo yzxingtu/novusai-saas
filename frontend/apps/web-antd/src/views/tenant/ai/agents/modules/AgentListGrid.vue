@@ -13,6 +13,7 @@ defineOptions({ name: 'TenantAgentListGrid' });
 
 defineProps<{
   agents: AgentListItem[];
+  canCreateAgent: boolean;
   loading: boolean;
 }>();
 
@@ -48,6 +49,7 @@ const emit = defineEmits<{
     >
       <Empty :description="$t('common.noData')">
         <Button
+          v-if="canCreateAgent"
           v-access:code="['agent:create']"
           type="primary"
           @click="emit('createAgent')"

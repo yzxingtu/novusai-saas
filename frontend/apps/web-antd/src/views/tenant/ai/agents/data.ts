@@ -131,10 +131,12 @@ export function getExecutionModeText(mode: string | undefined): string {
 export async function getModelSelectOptions() {
   try {
     const models = await getTenantAIModelsApi();
-    return models.map((m) => ({
-      label: `${m.name} (${m.provider_name || '-'})`,
-      value: m.id,
-    }));
+    return models
+      .filter((model) => model.type === 'chat' && model.is_active)
+      .map((m) => ({
+        label: `${m.name} (${m.provider_name || '-'})`,
+        value: m.id,
+      }));
   } catch {
     return [];
   }

@@ -224,6 +224,13 @@
     "title": "Agent Management",
     "entityDescription": "Manage AI agent configuration and publish status",
     "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
+    "setup": {
+      "checkingTitle": "Checking available models",
+      "checkingDesc": "Checking whether this tenant has an available chat model.",
+      "missingModelTitle": "No available chat model",
+      "missingModelDesc": "Contact a platform administrator to enable a provider and chat model. This page only shows available agents and does not expose provider or model setup actions.",
+      "retry": "Retry"
+    },
     "detail": {
       "title": "Agent Detail",
       "overview": "Overview",

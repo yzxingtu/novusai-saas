@@ -224,6 +224,13 @@
     "title": "智能体管理",
     "entityDescription": "管理 AI 智能体的配置和发布状态",
     "pageDesc": "创建和管理智能体。配置模型、工具、知识库后发布即可使用，支持版本管理和回滚。",
+    "setup": {
+      "checkingTitle": "正在检查可用模型",
+      "checkingDesc": "正在确认当前企业是否已获得可用的对话模型。",
+      "missingModelTitle": "暂无可用对话模型",
+      "missingModelDesc": "请联系平台管理员启用供应商和对话模型。当前页面只显示可用智能体，不提供创建供应商或模型的入口。",
+      "retry": "重试"
+    },
     "detail": {
       "title": "智能体详情",
       "overview": "概览",

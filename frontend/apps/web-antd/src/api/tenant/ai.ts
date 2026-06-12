@@ -187,7 +187,7 @@ export async function getTenantAIModelSelectApi(
   );
 
   const filtered = models
-    .filter((item) => item.is_active)
+    .filter((item) => item.type === 'chat' && item.is_active)
     .filter((item) => {
       if (!search) return true;
       return [item.name, item.code, item.provider_name]
@@ -223,6 +223,9 @@ export async function getTenantAIProviderSelectApi(
   const providerMap = new Map<number, TenantSelectOption>();
 
   for (const model of models) {
+    if (model.type !== 'chat' || !model.is_active) {
+      continue;
+    }
     if (!model.provider_id || !model.provider_name) {
       continue;
     }
@@ -574,6 +577,9 @@ export async function getTenantProviderSelectOptions(): Promise<
     const models = await getTenantAIModelsApi();
     const providerMap = new Map<number, string>();
     for (const model of models) {
+      if (model.type !== 'chat' || !model.is_active) {
+        continue;
+      }
       if (model.provider_id && !providerMap.has(model.provider_id)) {
         providerMap.set(
           model.provider_id,
