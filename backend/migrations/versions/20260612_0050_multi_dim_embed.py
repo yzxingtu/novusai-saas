@@ -15,7 +15,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20260612_0050_multi_dim_embedding"
+revision: str = "20260612_0050_multi_dim_embed"
 down_revision: str | Sequence[str] | None = "20260610_0049_internal_ops"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
