@@ -158,6 +158,23 @@ async def validate_agent_max_tokens_against_model(
     )
 
 
+async def validate_agent_model_ready(
+    db: Any,
+    *,
+    model_id: int | None,
+) -> None:
+    """Ensure an agent uses an active chat model under an active provider."""
+    if model_id is None:
+        return
+
+    model_repo = AIModelRepository(db)
+    model = await model_repo.get_ready_chat_with_active_provider(model_id)
+    if model:
+        return
+
+    raise BusinessException(message=_("agent.error.invalid_chat_model"))
+
+
 async def clear_cascaded_conversation_memories(
     targets: list[tuple[int, int]],
 ) -> int:

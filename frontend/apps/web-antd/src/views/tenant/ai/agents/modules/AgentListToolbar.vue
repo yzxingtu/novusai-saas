@@ -17,6 +17,7 @@ import { $t } from '#/locales';
 defineOptions({ name: 'TenantAgentListToolbar' });
 
 const props = defineProps<{
+  canCreateAgent: boolean;
   filterStatus?: string;
   hasActiveFilters: boolean;
   recycleBinCount: number;
@@ -106,6 +107,7 @@ function onStatusChange(value: SelectValue) {
     </span>
 
     <Button
+      v-if="props.canCreateAgent"
       v-access:code="['agent:create']"
       type="primary"
       @click="emit('createAgent')"

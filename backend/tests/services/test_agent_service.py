@@ -197,6 +197,55 @@ class TestBeforeUpdate:
 
         assert data == {"scope": ResourceScopeEnum.ALL_TENANTS.value}
 
+    @pytest.mark.asyncio
+    async def test_tenant_update_rejects_null_model_id(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai import agent_service_lifecycle
+
+        service = MagicMock()
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(
+                owner_tenant_id=7,
+                is_system=False,
+                model_id=10,
+                max_tokens=None,
+            ),
+        )
+
+        with pytest.raises(BusinessException):
+            await agent_service_lifecycle.tenant_before_update(
+                service,
+                1,
+                {"model_id": None},
+            )
+
+    @pytest.mark.asyncio
+    async def test_admin_update_rejects_null_model_id(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai import agent_service_admin
+
+        service = MagicMock()
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(
+                owner_tenant_id=None,
+                is_system=False,
+                model_id=10,
+                max_tokens=None,
+            ),
+        )
+
+        with pytest.raises(BusinessException):
+            await agent_service_admin.before_update(
+                service,
+                1,
+                {"model_id": None},
+            )
+
 
 class TestAgentQuery:
     @pytest.mark.asyncio

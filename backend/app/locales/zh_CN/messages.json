@@ -432,9 +432,17 @@
         "updated": "智能体更新成功",
         "deleted": "智能体删除成功",
         "published": "智能体发布成功",
+        "bootstrap": {
+            "status_checked": "系统智能体初始化状态已获取",
+            "seed_completed": "系统智能体初始化完成"
+        },
         "error": {
             "not_found": "智能体不存在",
             "name_exists": "智能体名称已存在",
+            "no_active_provider": "请先启用至少一个 AI 供应商",
+            "no_active_chat_model": "请先启用至少一个可用的对话模型",
+            "invalid_chat_model": "请选择一个启用中的对话模型",
+            "system_skill_key_conflict": "系统技能 Key {key} 已被非系统技能占用，请先处理该技能后再初始化",
             "max_tokens_exceeds_model_limit": "最大输出 Token 数 {max_tokens} 不能超过模型 {model_name} 的上限 {model_limit}",
             "already_published": "智能体已处于发布状态",
             "daily_quota_exceeded": "智能体当日 Token 配额已用完",
@@ -1413,6 +1421,8 @@
         },
         "ai_agent": {
             "list": "查看智能体列表",
+            "bootstrap_status": "查看系统智能体初始化状态",
+            "seed_system": "初始化系统智能体",
             "create": "创建智能体",
             "update": "编辑智能体",
             "delete": "删除智能体",

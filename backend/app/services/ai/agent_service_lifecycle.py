@@ -14,6 +14,7 @@ from app.services.ai.agent_service_memory import resolve_memory_effective_config
 from app.services.ai.agent_service_support import (
     clear_cascaded_conversation_memories,
     normalize_agent_rag_config,
+    validate_agent_model_ready,
     validate_agent_max_tokens_against_model,
 )
 
@@ -65,6 +66,7 @@ async def tenant_before_create(svc: Any, data: dict[str, Any]) -> None:
         if existing:
             raise BusinessException(message=_("agent.error.name_exists"))
 
+    await validate_agent_model_ready(svc.db, model_id=data.get("model_id"))
     await validate_agent_max_tokens_against_model(
         svc.db,
         model_id=data.get("model_id"),
@@ -135,6 +137,11 @@ async def tenant_before_update(
         existing = await svc.repo.get_by_name(name, exclude_id=id)
         if existing:
             raise BusinessException(message=_("agent.error.name_exists"))
+
+    if "model_id" in data and data.get("model_id") is None:
+        raise BusinessException(message=_("agent.error.invalid_chat_model"))
+    if "model_id" in data:
+        await validate_agent_model_ready(svc.db, model_id=data.get("model_id"))
 
     await validate_agent_max_tokens_against_model(
         svc.db,

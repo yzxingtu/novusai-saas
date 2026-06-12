@@ -432,9 +432,17 @@
         "updated": "Agent updated successfully",
         "deleted": "Agent deleted successfully",
         "published": "Agent published successfully",
+        "bootstrap": {
+            "status_checked": "System agent bootstrap status retrieved",
+            "seed_completed": "System agent seeding completed"
+        },
         "error": {
             "not_found": "Agent not found",
             "name_exists": "Agent name already exists",
+            "no_active_provider": "Please enable at least one AI provider first",
+            "no_active_chat_model": "Please enable at least one available chat model first",
+            "invalid_chat_model": "Select an active chat model",
+            "system_skill_key_conflict": "System skill key {key} is already used by a non-system skill. Resolve that skill before initialization",
             "max_tokens_exceeds_model_limit": "Max output tokens {max_tokens} cannot exceed model {model_name} limit {model_limit}",
             "already_published": "Agent is already published",
             "daily_quota_exceeded": "Agent daily token quota exceeded",
@@ -1419,6 +1427,8 @@
         },
         "ai_agent": {
             "list": "View Agent List",
+            "bootstrap_status": "View System Agent Bootstrap Status",
+            "seed_system": "Seed System Agents",
             "create": "Create Agent",
             "update": "Update Agent",
             "delete": "Delete Agent",

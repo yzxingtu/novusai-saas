@@ -140,6 +140,7 @@ describe('ai model runtime helpers', () => {
       supports_audio: false,
       supports_video: false,
       supports_streaming: true,
+      embedding_dimensions: null,
       max_image_count: null,
       max_image_size_mb: null,
       is_active: true,

@@ -34,7 +34,9 @@ const tierOptions = [
 async function loadRoutingModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
-    const chatModels = models.filter((model) => model.type === 'chat');
+    const chatModels = models.filter(
+      (model) => model.type === 'chat' && model.is_active,
+    );
     routingModelOptions.value = buildAgentRoutingModelOptions(chatModels);
   } catch {
     routingModelOptions.value = createEmptyAgentRoutingModelOptions();

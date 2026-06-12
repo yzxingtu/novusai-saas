@@ -3,7 +3,7 @@ import type { VNodeRef } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { Pagination } from 'ant-design-vue';
+import { Alert, Pagination } from 'ant-design-vue';
 
 import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
@@ -13,18 +13,21 @@ import AgentForm from './modules/AgentForm.vue';
 import AgentListGrid from './modules/AgentListGrid.vue';
 import AgentListPublishModal from './modules/AgentListPublishModal.vue';
 import AgentListToolbar from './modules/AgentListToolbar.vue';
+import TenantAgentSetupEmptyState from './modules/TenantAgentSetupEmptyState.vue';
 
 defineOptions({ name: 'TenantAgentList' });
 
 const page = useAgentListPage();
 const VersionHistoryDrawer = page.VersionHistoryDrawer;
 const agentFormRef = page.agentFormRef;
+const canCreateAgent = page.canCreateAgent;
 const currentPage = page.currentPage;
 const heroChips = page.heroChips;
 const heroMetrics = page.heroMetrics;
 const hasActiveFilters = page.hasActiveFilters;
 const list = page.list;
 const loading = page.loading;
+const modelCheckLoading = page.modelCheckLoading;
 const pageSize = page.pageSize;
 const publishLoading = page.publishLoading;
 const filterStatus = page.filterStatus;
@@ -33,6 +36,9 @@ const publishModalOpen = page.publishModalOpen;
 const recycleBinRef = page.recycleBinRef;
 const recycleBinCount = page.recycleBinCount;
 const searchKeyword = page.searchKeyword;
+const setupState = page.setupState;
+const showSetupNotice = page.showSetupNotice;
+const showSetupState = page.showSetupState;
 const total = page.total;
 
 const setAgentFormRef: VNodeRef = (value) => {
@@ -73,9 +79,19 @@ const setRecycleBinRef: VNodeRef = (value) => {
       :title="$t('tenant.ai.agent.title')"
     />
 
+    <Alert
+      v-if="showSetupNotice"
+      :description="$t('tenant.ai.agent.setup.missingModelDesc')"
+      :message="$t('tenant.ai.agent.setup.missingModelTitle')"
+      show-icon
+      type="warning"
+    />
+
     <AgentListToolbar
+      v-if="!showSetupState"
       v-model:filter-status="filterStatus"
       v-model:search-keyword="searchKeyword"
+      :can-create-agent="canCreateAgent"
       :has-active-filters="hasActiveFilters"
       :recycle-bin-count="recycleBinCount"
       @clear-filters="page.onClearFilters"
@@ -84,8 +100,17 @@ const setRecycleBinRef: VNodeRef = (value) => {
       @search="page.doSearch"
     />
 
+    <TenantAgentSetupEmptyState
+      v-if="showSetupState"
+      :loading="modelCheckLoading"
+      :state="setupState"
+      @refresh="page.refreshModelStatus"
+    />
+
     <AgentListGrid
+      v-else
       :agents="list"
+      :can-create-agent="canCreateAgent"
       :loading="loading"
       @create-agent="page.onCreateAgent"
       @delete="page.handleMenuAction('delete', $event)"
@@ -94,7 +119,7 @@ const setRecycleBinRef: VNodeRef = (value) => {
       @versions="page.onVersions"
     />
 
-    <div v-if="total > pageSize" class="flex justify-end">
+    <div v-if="!showSetupState && total > pageSize" class="flex justify-end">
       <Pagination
         :current="currentPage"
         :page-size="pageSize"

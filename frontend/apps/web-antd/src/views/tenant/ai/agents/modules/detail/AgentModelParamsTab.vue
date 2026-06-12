@@ -36,7 +36,9 @@ function initModelParams() {
 async function loadModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
-    const chatModels = models.filter((model) => model.type === 'chat');
+    const chatModels = models.filter(
+      (model) => model.type === 'chat' && model.is_active,
+    );
     chatModelMaxOutputTokens.value =
       buildAgentRoutingModelOptions(chatModels).chatModelMaxOutputTokens;
   } catch {
