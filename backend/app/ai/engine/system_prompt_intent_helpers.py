@@ -109,6 +109,8 @@ def intent_plan_gating_flags(
     return {
         "all_shortcircuit": bool(flags.all_shortcircuit),
         "has_knowledge_intent": bool(flags.has_knowledge_intent),
+        "has_bound_kb": bool(flags.has_bound_kb),
+        "should_skip_bound_kb_rag": bool(flags.should_skip_bound_kb_rag),
         "has_memory_intent": bool(flags.has_memory_intent),
         "memory_context_enabled": bool(flags.memory_context_enabled),
         "session_memory_runtime_enabled": bool(flags.session_memory_runtime_enabled),

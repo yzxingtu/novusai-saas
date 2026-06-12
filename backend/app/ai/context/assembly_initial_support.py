@@ -145,6 +145,7 @@ async def assemble_initial_context_state(
         agent_kb_ids=agent_kb_ids,
         agent_kb_weights=agent_kb_weights,
     )
+    request._has_bound_knowledge_base = bool(kb_selection.merged_kb_ids)
     runtime_model_capabilities = (
         await capability_bridge.resolve_runtime_model_capabilities(agent=agent)
     )

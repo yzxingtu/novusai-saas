@@ -249,3 +249,31 @@ def test_resolve_capability_injection_decision_does_not_advertise_page_context()
     assert decision["kb_injected"] is False
     assert decision["memory_injected"] is False
     assert decision["skills_injected"] is False
+
+
+def test_resolve_capability_injection_decision_uses_bound_kb_flag() -> None:
+    """
+    Test type: behavioral
+    Scope: bound KB state, not knowledge intent classification, drives KB
+    injection diagnostics.
+    """
+
+    class _Source:
+        def __init__(self, kind: str, active: bool = True) -> None:
+            self.kind = kind
+            self.active = active
+
+    decision = resolve_capability_injection_decision(
+        diagnostics={},
+        intent_flags={
+            "all_shortcircuit": False,
+            "has_bound_kb": True,
+            "has_knowledge_intent": False,
+            "has_memory_intent": False,
+            "memory_context_enabled": False,
+        },
+        context_sources=[_Source("knowledge_base")],
+        capability_summary_injected=True,
+    )
+
+    assert decision["kb_injected"] is True

@@ -65,7 +65,12 @@ def resolve_capability_injection_decision(
         or (
             capability_summary_injected
             and "knowledge_base" in active_context_source_kinds
-            and bool(intent_flags.get("has_knowledge_intent"))
+            and bool(
+                intent_flags.get(
+                    "has_bound_kb",
+                    intent_flags.get("has_knowledge_intent"),
+                )
+            )
         )
     )
     decision["memory_injected"] = bool(

@@ -63,9 +63,6 @@ class ToolRouter:
                 register(intent, ["get_current_time"])
                 continue
 
-            if intent.kind == "knowledge_query":
-                register(intent, [])
-
         if (
             budget.max_candidate_tools > 0
             and len(candidate_names) > budget.max_candidate_tools

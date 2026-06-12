@@ -683,6 +683,42 @@ async def test_resolve_for_agent_ignores_client_side_skill_selection_fields(
 
 
 @pytest.mark.asyncio
+async def test_resolve_for_agent_previews_context_tool_string_list_without_crashing(
+    monkeypatch,
+) -> None:
+    context_skill = _make_runtime_skill(
+        skill_id=622,
+        name="知识库检索工具",
+        skill_type="builtin",
+        package_name="智能体上下文技能包（内置）",
+        config={
+            "builtin_type": "context_tools",
+            "tools": ["search_agent_knowledge_base"],
+        },
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [_make_grant(context_skill)]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="你知道怎么称呼我吗")],
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["知识库检索工具"]
+
+
+@pytest.mark.asyncio
 async def test_resolve_for_agent_filters_retired_online_search_grants(
     monkeypatch,
 ) -> None:
@@ -733,7 +769,10 @@ async def test_resolve_for_agent_filters_retired_online_search_grants(
     resolved = await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == ["CRM Lookup"]
-    assert [tool.name for tool in resolved.tools] == ["crm_lookup", "get_current_time"]
+    assert [tool.name for tool in resolved.tools] == [
+        "crm_lookup",
+        "get_current_time",
+    ]
     assert "联网搜索" not in resolved.selected_skill_names
     assert "百度公开搜索" not in resolved.selected_skill_names
 
@@ -818,3 +857,39 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+
+
+@pytest.mark.asyncio
+async def test_resolver_does_not_inject_hidden_context_tools() -> None:
+    resolver = SkillResolver(db=None)
+
+    result = await resolver.resolve([])
+    resolver._inject_baseline_runtime_builtins(result)
+
+    assert [tool.name for tool in result.tools] == ["get_current_time"]
+
+
+@pytest.mark.asyncio
+async def test_resolver_expands_db_visible_context_tool_skill_subset() -> None:
+    resolver = SkillResolver(db=None)
+    skill = _make_runtime_skill(
+        skill_id=901,
+        name="知识库检索工具",
+        skill_type="builtin",
+        package_name="智能体上下文技能包（内置）",
+        config={
+            "builtin_type": "context_tools",
+            "tools": ["search_agent_knowledge_base"],
+        },
+    )
+
+    result = await resolver.resolve([skill])
+
+    assert [tool.name for tool in result.tools] == ["search_agent_knowledge_base"]
+    assert result.tools[0].source_skill_name == "知识库检索工具"
+
+
+def test_time_only_runtime_result_does_not_inject_context_tools() -> None:
+    result = SkillResolver._build_time_only_runtime_result()
+
+    assert [tool.name for tool in result.tools] == ["get_current_time"]

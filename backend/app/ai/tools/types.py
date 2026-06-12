@@ -241,6 +241,7 @@ class ExecutionContext:
     runtime_model_id: int | None = None
     runtime_model_name: str | None = None
     runtime_model_code: str | None = None
+    agent: Any | None = None
     tool_timeout_seconds: float | None = None
     tool_started_monotonic: float | None = None
     tool_deadline_monotonic: float | None = None

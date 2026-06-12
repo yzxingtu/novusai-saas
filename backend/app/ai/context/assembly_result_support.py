@@ -95,6 +95,7 @@ def build_context_diagnostics(
             intent.to_dict() if hasattr(intent, "to_dict") else intent
             for intent in (inputs.intent_plan or [])
         ],
+        "intent_flags": dict(inputs.intent_flags or {}),
         "allow_memory_even_if_shortcircuit": bool(
             (inputs.intent_flags or {}).get("allow_memory_even_if_shortcircuit", False)
         ),

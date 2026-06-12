@@ -54,13 +54,13 @@ def test_intent_planner_does_not_route_plugin_weather_when_network_disabled() ->
     assert intents[0].shortcircuit is True
 
 
-def test_intent_planner_memory_save_uses_local_cached_ack() -> None:
+def test_intent_planner_leaves_memory_save_to_context_tools() -> None:
     intents = _plan("我叫ix long  请记住")
 
-    assert [intent.kind for intent in intents] == ["memory_save"]
+    assert [intent.kind for intent in intents] == ["direct_reply"]
     assert intents[0].shortcircuit is True
     assert intents[0].requires_tools is False
-    assert intents[0].cached_result == "已记住。"
+    assert intents[0].cached_result is None
 
 
 def test_intent_planner_ignores_invalid_runtime_context_for_page_summary() -> None:

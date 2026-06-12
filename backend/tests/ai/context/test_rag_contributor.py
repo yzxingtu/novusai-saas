@@ -69,4 +69,4 @@ async def test_rag_contributor_reports_skipped_status_without_fabricating_source
     assert contribution.rag_sources is None
     assert contribution.kb_injected is False
     assert contribution.rag_attempted is False
-    assert contribution.rag_retrieval_status == "skipped_not_knowledge_intent"
+    assert contribution.rag_retrieval_status == "skipped_tool_managed"

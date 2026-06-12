@@ -168,6 +168,10 @@ class ToolSandbox:
         from app.ai.tools.executors.internal_api_executor import InternalApiExecutor
 
         self._executors[ToolTypeEnum.INTERNAL_API.value] = InternalApiExecutor()
+        # Context tool executor (agent KB + long-term memory) / 上下文工具执行器
+        from app.ai.tools.executors.context_tool_executor import ContextToolExecutor
+
+        self._executors[ToolTypeEnum.CONTEXT_TOOL.value] = ContextToolExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""
@@ -377,6 +381,7 @@ class ToolSandbox:
                 and self._runtime_model_info.get("model_code") is not None
                 else None
             ),
+            agent=self._agent,
         )
 
         # 5.5 Executor-level parameter validation / 执行器级参数校验

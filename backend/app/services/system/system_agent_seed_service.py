@@ -21,7 +21,14 @@ from app.enums.agent import (
 from app.enums.common import ResourceScopeEnum
 from app.enums.skill import SkillSourceTypeEnum, SkillStatusEnum
 from app.exceptions import BusinessException
-from app.models.ai import Agent, AgentSkillGrant, AIModel, AIProvider, Skill, SkillPackage
+from app.models.ai import (
+    Agent,
+    AgentSkillGrant,
+    AIModel,
+    AIProvider,
+    Skill,
+    SkillPackage,
+)
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.system.system_agent_seed_repository import (
     SystemAgentSeedRepository,
@@ -30,6 +37,12 @@ from app.repositories.system.system_agent_seed_repository import (
 SKILL_PACKAGE_NAME = "运营 Copilot 技能包"
 SKILL_KEY = "internal_operations"
 SKILL_NAME = "内部操作元工具"
+
+CONTEXT_SKILL_PACKAGE_NAME = "智能体上下文技能包（内置）"
+CONTEXT_KB_SKILL_KEY = "agent_context_knowledge_search"
+CONTEXT_KB_SKILL_NAME = "知识库检索工具"
+CONTEXT_MEMORY_SKILL_KEY = "agent_context_memory_tools"
+CONTEXT_MEMORY_SKILL_NAME = "长期记忆读写工具"
 
 ADMIN_COPILOT_NAME = "平台运营 Copilot"
 TENANT_COPILOT_NAME = "企业运营 Copilot"
@@ -369,6 +382,144 @@ class SystemAgentSeedService:
         await self.db.refresh(skill)
         return skill
 
+    async def _ensure_context_tools_skill_package(self) -> SkillPackage:
+        package = await self.repo.get_platform_system_skill_package_by_name(
+            CONTEXT_SKILL_PACKAGE_NAME,
+            include_deleted=True,
+        )
+        payload = {
+            "tenant_id": None,
+            "name": CONTEXT_SKILL_PACKAGE_NAME,
+            "description": "内置智能体上下文工具：知识库检索与长期记忆读写。",
+            "avatar": None,
+            "is_recommended": False,
+            "source_plugin": None,
+            "is_system": True,
+            "valves_schema": None,
+            "valves_config": None,
+            "is_active": True,
+            "sort_order": 10,
+        }
+        if package is None:
+            return await self.repo.create_skill_package(payload)
+
+        if package.is_deleted:
+            package.restore()
+        for key, value in payload.items():
+            setattr(package, key, value)
+        await self.db.flush()
+        await self.db.refresh(package)
+        return package
+
+    async def _ensure_context_tool_skill(
+        self,
+        *,
+        package: SkillPackage,
+        key: str,
+        name: str,
+        description: str,
+        tools: list[str],
+        timeout: int,
+        sort_order: int,
+    ) -> Skill:
+        skill = await self.repo.get_platform_system_skill_by_key(
+            key,
+            include_deleted=True,
+        )
+        if skill is None:
+            conflicting_skill = await self.repo.get_any_skill_by_key(
+                key,
+                include_deleted=True,
+            )
+            if conflicting_skill is not None:
+                raise BusinessException(
+                    message=_("agent.error.system_skill_key_conflict").format(
+                        key=key,
+                    )
+                )
+            return await self.repo.create_skill(
+                {
+                    "tenant_id": None,
+                    "package_id": package.id,
+                    "name": name,
+                    "key": key,
+                    "description": description,
+                    "avatar": None,
+                    "type": "builtin",
+                    "source_type": SkillSourceTypeEnum.PLATFORM_BUILTIN.value,
+                    "source_ref": None,
+                    "skill_md": None,
+                    "version": "1.0.0",
+                    "status": SkillStatusEnum.ACTIVE.value,
+                    "is_readonly": True,
+                    "config": {"builtin_type": "context_tools", "tools": tools},
+                    "toolkit_content": None,
+                    "toolkit_meta": None,
+                    "input_schema": None,
+                    "output_schema": None,
+                    "is_system": True,
+                    "is_active": True,
+                    "sort_order": sort_order,
+                    "timeout": timeout,
+                }
+            )
+
+        if skill.is_deleted:
+            skill.restore()
+        skill.tenant_id = None
+        skill.package_id = package.id
+        skill.name = name
+        skill.key = key
+        skill.description = description
+        skill.avatar = None
+        skill.type = "builtin"
+        skill.source_type = SkillSourceTypeEnum.PLATFORM_BUILTIN.value
+        skill.source_ref = None
+        skill.skill_md = None
+        skill.version = "1.0.0"
+        skill.status = SkillStatusEnum.ACTIVE.value
+        skill.is_readonly = True
+        skill.config = {"builtin_type": "context_tools", "tools": tools}
+        skill.toolkit_content = None
+        skill.toolkit_meta = None
+        skill.input_schema = None
+        skill.output_schema = None
+        skill.is_system = True
+        skill.is_active = True
+        skill.sort_order = sort_order
+        skill.timeout = timeout
+        await self.db.flush()
+        await self.db.refresh(skill)
+        return skill
+
+    async def _ensure_context_tool_skills(self) -> tuple[SkillPackage, list[Skill]]:
+        package = await self._ensure_context_tools_skill_package()
+        kb_skill = await self._ensure_context_tool_skill(
+            package=package,
+            key=CONTEXT_KB_SKILL_KEY,
+            name=CONTEXT_KB_SKILL_NAME,
+            description=(
+                "检索当前智能体绑定的知识库，返回片段、来源与引用线索。"
+                "工具 schema 由代码定义。"
+            ),
+            tools=["search_agent_knowledge_base"],
+            timeout=45,
+            sort_order=0,
+        )
+        memory_skill = await self._ensure_context_tool_skill(
+            package=package,
+            key=CONTEXT_MEMORY_SKILL_KEY,
+            name=CONTEXT_MEMORY_SKILL_NAME,
+            description=(
+                "保存与召回当前用户在当前智能体下的长期记忆。"
+                "工具 schema 由代码定义。"
+            ),
+            tools=["save_long_term_memory", "recall_long_term_memory"],
+            timeout=30,
+            sort_order=1,
+        )
+        return package, [kb_skill, memory_skill]
+
     async def _ensure_agent(
         self,
         feature: SystemAgentSeedFeature,
@@ -600,6 +751,8 @@ class SystemAgentSeedService:
 
         package = await self._ensure_skill_package()
         skill = await self._ensure_skill(package)
+        context_package, context_skills = await self._ensure_context_tool_skills()
+        del context_package
 
         created_agents = 0
         updated_agents = 0
@@ -620,17 +773,18 @@ class SystemAgentSeedService:
             else:
                 updated_agents += 1
 
-            grant_before = await self.repo.get_agent_skill_grant(
-                agent_id=agent.id,
-                skill_id=skill.id,
-                include_deleted=True,
-            )
-            grant_was_deleted = bool(getattr(grant_before, "is_deleted", False))
-            await self._ensure_grant(agent, skill)
-            if grant_before is None or grant_was_deleted:
-                created_grants += 1
-            else:
-                updated_grants += 1
+            for grant_skill in [skill, *context_skills]:
+                grant_before = await self.repo.get_agent_skill_grant(
+                    agent_id=agent.id,
+                    skill_id=grant_skill.id,
+                    include_deleted=True,
+                )
+                grant_was_deleted = bool(getattr(grant_before, "is_deleted", False))
+                await self._ensure_grant(agent, grant_skill)
+                if grant_before is None or grant_was_deleted:
+                    created_grants += 1
+                else:
+                    updated_grants += 1
 
             assignment_before = await self.repo.get_global_assignment(
                 feature.feature_code,

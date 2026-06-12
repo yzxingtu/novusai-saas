@@ -21,7 +21,7 @@ This JSON describes the current turn's bound knowledge bases and retrieval statu
 Bound knowledge bases are available context providers, not proof that this turn has cited their content.
 Only retrieval.status="injected" means concrete knowledge-base snippets were injected for this turn.
 If retrieval.status="attempted_no_results", say that the knowledge base is bound but no matching snippets were found; do not claim to have read or cited missing content.
-If retrieval.status is "skipped_not_knowledge_intent" or "no_effective_knowledge_base", do not invent knowledge-base evidence.
+If retrieval.status is "skipped_tool_managed" or "no_effective_knowledge_base", do not invent knowledge-base evidence.
 knowledge_context={{ knowledge_context | prompt_json }}
 [/RUNTIME KNOWLEDGE CONTEXT METADATA]
 {% endif %}

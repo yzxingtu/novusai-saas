@@ -218,10 +218,7 @@ class ConversationContextEngine(ContextEngine):
             kb_ids=list(merged_kb_ids or []),
             rag_config=agent.rag_config or {},
             kb_weights=agent_kb_weights,
-            enabled=(
-                not intent_flags["all_shortcircuit"]
-                and intent_flags["has_knowledge_intent"]
-            ),
+            enabled=False,
         )
         messages = list(rag_contribution.messages or messages)
         rag_sources = rag_contribution.rag_sources

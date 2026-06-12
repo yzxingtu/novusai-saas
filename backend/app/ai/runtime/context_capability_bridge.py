@@ -225,9 +225,11 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             capability_reporting_query = is_capability_reporting_query(
                 _last_user_text(request),
             )
+            has_bound_kb = bool(
+                intent_flags.get("has_bound_kb") or knowledge_base_ids
+            )
             include_kb_context = bool(
-                (intent_flags.get("has_knowledge_intent") or capability_reporting_query)
-                and knowledge_base_ids
+                (has_bound_kb or capability_reporting_query) and knowledge_base_ids
             )
             kb_bindings: list[dict[str, Any]] = []
             if include_kb_context:
@@ -255,7 +257,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     rag_matched_chunk_count=rag_matched_chunk_count,
                 )
             if not awareness.enabled or (
-                intent_flags.get("all_shortcircuit", False)
+                intent_flags.get("should_skip_bound_kb_rag", False)
                 and not capability_reporting_query
             ):
                 return awareness
@@ -272,8 +274,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 )
 
             include_kb_awareness = bool(
-                (intent_flags.get("has_knowledge_intent") or capability_reporting_query)
-                and knowledge_base_ids
+                (has_bound_kb or capability_reporting_query) and knowledge_base_ids
             )
             if include_kb_awareness:
                 kb_description = capability_builder.build_knowledge_base_descriptions(

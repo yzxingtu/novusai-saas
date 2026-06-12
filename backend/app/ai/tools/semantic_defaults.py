@@ -27,6 +27,19 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
         "current time",
         "current date",
     ),
+    "context_tools": (
+        "知识库",
+        "文档",
+        "资料",
+        "检索",
+        "记忆",
+        "记住",
+        "回忆",
+        "knowledge base",
+        "memory",
+        "remember",
+        "recall",
+    ),
 }
 
 # Tags omitted from explicit-request hints (optimizer): slightly shorter / less “broad” cues than full FAMILY_HINT_TAGS.
@@ -71,6 +84,12 @@ def tool_family_from_name(
         return "none"
     if normalized == "get_current_time":
         return "time_ops"
+    if normalized in {
+        "search_agent_knowledge_base",
+        "save_long_term_memory",
+        "recall_long_term_memory",
+    }:
+        return "context_tools"
     return "none"
 
 
