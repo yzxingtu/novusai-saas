@@ -6,8 +6,9 @@ Defines AI model request and response data structures.
 """
 
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -15,6 +16,7 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
+from app.models.ai.document_chunk import SUPPORTED_EMBEDDING_DIMENSIONS
 
 
 class AIModelCreate(BaseCreateSchema):
@@ -59,6 +61,24 @@ class AIModelCreate(BaseCreateSchema):
         None, description=_("enum.ai_model.fallback_model_id")
     )
     tier: str | None = Field(None, description=_("enum.ai_model.tier"))
+    embedding_dimensions: int | None = Field(
+        None, description=_("enum.ai_model.embedding_dimensions")
+    )
+
+    @model_validator(mode="after")
+    def _validate_embedding_dimensions(self):
+        """embedding 类型必须指定合法的输出维度 / embedding type must specify a valid dimension."""
+        if self.type == "embedding":
+            if self.embedding_dimensions not in SUPPORTED_EMBEDDING_DIMENSIONS:
+                allowed = ", ".join(str(d) for d in SUPPORTED_EMBEDDING_DIMENSIONS)
+                raise ValueError(
+                    f"embedding_dimensions must be one of [{allowed}] for embedding models"
+                )
+        else:
+            # 非 embedding 类型忽略该字段 / Ignore for non-embedding types
+            if self.embedding_dimensions is not None:
+                self.embedding_dimensions = None
+        return self
 
 
 class AIModelUpdate(BaseUpdateSchema):
@@ -109,6 +129,19 @@ class AIModelUpdate(BaseUpdateSchema):
         None, description=_("enum.ai_model.fallback_model_id")
     )
     tier: str | None = Field(None, description=_("enum.ai_model.tier"))
+    embedding_dimensions: int | None = Field(
+        None, description=_("enum.ai_model.embedding_dimensions")
+    )
+
+    @model_validator(mode="after")
+    def _validate_embedding_dimensions(self):
+        """如果传入了 embedding_dimensions，则必须是合法值 / If provided, must be a valid dimension."""
+        if self.embedding_dimensions is not None and self.embedding_dimensions not in SUPPORTED_EMBEDDING_DIMENSIONS:
+            allowed = ", ".join(str(d) for d in SUPPORTED_EMBEDDING_DIMENSIONS)
+            raise ValueError(
+                f"embedding_dimensions must be one of [{allowed}]"
+            )
+        return self
 
 
 class AIModelResponse(BaseResponseSchema):
@@ -165,6 +198,9 @@ class AIModelResponse(BaseResponseSchema):
         None, description=_("enum.ai_model.provider_icon")
     )
     tier: str | None = Field(None, description=_("enum.ai_model.tier"))
+    embedding_dimensions: int | None = Field(
+        None, description=_("enum.ai_model.embedding_dimensions")
+    )
 
 
 class RemoteModelCapabilities(BaseResponseSchema):

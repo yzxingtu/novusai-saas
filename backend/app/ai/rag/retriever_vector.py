@@ -42,6 +42,8 @@ class VectorSearcher:
     ) -> list[ChunkSearchResult]:
         """
         pgvector cosine distance search / pgvector 余弦距离检索。
+
+        Selects the correct dimension column based on knowledge_base.embedding_dimensions.
         """
         if query_embedding is None:
             query_embedding = await self.embedding_service.generate_embedding(
@@ -49,8 +51,13 @@ class VectorSearcher:
                 knowledge_base=knowledge_base,
             )
 
+        # Resolve the correct embedding column based on KB dimensions
+        # 根据知识库维度选择对应的向量列
+        dimensions = int(getattr(knowledge_base, "embedding_dimensions", 1536) or 1536)
+        embedding_col = DocumentChunk.embedding_column_for(dimensions)
+
         max_distance = 1.0 - score_threshold
-        distance_expr = DocumentChunk.embedding.cosine_distance(query_embedding)
+        distance_expr = embedding_col.cosine_distance(query_embedding)
 
         stmt = (
             select(
@@ -69,7 +76,7 @@ class VectorSearcher:
                 and_(
                     DocumentChunk.knowledge_base_id.in_(kb_ids),
                     DocumentChunk.is_deleted.is_(False),
-                    DocumentChunk.embedding.isnot(None),
+                    embedding_col.isnot(None),
                     distance_expr <= max_distance,
                 )
             )

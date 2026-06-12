@@ -266,6 +266,14 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 # Checkpoint resume: if resuming from embedding stage, query existing chunk count
                 # 断点续传：如果从 embedding 阶段恢复，查询已有分块数
                 existing_chunk_count = 0
+                # Resolve the target embedding column for this KB's dimensions
+                # 根据知识库维度确定对应的向量列
+                embedding_dimensions = int(
+                    getattr(kb, "embedding_dimensions", 1536) or 1536
+                )
+                embedding_col = DocumentChunk.embedding_column_for(
+                    embedding_dimensions
+                )
                 if skip_chunking:
                     # Need to regenerate chunk_data_list (resuming from embedding)
                     # 需要重新生成 chunk_data_list（从 embedding 恢复）
@@ -292,7 +300,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                             DocumentChunk.document_id == document_id,
                             DocumentChunk.knowledge_base_id == kb.id,
                             DocumentChunk.is_deleted.is_(False),
-                            DocumentChunk.embedding.isnot(None),
+                            embedding_col.isnot(None),
                         )
                         .order_by(DocumentChunk.chunk_index.asc())
                     )
@@ -408,6 +416,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         document_id=document_id,
                         knowledge_base_id=kb.id,
                         tenant_id=tenant_id,
+                        embedding_dimensions=embedding_dimensions,
                     )
                     await chunk_repo.create_many(batch_data)
 

@@ -24,6 +24,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.i18n import _
 
+# 支持的 Embedding 维度预设 / Supported embedding dimension presets
+SUPPORTED_EMBEDDING_DIMENSIONS = (1024, 1536)
+
 
 class DocumentChunk(TenantModel):
     """
@@ -110,14 +113,32 @@ class DocumentChunk(TenantModel):
 
     # ==================== 向量 ==================== / Embeddings
 
-    # pgvector 向量字段，不固定维度以支持不同 embedding 模型 /
-    # pgvector column; dimension from KB embedding settings
-    # 实际维度由知识库 embedding_dimensions 决定
-    embedding = mapped_column(
-        Vector(),
+    # 按预设维度分列存储，各维度独立 HNSW 索引（在 Alembic 迁移中创建） /
+    # Per-dimension columns with independent HNSW indexes (created in Alembic migrations)
+    embedding_1024 = mapped_column(
+        Vector(1024),
         nullable=True,
-        comment=_("knowledge_base.chunk_model.embedding"),
+        comment=_("knowledge_base.chunk_model.embedding_1024"),
     )
+    embedding_1536 = mapped_column(
+        Vector(1536),
+        nullable=True,
+        comment=_("knowledge_base.chunk_model.embedding_1536"),
+    )
+
+    @staticmethod
+    def embedding_column_for(dimensions: int):
+        """Return the mapped column attribute for the given embedding dimension.
+
+        Raises AttributeError if the dimension is not supported.
+        """
+        attr_name = f"embedding_{dimensions}"
+        if not hasattr(DocumentChunk, attr_name):
+            raise ValueError(
+                f"Unsupported embedding dimension: {dimensions}. "
+                f"Supported: {SUPPORTED_EMBEDDING_DIMENSIONS}"
+            )
+        return getattr(DocumentChunk, attr_name)
 
     # ==================== 全文检索 ==================== / Full-text search
 
@@ -150,8 +171,10 @@ class DocumentChunk(TenantModel):
             name="uq_doc_chunk_index",
         ),
         Index("ix_chunk_kb", "knowledge_base_id"),
-        # HNSW 向量索引和 tsvector GIN 索引在 Alembic 迁移中通过 raw SQL 创建 /
-        # HNSW/GIN indexes created in Alembic migrations
+        # HNSW 向量索引（embedding_1024 / embedding_1536）和 tsvector GIN 索引
+        # 在 Alembic 迁移中通过 raw SQL 创建 /
+        # HNSW indexes (embedding_1024 / embedding_1536) and tsvector GIN index
+        # created in Alembic migrations via raw SQL
     )
 
     # ==================== 关系 ==================== / Relationships
@@ -173,4 +196,13 @@ if TYPE_CHECKING:
     pass
 
 
-__all__ = ["DocumentChunk"]
+def embedding_row_key(dimensions: int) -> str:
+    """Return the row dict key used when building chunk rows for the given dimension."""
+    return f"embedding_{dimensions}"
+
+
+__all__ = [
+    "DocumentChunk",
+    "SUPPORTED_EMBEDDING_DIMENSIONS",
+    "embedding_row_key",
+]

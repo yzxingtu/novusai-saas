@@ -71,6 +71,7 @@ export interface AIModelInfo {
   provider_name: null | string;
   provider_type?: ModelProviderType | null;
   provider_icon?: null | string;
+  embedding_dimensions: null | number;
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +99,7 @@ export interface AIModelCreateRequest {
   config?: AIModelConfig | null;
   fallback_model_id?: null | number;
   tier?: null | string;
+  embedding_dimensions?: null | number;
 }
 
 /** Update model request / 更新模型请求 */
@@ -123,6 +125,7 @@ export interface AIModelUpdateRequest {
   config?: AIModelConfig | null;
   fallback_model_id?: null | number;
   tier?: null | string;
+  embedding_dimensions?: null | number;
 }
 
 /** Remote model capabilities from LiteLLM registry / 远程模型能力（来自 LiteLLM 注册表） */

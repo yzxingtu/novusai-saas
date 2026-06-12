@@ -42,6 +42,34 @@ def _reject_unsupported_multimodal_model_config(data: dict[str, Any]) -> None:
         )
 
 
+async def _inherit_embedding_dimensions(
+    db,
+    data: dict[str, Any],
+) -> None:
+    """Auto-inherit embedding_dimensions from the selected embedding model.
+
+    If the payload includes embedding_model_id but no embedding_dimensions,
+    look up the AI model and copy its embedding_dimensions.
+    """
+    embedding_model_id = data.get("embedding_model_id")
+    if embedding_model_id is None:
+        return
+    # Already set explicitly in the payload; skip auto-inherit
+    if data.get("embedding_dimensions") is not None:
+        return
+
+    from sqlalchemy import select
+
+    from app.models.ai.model import AIModel
+
+    result = await db.execute(
+        select(AIModel.embedding_dimensions).where(AIModel.id == embedding_model_id)
+    )
+    model_dims = result.scalar_one_or_none()
+    if model_dims is not None:
+        data["embedding_dimensions"] = model_dims
+
+
 def _service_tenant_id(service) -> int | None:
     repo_tenant_id = getattr(getattr(service, "repo", None), "tenant_id", None)
     if isinstance(repo_tenant_id, int):
@@ -116,6 +144,7 @@ class KnowledgeBaseCommandService:
     async def before_create(service, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
         _validate_tenant_scope_owner_payload(service, data)
+        await _inherit_embedding_dimensions(service.repo.db, data)
         await KnowledgeBaseCommandService.check_kb_quota(service)
 
         name = data.get("name")
@@ -353,6 +382,7 @@ class AdminKnowledgeBaseCommandService:
         )
         data.setdefault("scope", scope)
         _validate_kb_scope_owner(scope, owner_tid)
+        await _inherit_embedding_dimensions(service.db, data)
         name = data.get("name")
         if name:
             existing = await AdminKnowledgeBaseCommandService.check_name_unique(
