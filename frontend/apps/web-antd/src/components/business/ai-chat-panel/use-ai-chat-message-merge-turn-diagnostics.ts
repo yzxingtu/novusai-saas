@@ -29,6 +29,16 @@ export function collectTurnDiagnostics(
     state.turnRecordPayload = turnRecord;
   }
 
+  const metadataCompletionReason = normalizeOptionalString(
+    assistantMetadata?.completion_reason,
+  );
+  if (!state.turnCompletionReason && metadataCompletionReason) {
+    state.turnCompletionReason = metadataCompletionReason;
+  }
+  if (!state.turnCompletionReason && turnRecord?.completion_reason) {
+    state.turnCompletionReason = turnRecord.completion_reason;
+  }
+
   const metadataTurnOutcome = normalizeOptionalString(
     assistantMetadata?.turn_outcome,
   );

@@ -85,17 +85,21 @@ def resolve_done_final_stage_status(
     turn_flow: dict[str, Any] | None,
     result: ExecutionResult,
 ) -> str:
-    if _as_list(_as_dict(turn_flow).get("timeline")):
-        return resolve_final_stage_status(turn_flow)
     if bool(getattr(result, "interrupted", False)):
         return "interrupted"
     completion_reason = str(getattr(result, "completion_reason", "") or "").strip()
+    if completion_reason == "interrupted":
+        return "interrupted"
+    if bool(getattr(result, "partial", False)):
+        return "error"
     if bool(getattr(result, "partial", False)) or completion_reason not in {
         "",
         "completed",
         "stop",
     }:
         return "error"
+    if _as_list(_as_dict(turn_flow).get("timeline")):
+        return resolve_final_stage_status(turn_flow)
     return resolve_final_stage_status(turn_flow)
 
 

@@ -41,6 +41,11 @@ _TERMINAL_FAILURE_COMPLETION_REASONS = frozenset(
         "tool_round_failed",
         "stream_execution_error",
         "terminal_failure",
+        "length",
+        "content_filter",
+        "incomplete",
+        "cancelled",
+        "canceled",
     }
 )
 _TERMINAL_FAILURE_KINDS = frozenset(

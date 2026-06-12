@@ -686,6 +686,7 @@ def finalize_successful_turn(
 
     diagnostics_payload = view.build_diagnostics_payload()
     diagnostics_payload["final_output_source"] = final_output_source
+    interrupted = paused_for_consent or completion_reason == "interrupted"
     result_turn_record, resolved_protocol_path = build_result_turn_record(
         handler,
         diagnostics_payload=diagnostics_payload,
@@ -708,7 +709,7 @@ def finalize_successful_turn(
         tool_results=tool_results,
         output=str(output or ""),
         completion_reason=completion_reason,
-        interrupted=paused_for_consent,
+        interrupted=interrupted,
         error=None,
     )
     diagnostics_payload["turn_flow"] = turn_flow
@@ -733,7 +734,7 @@ def finalize_successful_turn(
         conversation_id=view.request.conversation_id,
         runtime_model_info=view.runtime_model_info,
         partial=partial,
-        interrupted=paused_for_consent,
+        interrupted=interrupted,
         completion_reason=completion_reason,
         rag_sources=rag_sources,
         rag_source_kinds=view.rag_source_kinds,
@@ -751,9 +752,14 @@ def finalize_successful_turn(
         provider_events=view.provider_events,
     )
     if completion_reason == "length":
+        agent_id = getattr(
+            view.request,
+            "agent_id",
+            getattr(getattr(handler, "agent", None), "id", None),
+        )
         logger.warning(
             "Response hit output length limit: agent={} model={} total_tokens={} conversation_id={}",
-            view.request.agent_id,
+            agent_id,
             (view.runtime_model_info or {}).get("model_name"),
             total_tokens,
             view.request.conversation_id,

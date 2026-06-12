@@ -55,9 +55,19 @@ export function normalizeTurnRecord(value: unknown): null | TurnRecordPayload {
     return null;
   }
   const payload = value as Record<string, unknown>;
+  const completionReason = normalizeOptionalString(payload.completion_reason);
+  const failureKind = normalizeOptionalString(payload.failure_kind);
+  const finalStageStatus = normalizeOptionalString(payload.final_stage_status);
   const turnOutcome = normalizeOptionalString(payload.turn_outcome);
   const terminationReason = normalizeOptionalString(payload.termination_reason);
   const protocolPath = normalizeOptionalString(payload.protocol_path);
+  const turnFlow =
+    payload.turn_flow && typeof payload.turn_flow === 'object'
+      ? ({ ...(payload.turn_flow as Record<string, unknown>) } as Record<
+          string,
+          unknown
+        >)
+      : undefined;
   const selectedToolNames = normalizeRuntimeDiagnosticTokens(
     payload.selected_tool_names,
   );
@@ -80,6 +90,9 @@ export function normalizeTurnRecord(value: unknown): null | TurnRecordPayload {
         >)
       : undefined;
   return {
+    ...(completionReason ? { completion_reason: completionReason } : {}),
+    ...(failureKind ? { failure_kind: failureKind } : {}),
+    ...(finalStageStatus ? { final_stage_status: finalStageStatus } : {}),
     turn_outcome: turnOutcome,
     termination_reason: terminationReason,
     protocol_path: protocolPath,
@@ -89,8 +102,49 @@ export function normalizeTurnRecord(value: unknown): null | TurnRecordPayload {
     ...(fallbackHistory.length > 0
       ? { fallback_history: fallbackHistory }
       : {}),
+    ...(turnFlow ? { turn_flow: turnFlow } : {}),
     ...(metadata ? { metadata } : {}),
   };
+}
+
+const FAILURE_OUTCOMES = new Set(['error', 'failed', 'tool_round_failed']);
+const FAILURE_TERMINATIONS = new Set([
+  'budget_exit',
+  'candidate_tool_budget_exceeded',
+  'completion_budget_exceeded',
+  'content_filter',
+  'elapsed_budget_exceeded',
+  'error',
+  'failed',
+  'incomplete',
+  'length',
+  'prompt_budget_exceeded',
+  'provider_error',
+  'provider_failure_after_partial_progress',
+  'provider_timeout',
+  'provider_unavailable',
+  'stream_execution_error',
+  'terminal_failure',
+  'tool_error',
+  'tool_result_budget_exceeded',
+  'tool_round_budget_exceeded',
+  'tool_round_failed',
+  'untrusted_final_output_source',
+]);
+
+function isFailureTerminationSignal(value?: string): boolean {
+  if (!value) {
+    return false;
+  }
+  if (FAILURE_TERMINATIONS.has(value)) {
+    return true;
+  }
+  return (
+    value.startsWith('provider_') ||
+    value.includes('error') ||
+    value.includes('failed') ||
+    value.endsWith('_budget_exceeded')
+  );
 }
 
 export function isTurnFailure(
@@ -99,12 +153,8 @@ export function isTurnFailure(
 ): boolean {
   const normalizedOutcome = normalizeOptionalString(turnOutcome);
   const normalizedTermination = normalizeOptionalString(terminationReason);
-  const failureOutcomes = new Set(['error', 'failed', 'tool_round_failed']);
-  const failureTerminations = new Set(['error', 'failed', 'tool_error']);
   return (
-    (normalizedOutcome ? failureOutcomes.has(normalizedOutcome) : false) ||
-    (normalizedTermination
-      ? failureTerminations.has(normalizedTermination)
-      : false)
+    (normalizedOutcome ? FAILURE_OUTCOMES.has(normalizedOutcome) : false) ||
+    isFailureTerminationSignal(normalizedTermination)
   );
 }

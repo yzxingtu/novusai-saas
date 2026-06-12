@@ -1790,6 +1790,99 @@ async def test_interrupted_calls_on_complete_with_partial_result():
 
 
 @pytest.mark.asyncio
+async def test_provider_timeout_after_partial_chunk_finishes_as_partial_error():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    events: list[dict] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    class _TimeoutAfterPartialEngine(_FakeEngine):
+        async def _stream_llm_chunks(self, **kwargs):
+            _ = kwargs
+            yield ChatChunk(delta="NovusAI 的仓库地址是：", total_tokens=9)
+            raise ProviderTimeoutError(message="Request timed out.")
+
+    handler = _build_handler(_TimeoutAfterPartialEngine())
+    handler.on_complete = on_complete
+
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    if handler._background_tasks:
+        await asyncio.wait_for(
+            asyncio.gather(*list(handler._background_tasks)),
+            timeout=1,
+        )
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    done_payload = next(event for event in events if event.get("event") == "done")
+
+    assert "NovusAI 的仓库地址是：" in message_text
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.partial is True
+    assert result.success is False
+    assert result.completion_reason == "provider_timeout"
+    assert done_payload["completion_reason"] == "provider_timeout"
+    assert done_payload["termination_reason"] == "provider_timeout"
+    assert done_payload["turn_outcome"] == "partial"
+    assert done_payload["final_stage_status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_length_finish_reason_after_partial_chunk_is_not_completed():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    events: list[dict] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="NovusAI 的仓库地址是：",
+                    finish_reason="length",
+                    total_tokens=12,
+                )
+            ]
+        ]
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    if handler._background_tasks:
+        await asyncio.wait_for(
+            asyncio.gather(*list(handler._background_tasks)),
+            timeout=1,
+        )
+
+    done_payload = next(event for event in events if event.get("event") == "done")
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.partial is True
+    assert result.success is False
+    assert result.completion_reason == "length"
+    assert done_payload["completion_reason"] == "length"
+    assert done_payload["termination_reason"] == "length"
+    assert done_payload["turn_outcome"] == "partial"
+    assert done_payload["final_stage_status"] == "error"
+
+
+@pytest.mark.asyncio
 async def test_interrupted_without_visible_output_still_emits_readable_message():
     """
     无正文即被 CancelledError 中断时，仍要落成可读 interrupted 文案，而不是空白 assistant。

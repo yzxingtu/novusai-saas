@@ -459,6 +459,63 @@ def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None
     assert done_payload["final_stage_status"] == "error"
 
 
+def test_done_payload_overrides_stale_completed_turn_flow_for_partial_result() -> None:
+    state = _StateStub(
+        {
+            "failure_kind": "provider_timeout",
+            "turn_outcome": "partial",
+            "final_output_source": "partial_output",
+        }
+    )
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=88),
+        prep=SimpleNamespace(stream_runtime=None),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+    )
+
+    result = build_terminal_result(
+        handler,
+        messages=[],
+        output="NovusAI 的仓库地址是：",
+        error="AI 供应商请求超时",
+        interrupted=False,
+        completion_reason="provider_timeout",
+        total_tokens=21,
+        duration_ms=34,
+        tool_results=[],
+        rag_sources=[],
+        include_provider_state=True,
+    )
+    stale_turn_flow = {
+        "timeline": [{"id": "completed", "status": "completed", "type": "completed"}]
+    }
+    result.turn_record["turn_flow"] = stale_turn_flow
+    result.diagnostics = dict(result.diagnostics or {})
+    result.diagnostics["turn_flow"] = stale_turn_flow
+    artifacts = stream_finalization_pipeline.StreamFinalizationArtifacts(
+        result=result,
+        diagnostics_payload=result.diagnostics or {},
+        response_metadata={},
+        resolved_protocol_path="responses",
+    )
+
+    done_payload = build_done_event_payload(
+        request=handler.request,
+        artifacts=artifacts,
+        on_complete_extra=None,
+    )
+
+    assert result.partial is True
+    assert done_payload["turn_outcome"] == "partial"
+    assert done_payload["completion_reason"] == "provider_timeout"
+    assert done_payload["final_stage_status"] == "error"
+
+
 def test_finalize_completed_output_scopes_duplicate_check_to_current_turn() -> None:
     delegate = SimpleNamespace(
         _visible_stream_content="",

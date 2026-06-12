@@ -34,6 +34,9 @@ export interface TurnFlowForDisplay extends TurnFlowViewModel {
 }
 
 const FAILURE_COMPLETION_REASONS = new Set([
+  'content_filter',
+  'incomplete',
+  'length',
   'provider_error',
   'provider_failure_after_partial_progress',
   'provider_timeout',
@@ -41,6 +44,8 @@ const FAILURE_COMPLETION_REASONS = new Set([
   'stream_execution_error',
   'tool_error',
   'tool_round_failed',
+  'cancelled',
+  'canceled',
 ]);
 
 const TERMINAL_STAGE_TYPES = new Set<TurnFlowStageType>([

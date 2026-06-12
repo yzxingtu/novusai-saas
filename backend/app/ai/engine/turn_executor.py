@@ -287,6 +287,38 @@ def cached_shortcircuit_intent(state: ExecutionStateMachine) -> Any | None:
     return None
 
 
+_SUCCESS_FINISH_REASONS = {"", "completed", "stop", "success"}
+_TOOL_CONTINUATION_FINISH_REASONS = {"function_call", "tool_calls"}
+_INTERRUPTED_FINISH_REASONS = {"canceled", "cancelled"}
+
+
+def _normalize_finish_reason(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _non_success_finish_completion_reason(response: ChatResponse | None) -> str:
+    finish_reason = _normalize_finish_reason(
+        getattr(response, "finish_reason", None)
+    )
+    if not finish_reason:
+        metadata = (
+            dict(getattr(response, "metadata", {}) or {})
+            if response is not None
+            else {}
+        )
+        finish_reason = _normalize_finish_reason(
+            metadata.get("finish_reason") or metadata.get("completion_reason")
+        )
+    if (
+        finish_reason in _SUCCESS_FINISH_REASONS
+        or finish_reason in _TOOL_CONTINUATION_FINISH_REASONS
+    ):
+        return ""
+    if finish_reason in _INTERRUPTED_FINISH_REASONS:
+        return "interrupted"
+    return finish_reason
+
+
 async def finalize_turn_execution(
     *,
     state: ExecutionStateMachine,
@@ -326,6 +358,9 @@ async def finalize_turn_execution(
         decision is not None and decision.action == "pause_for_consent"
     )
     partial = bool(decision is not None and decision.action == "return_partial")
+    non_success_finish_reason = _non_success_finish_completion_reason(response)
+    if not paused_for_consent and not partial and non_success_finish_reason:
+        partial = True
     _ = emit_round_started_cb
     if decision is not None and decision.action in {
         "pause_for_consent",
@@ -362,7 +397,11 @@ async def finalize_turn_execution(
         )
     elif partial:
         state.transition("partial_exit")
-        completion_reason = decision.reason or "return_partial"
+        completion_reason = (
+            (decision.reason if decision is not None else "")
+            or non_success_finish_reason
+            or "return_partial"
+        )
         output, total_tokens, completion_tokens_used = await io.finalize_partial_output(
             messages=messages,
             response=response,
