@@ -1373,6 +1373,7 @@
     "title": "技能管理",
     "pageDesc": "管理全平台技能，支持 HTTP、邮件、代码、知识库等多种技能类型。",
     "system": "系统",
+    "codeDefined": "代码定义",
     "name": "技能名称",
     "description": "描述",
     "avatar": "图标",

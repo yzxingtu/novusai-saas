@@ -4,6 +4,7 @@ import type { AdminSkillInfo } from '#/api/admin/skills';
 
 interface SkillFormValueOptions extends SkillFormSharedState {
   loadPluginTools?: (skillId: number) => void;
+  loadBuiltinTools?: (skillId: number) => void;
 }
 
 export function getSkillFormDefaults(
@@ -161,35 +162,6 @@ export function buildSkillFormPayload(values: Record<string, unknown>) {
 
 export const transformSkillFormValues = buildSkillFormPayload;
 
-/**
- * Build synthetic BuiltinToolInfo entries for code-defined builtin types.
- * These tools live in backend code, not in config.tools.
- */
-function getCodeDefinedBuiltinTools(
-  builtinType: string,
-): BuiltinToolInfo[] {
-  if (builtinType === 'internal_ops') {
-    return [
-      {
-        name: 'list_internal_operations',
-        description:
-          'Search the management-console operation catalog available to the current user.',
-      },
-      {
-        name: 'describe_internal_operation',
-        description:
-          'Get the full parameter specification of one internal operation.',
-      },
-      {
-        name: 'invoke_internal_operation',
-        description:
-          'Invoke one internal operation on behalf of the current user.',
-      },
-    ];
-  }
-  return [];
-}
-
 export function toSkillFormValues(
   data: AdminSkillInfo,
   options: SkillFormValueOptions,
@@ -204,11 +176,17 @@ export function toSkillFormValues(
     options.builtinTools.value = cfg.tools as BuiltinToolInfo[];
   } else if (
     // 代码定义型 builtin / code-defined builtin (e.g. internal_ops)
+    // 工具定义存在于后端代码而非 config.tools，复用后端解析结果避免前端漂移。
+    // Tool definitions live in backend code, not config.tools; reuse the
+    // backend-resolved tools to avoid frontend drift.
     data.type === 'builtin' &&
     typeof cfg.builtin_type === 'string' &&
     cfg.builtin_type
   ) {
-    options.builtinTools.value = getCodeDefinedBuiltinTools(cfg.builtin_type);
+    options.builtinTools.value = [];
+    if (typeof data.id === 'number' && options.loadBuiltinTools) {
+      options.loadBuiltinTools(data.id);
+    }
   } else {
     options.builtinTools.value = [];
   }
