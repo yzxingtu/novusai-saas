@@ -25,6 +25,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   auto-merge:
@@ -129,6 +130,64 @@ jobs:
             --squash \
             --auto \
             --delete-branch
+
+      - name: Close linked issues after merge
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Poll until PR is merged (auto-merge is asynchronous)
+          max_attempts=30
+          attempt=0
+          while [ "$attempt" -lt "$max_attempts" ]; do
+            pr_state="$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+              --json state --jq .state)"
+            if [ "$pr_state" = "MERGED" ]; then
+              echo "PR #$PR_NUMBER is merged."
+              break
+            fi
+            attempt=$((attempt + 1))
+            echo "PR still $pr_state, waiting 10s... (attempt $attempt/$max_attempts)"
+            sleep 10
+          done
+
+          if [ "$pr_state" != "MERGED" ]; then
+            echo "PR #$PR_NUMBER was not merged within timeout. Skipping issue close."
+            exit 0
+          fi
+
+          # Read linked closing issues
+          pr_json="$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+            --json closingIssuesReferences)"
+
+          mapfile -t issue_numbers < <(
+            jq -r '.closingIssuesReferences[].number' <<< "$pr_json"
+          )
+
+          if [ "${#issue_numbers[@]}" -eq 0 ]; then
+            echo "No closing issue references found for PR #$PR_NUMBER."
+            exit 0
+          fi
+
+          echo "Found ${#issue_numbers[@]} linked issue(s) for PR #$PR_NUMBER."
+
+          for issue_number in "${issue_numbers[@]}"; do
+            issue_state="$(gh issue view "$issue_number" --repo "$REPOSITORY" \
+              --json state --jq .state)"
+            if [ "$issue_state" != "OPEN" ]; then
+              echo "Issue #$issue_number is already $issue_state; skip."
+              continue
+            fi
+
+            gh issue close "$issue_number" \
+              --repo "$REPOSITORY" \
+              --comment "PR #$PR_NUMBER 已合并，自动关闭关联 issue。"
+            echo "Closed issue #$issue_number."
+          done
 
       - name: Report skipped merge
         if: steps.gate.outputs.ready != 'true'
