@@ -61,6 +61,31 @@ _SAFE_PARTIAL_OUTPUT_REASONS = frozenset(
 )
 
 
+def _build_rejection_message(interaction_updates: list[dict[str, Any]] | None) -> str | None:
+    """Build a synthetic user message when the user rejects a pending confirmation.
+
+    When a user clicks "cancel" on an approval card the frontend sends an empty
+    ``message`` together with ``interaction_updates`` containing a rejection.
+    Without a user message the LLM would have no new input and would fail with
+    "Tool selection completed without execution".  This helper builds a
+    minimal message so the LLM can acknowledge the cancellation.
+
+    当用户在授权确认卡片点击「取消」时，前端发送空消息 + rejection 的
+    ``interaction_updates``。 如果不注入消息，LLM 没有新输入会异常结束。
+    此辅助函数构建一条最小化消息让 LLM 确认取消。
+    """
+    if not interaction_updates:
+        return None
+    for update in interaction_updates:
+        if not isinstance(update, dict):
+            continue
+        if str(update.get("kind", "")) != "pending_confirmation":
+            continue
+        if bool(update.get("rejected")):
+            return "取消"
+    return None
+
+
 def _promote_safe_partial_output(result: Any) -> bool:
     if bool(getattr(result, "success", False)):
         return False
@@ -238,6 +263,13 @@ class AgentChatCommandService:
             max_messages=ctx_cfg.get("max_history_messages", 0),
             max_tokens=ctx_cfg.get("max_history_tokens"),
         )
+
+        # Inject synthetic rejection message when user cancels an approval
+        # 用户取消授权确认卡片时，注入拒绝消息以避免 LLM 无输入异常
+        if not message:
+            rejection_msg = _build_rejection_message(interaction_updates)
+            if rejection_msg:
+                message = rejection_msg
 
         user_messages = build_user_messages(
             batch=None,
@@ -487,6 +519,15 @@ class AgentChatCommandService:
 
         batch = [message] if message else []
         first_message = batch[0] if batch else ""
+
+        # Inject synthetic rejection message when user cancels an approval
+        # 用户取消授权确认卡片时，注入拒绝消息以避免 LLM 无输入异常
+        if not message and not batch:
+            rejection_msg = _build_rejection_message(interaction_updates)
+            if rejection_msg:
+                message = rejection_msg
+                batch = [message]
+                first_message = message
 
         prepared_turn = await service.turn_orchestrator.prepare_conversation_turn(
             agent_id=agent_id,

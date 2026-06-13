@@ -439,3 +439,43 @@ class TestPendingConfirmationPassthrough:
         }
         payload = build_pending_confirmation_payload(parsed, "some_tool")
         assert "approval_presentation" not in payload
+
+
+# ---------------------------------------------------------------------------
+# build_confirmation_event pass-through / SSE 事件透传测试
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmationEventPassthrough:
+    """Verify approval_presentation is included in the confirmation_request SSE event."""
+
+    def test_approval_presentation_in_sse_event(self) -> None:
+        from app.ai.engine.tool_processor_events import build_confirmation_event
+
+        parsed = {
+            "requires_confirmation": True,
+            "action": "POST /admin/plans",
+            "preview": {"body": {"name": "Pro"}},
+            "approval_presentation": {
+                "title": "创建 套餐管理",
+                "risk_level": "medium",
+                "summary": "AI 助手将执行「套餐管理」下的「创建套餐」操作。",
+            },
+        }
+        event = build_confirmation_event(parsed, "invoke_internal_operation")
+        assert event["event"] == "confirmation_request"
+        assert "approval_presentation" in event
+        assert event["approval_presentation"]["title"] == "创建 套餐管理"
+        assert event["approval_presentation"]["risk_level"] == "medium"
+
+    def test_no_approval_presentation_in_sse_event(self) -> None:
+        from app.ai.engine.tool_processor_events import build_confirmation_event
+
+        parsed = {
+            "requires_confirmation": True,
+            "action": "POST /admin/x",
+            "preview": {},
+        }
+        event = build_confirmation_event(parsed, "some_tool")
+        assert event["event"] == "confirmation_request"
+        assert "approval_presentation" not in event
