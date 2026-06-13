@@ -2119,8 +2119,73 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.pendingConfirmation?.toolName).toBe(
       'query_records',
     );
+    expect(
+      assistantMessage?.pendingConfirmation?.approvalPresentation?.title,
+    ).toBe('查询调用日志');
+    expect(
+      buildTurnFlowState(assistantMessage).pendingAction?.approvalPresentation
+        ?.permissionCode,
+    ).toBe('ai_call_logs:query');
     expect(assistantMessage?.pendingConsent?.toolName).toBe('query_records');
     expect(assistantMessage?.actionButtons?.[0]?.label).toBe('查看明细');
+  });
+
+  it('preserves approval presentation from confirmation_request SSE events', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            action: 'POST /admin/plans',
+            approval_presentation: {
+              details: [{ label: '套餐名称', value: '测试套餐' }],
+              menu_label: '套餐管理',
+              permission_code: 'tenant_plan:create',
+              risk_level: 'medium',
+              summary: 'AI 助手将执行套餐管理下的创建套餐操作。',
+              target: { name: '测试套餐', type: '套餐' },
+              technical: { operation_id: 'create_tenant_plan' },
+              title: '创建套餐',
+            },
+            event: 'confirmation_request',
+            preview: { body: { name: '测试套餐' } },
+            tool_name: 'invoke_internal_operation',
+          }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '创建一个测试套餐';
+
+    await chat.sendMessage();
+    await flushStreamSend();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.pendingConfirmation?.approvalPresentation).toEqual(
+      expect.objectContaining({
+        permission_code: 'tenant_plan:create',
+        title: '创建套餐',
+      }),
+    );
+    expect(
+      buildTurnFlowState(assistantMessage as ChatMessage).pendingAction
+        ?.approvalPresentation?.title,
+    ).toBe('创建套餐');
   });
 
   it('deduplicates repeated canonical thinking stages inside one merged assistant turn', async () => {

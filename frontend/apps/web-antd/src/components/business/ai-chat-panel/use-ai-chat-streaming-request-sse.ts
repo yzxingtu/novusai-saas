@@ -1,3 +1,4 @@
+import type { ToolApprovalPresentation } from './types';
 import type { StreamRequestDeps } from './use-ai-chat-streaming-request';
 import type { StreamRequestLifecycle } from './use-ai-chat-streaming-request-lifecycle';
 
@@ -137,8 +138,12 @@ export function createStreamSseHandler(
           if (event.event === 'authorization_required' && event.consent_key) {
             addConsent(event.consent_key as string);
           } else if (event.event === 'confirmation_request') {
+            const approvalPresentation = normalizeObjectRecord(
+              event.approval_presentation || event.approvalPresentation,
+            ) as null | ToolApprovalPresentation;
             msg.pendingConfirmation = {
               action: (event.action as string) || '',
+              ...(approvalPresentation ? { approvalPresentation } : {}),
               table: (event.table as string) || '',
               preview: event.preview as Record<string, unknown> | undefined,
               toolName:

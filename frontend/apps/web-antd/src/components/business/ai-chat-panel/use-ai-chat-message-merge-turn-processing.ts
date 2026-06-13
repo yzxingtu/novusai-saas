@@ -3,6 +3,7 @@ import type {
   AgentItem,
   PendingConfirmation,
   PendingConsent,
+  ToolApprovalPresentation,
 } from './types';
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
@@ -61,8 +62,12 @@ function resolvePendingConfirmationFromMetadata(
   const toolName = normalizeOptionalString(
     pendingValue.tool_name || pendingValue.toolName,
   );
+  const approvalPresentation = normalizeObjectRecord(
+    pendingValue.approval_presentation || pendingValue.approvalPresentation,
+  ) as null | ToolApprovalPresentation;
   return {
     ...(action ? { action } : {}),
+    ...(approvalPresentation ? { approvalPresentation } : {}),
     preview: pendingValue.preview as Record<string, unknown> | undefined,
     resolved: pendingValue.resolved as boolean | undefined,
     ...(table ? { table } : {}),

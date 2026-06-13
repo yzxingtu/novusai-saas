@@ -108,4 +108,31 @@ describe('buildTurnFlowState', () => {
     expect(state.selectedEvidence[0]?.label).toBe('测试知识库 / test_doc.txt');
     expect(state.evidence[0]?.knowledgeBaseName).toBe('测试知识库');
   });
+
+  it('projects approval presentation into pending confirmation state', () => {
+    const state = buildTurnFlowState({
+      clientKey: 'assistant-confirmation-presentation',
+      content: '',
+      pendingConfirmation: {
+        action: 'POST /admin/plans',
+        approvalPresentation: {
+          menuLabel: '套餐管理',
+          permissionCode: 'tenant_plan:create',
+          riskLevel: 'medium',
+          title: '创建套餐',
+        },
+        preview: { body: { name: '测试套餐' } },
+        toolName: 'invoke_internal_operation',
+      },
+      role: 'assistant',
+    } as ChatMessage);
+
+    expect(state.pendingAction?.approvalPresentation?.title).toBe('创建套餐');
+    expect(state.pendingAction?.approvalPresentation?.permissionCode).toBe(
+      'tenant_plan:create',
+    );
+    expect(state.pendingAction?.preview).toEqual({
+      body: { name: '测试套餐' },
+    });
+  });
 });

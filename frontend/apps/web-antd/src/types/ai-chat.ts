@@ -347,8 +347,60 @@ export interface ToolCallEvent {
   startedAt?: number;
 }
 
+export interface ToolApprovalPresentationTarget {
+  label?: string;
+  name?: string;
+  type?: string;
+  value?: string;
+  [key: string]: unknown;
+}
+
+export interface ToolApprovalPresentationDetail {
+  key?: string;
+  label?: string;
+  sensitive?: boolean;
+  value?: unknown;
+  valueText?: string;
+  value_text?: string;
+  [key: string]: unknown;
+}
+
+export interface ToolApprovalPresentation {
+  actionLabel?: string;
+  action_label?: string;
+  businessAreaLabel?: string;
+  business_area_label?: string;
+  details?: ToolApprovalPresentationDetail[];
+  detailFields?: ToolApprovalPresentationDetail[];
+  detail_fields?: ToolApprovalPresentationDetail[];
+  menuLabel?: string;
+  menu_label?: string;
+  operationType?: string;
+  operation_type?: string;
+  permissionCode?: string;
+  permission_code?: string;
+  riskLabel?: string;
+  riskLevel?: string;
+  risk_label?: string;
+  risk_level?: string;
+  safeDetails?: ToolApprovalPresentationDetail[];
+  safe_details?: ToolApprovalPresentationDetail[];
+  summary?: string;
+  target?: string | ToolApprovalPresentationTarget;
+  targetLabel?: string;
+  targetText?: string;
+  target_label?: string;
+  target_text?: string;
+  technical?: Record<string, unknown>;
+  technicalDetails?: Record<string, unknown>;
+  technical_details?: Record<string, unknown>;
+  title?: string;
+  [key: string]: unknown;
+}
+
 export interface PendingConfirmation {
   action?: string;
+  approvalPresentation?: ToolApprovalPresentation;
   preview?: Record<string, unknown>;
   table?: string;
   toolName?: string;

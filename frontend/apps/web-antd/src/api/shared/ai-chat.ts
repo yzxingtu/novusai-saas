@@ -9,7 +9,7 @@ import type {
   TurnContextSourcePayload,
   TurnRecordPayload,
 } from '#/api/shared/types';
-import type { ChatAttachment } from '#/types/ai-chat';
+import type { ChatAttachment, ToolApprovalPresentation } from '#/types/ai-chat';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
@@ -67,6 +67,8 @@ export interface RawMessageItem {
     partial?: boolean;
     pending_confirmation?: {
       action?: string;
+      approval_presentation?: ToolApprovalPresentation;
+      approvalPresentation?: ToolApprovalPresentation;
       preview?: Record<string, unknown>;
       resolved?: boolean;
       table?: string;

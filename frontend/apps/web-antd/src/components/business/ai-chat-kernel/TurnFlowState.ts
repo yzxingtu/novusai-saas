@@ -7,7 +7,7 @@ import type {
   TurnAnswerCard,
   TurnEvidenceItem,
 } from '#/components/business/ai-chat-panel/types';
-import type { ChatMessage } from '#/types/ai-chat';
+import type { ChatMessage, ToolApprovalPresentation } from '#/types/ai-chat';
 
 import {
   isUserFacingTurnEvidence,
@@ -20,6 +20,7 @@ import { $t } from '#/locales';
 export interface KernelPendingActionState {
   action?: string;
   arguments?: Record<string, unknown>;
+  approvalPresentation?: ToolApprovalPresentation;
   autoApproved?: boolean;
   kind: 'confirmation' | 'consent';
   operationDescription?: string;
@@ -127,6 +128,7 @@ function buildPendingActionState(
   if (msg.pendingConfirmation) {
     return {
       action: msg.pendingConfirmation.action,
+      approvalPresentation: msg.pendingConfirmation.approvalPresentation,
       kind: 'confirmation',
       preview: msg.pendingConfirmation.preview,
       resolved: msg.pendingConfirmation.resolved,
