@@ -1373,6 +1373,7 @@
     "title": "Skill Management",
     "pageDesc": "Manage platform-wide skills including HTTP, email, code, knowledge base and more.",
     "system": "System",
+    "codeDefined": "Code-defined",
     "name": "Skill Name",
     "description": "Description",
     "avatar": "Icon",

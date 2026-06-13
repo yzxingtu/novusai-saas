@@ -51,6 +51,21 @@ async function loadPluginTools(skillId: number) {
   }
 }
 
+// 代码定义型 builtin（如 internal_ops）的工具在后端代码中，复用解析接口拉取。
+// Code-defined builtin tools (e.g. internal_ops) live in backend code; fetch
+// them from the resolved-tools endpoint instead of hardcoding on the frontend.
+async function loadBuiltinTools(skillId: number) {
+  try {
+    const tools = await getSkillToolsApi(skillId);
+    builtinTools.value = tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+    }));
+  } catch {
+    builtinTools.value = [];
+  }
+}
+
 const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
   formApi,
   schema: getSchema,
@@ -61,6 +76,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
     toSkillFormValues(data, {
       ...sharedState,
       loadPluginTools,
+      loadBuiltinTools,
     }),
   onSuccess: () => {
     emits('success');

@@ -123,7 +123,7 @@ function isRuntimeActiveSkill(record: AdminSkillInfo): boolean {
           class="ml-1"
           style="padding: 0 4px; font-size: 10px; line-height: 16px"
         >
-          code-defined
+          {{ $t('admin.ai.skill.codeDefined') }}
         </Tag>
       </template>
 
