@@ -349,6 +349,24 @@ class InternalApiExecutor(BaseToolExecutor):
                 }
             )
 
+        # Build user-readable approval presentation / 构建用户可读确认展示
+        from app.ai.internal_ops.approval_presentation import (
+            build_approval_presentation,
+        )
+
+        presentation = await build_approval_presentation(
+            db=context.db,
+            operation_id=op.operation_id,
+            method=op.method,
+            path=op.path,
+            permission_code=op.permission_code,
+            summary=op.summary,
+            action=op.action,
+            body=preview.get("body"),
+            path_params=preview.get("path_params"),
+            query_params=preview.get("query_params"),
+        )
+
         return _json_output(
             {
                 "requires_confirmation": True,
@@ -357,6 +375,7 @@ class InternalApiExecutor(BaseToolExecutor):
                 "summary": op.summary,
                 "permission": op.permission_code,
                 "preview": preview,
+                "approval_presentation": presentation.to_dict(),
                 "message": (
                     "This is a write operation and it was NOT executed yet. "
                     "Present the preview to the user and wait. If the user "
