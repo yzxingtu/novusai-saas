@@ -398,3 +398,44 @@ class TestToDict:
         )
         d = p.to_dict()
         assert d["technical"]["operation_id"] == "POST:/admin/x"
+
+
+# ---------------------------------------------------------------------------
+# build_pending_confirmation_payload pass-through / 透传测试
+# ---------------------------------------------------------------------------
+
+
+class TestPendingConfirmationPassthrough:
+    """Verify approval_presentation is forwarded in the SSE metadata."""
+
+    def test_approval_presentation_passed_through(self) -> None:
+        from app.ai.engine.tool_processor_messages import (
+            build_pending_confirmation_payload,
+        )
+
+        parsed = {
+            "requires_confirmation": True,
+            "action": "POST /admin/plans",
+            "preview": {"body": {"name": "Pro"}},
+            "approval_presentation": {
+                "title": "创建 套餐管理",
+                "risk_level": "medium",
+            },
+        }
+        payload = build_pending_confirmation_payload(parsed, "invoke_internal_operation")
+        assert "approval_presentation" in payload
+        assert payload["approval_presentation"]["title"] == "创建 套餐管理"
+        assert payload["approval_presentation"]["risk_level"] == "medium"
+
+    def test_no_approval_presentation_no_key(self) -> None:
+        from app.ai.engine.tool_processor_messages import (
+            build_pending_confirmation_payload,
+        )
+
+        parsed = {
+            "requires_confirmation": True,
+            "action": "POST /admin/x",
+            "preview": {},
+        }
+        payload = build_pending_confirmation_payload(parsed, "some_tool")
+        assert "approval_presentation" not in payload

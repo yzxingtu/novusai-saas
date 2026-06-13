@@ -84,6 +84,13 @@ def build_pending_confirmation_payload(
     normalized_name = str(func_name or "").strip()
     if normalized_name:
         payload["tool_name"] = normalized_name
+    # Pass through approval_presentation for frontend card rendering
+    # 透传 approval_presentation 供前端确认卡片展示
+    approval = parsed.get("approval_presentation") or parsed.get(
+        "approvalPresentation"
+    )
+    if approval and isinstance(approval, dict):
+        payload["approval_presentation"] = approval
     return payload
 
 
