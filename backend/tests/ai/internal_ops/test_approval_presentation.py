@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.ai.internal_ops.approval_presentation import (
-    ApprovalDetail,
     ToolApprovalPresentation,
     _extract_safe_details,
     _format_detail_value,
@@ -23,7 +22,6 @@ from app.ai.internal_ops.approval_presentation import (
     _is_sensitive_key,
     build_approval_presentation,
 )
-
 
 # ---------------------------------------------------------------------------
 # Sensitive key filtering / 敏感字段过滤
@@ -257,6 +255,52 @@ async def test_build_presentation_with_permission_and_menu() -> None:
 
 
 @pytest.mark.asyncio
+async def test_build_presentation_title_uses_permission_leaf_translation() -> None:
+    """#46 acceptance: POST /admin/plans + tenant_plan:create -> title "创建套餐".
+
+    The business action name translated from the permission leaf node
+    (``action.tenant_plan.create`` -> "创建套餐") must take precedence over the
+    "{action} {menu}" composition ("创建 套餐管理"); the parent menu stays in
+    ``menu_label``.
+    """
+    permission = SimpleNamespace(
+        id=100,
+        code="tenant_plan:create",
+        name="action.tenant_plan.create",  # real i18n key -> "创建套餐"
+        type="operation",
+        parent_id=50,
+    )
+    parent_menu = SimpleNamespace(
+        id=50,
+        code="menu:tenant.plan",
+        name="menu.admin.tenant_plan",  # real i18n key -> "套餐管理"
+        type="menu",
+        parent_id=None,
+    )
+    db = _make_mock_db(permission=permission, parent_menu=parent_menu)
+
+    presentation = await build_approval_presentation(
+        db=db,
+        operation_id="POST:/admin/plans",
+        method="POST",
+        path="/admin/plans",
+        permission_code="tenant_plan:create",
+        summary="Create a tenant plan",
+        action="create",
+        body={"name": "Pro"},
+        path_params={},
+        query_params={},
+    )
+
+    # Title is the translated leaf action name, NOT "创建 套餐管理"
+    assert presentation.title == "创建套餐"
+    assert presentation.title != "创建 套餐管理"
+    # Parent menu remains available for the card subtitle
+    assert presentation.menu_label == "套餐管理"
+    assert presentation.action_label == "创建"
+
+
+@pytest.mark.asyncio
 async def test_build_presentation_permission_not_found_fallback() -> None:
     """Permission not found → fallback to summary or method+path+code."""
     db = _make_mock_db(permission=None)
@@ -418,13 +462,13 @@ class TestPendingConfirmationPassthrough:
             "action": "POST /admin/plans",
             "preview": {"body": {"name": "Pro"}},
             "approval_presentation": {
-                "title": "创建 套餐管理",
+                "title": "创建套餐",
                 "risk_level": "medium",
             },
         }
         payload = build_pending_confirmation_payload(parsed, "invoke_internal_operation")
         assert "approval_presentation" in payload
-        assert payload["approval_presentation"]["title"] == "创建 套餐管理"
+        assert payload["approval_presentation"]["title"] == "创建套餐"
         assert payload["approval_presentation"]["risk_level"] == "medium"
 
     def test_no_approval_presentation_no_key(self) -> None:
@@ -457,7 +501,7 @@ class TestConfirmationEventPassthrough:
             "action": "POST /admin/plans",
             "preview": {"body": {"name": "Pro"}},
             "approval_presentation": {
-                "title": "创建 套餐管理",
+                "title": "创建套餐",
                 "risk_level": "medium",
                 "summary": "AI 助手将执行「套餐管理」下的「创建套餐」操作。",
             },
@@ -465,7 +509,7 @@ class TestConfirmationEventPassthrough:
         event = build_confirmation_event(parsed, "invoke_internal_operation")
         assert event["event"] == "confirmation_request"
         assert "approval_presentation" in event
-        assert event["approval_presentation"]["title"] == "创建 套餐管理"
+        assert event["approval_presentation"]["title"] == "创建套餐"
         assert event["approval_presentation"]["risk_level"] == "medium"
 
     def test_no_approval_presentation_in_sse_event(self) -> None:

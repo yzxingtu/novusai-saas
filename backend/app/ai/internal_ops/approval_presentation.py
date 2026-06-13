@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -228,16 +228,18 @@ def _build_title(
     构建可读标题，带稳定兜底链。
 
     Priority:
-    1. action_label + menu_label (e.g. "创建 套餐管理")
-    2. translated permission name
+    1. translated permission leaf name (e.g. action.tenant_plan.create -> "创建套餐")
+    2. action_label + menu_label (e.g. "创建 套餐管理")
     3. operation summary
     4. method + path + permission_code
+
+    The business action name resolved from the permission leaf node takes
+    precedence so #46's acceptance copy ("创建套餐") is honored; the parent
+    menu ("套餐管理") stays available via ``menu_label``/``summary``.
     """
     if permission is not None:
         translated = PermissionPresentationDomain.translate_name(permission.name)
         if translated and translated != permission.name:
-            if action_label and menu_label:
-                return f"{action_label} {menu_label}"
             return translated
 
     if action_label and menu_label:
