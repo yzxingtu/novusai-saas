@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# scripts/release.sh — 版本发布脚本
+# scripts/release.sh — 版本发布脚本（适配受保护分支）
 # 用法: ./scripts/release.sh [patch|minor|major|X.Y.Z]
 #
 # 功能:
 #   1. 读取 VERSION 文件中的当前版本号
 #   2. 按参数计算新版本号（patch/minor/major 或直接指定 X.Y.Z）
 #   3. 同步更新 VERSION 和 backend/pyproject.toml
-#   4. 提交变更并创建 vX.Y.Z 标签
-#   5. 推送到远端（推送标签自动触发 docker-images.yml 构建 + 发布）
+#   4. 创建 release/vX.Y.Z 分支并提交版本变更
+#   5. 通过 GitHub CLI 创建 Release PR
+#   6. PR 合并到 main 后，CI (auto-tag-release.yml) 自动打标签
+#      → 标签推送触发 docker-images.yml 构建镜像 + GitHub Release
 
 set -euo pipefail
 
@@ -66,8 +68,19 @@ if git rev-parse "$EXISTING_TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
-# ── 更新版本号 ────────────────────────────────────────
+# ── 创建 Release 分支并提交 ─────────────────────────
+RELEASE_BRANCH="release/v${NEW_VERSION}"
+
+# 检查远端是否已存在同名分支
+if git ls-remote --exit-code --heads "$REMOTE" "$RELEASE_BRANCH" >/dev/null 2>&1; then
+  red "错误: 远端分支 $RELEASE_BRANCH 已存在，请先删除或手动处理"
+  exit 1
+fi
+
 cyan "当前版本: $CURRENT → 新版本: $NEW_VERSION"
+
+git switch -c "$RELEASE_BRANCH"
+cyan "✓ 已创建分支 $RELEASE_BRANCH"
 
 echo "$NEW_VERSION" > "$VERSION_FILE"
 cyan "✓ 已更新 VERSION"
@@ -82,28 +95,59 @@ else
 fi
 cyan "✓ 已更新 backend/pyproject.toml"
 
-# ── 提交 & 打标签 ─────────────────────────────────────
 git add "$VERSION_FILE" "$PYPROJECT"
 git commit -m "release: v${NEW_VERSION}"
-git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 
-green "✓ 已提交并创建标签 v${NEW_VERSION}"
+green "✓ 已提交版本变更"
 
-# ── 推送 ─────────────────────────────────────────────
-printf '%s' "是否推送到远端 ${REMOTE}？[Y/n] "
+# ── 推送分支 & 创建 PR ──────────────────────────────
+printf '%s' "是否推送分支并创建 Release PR？[Y/n] "
 CONFIRM="Y"
 read -r CONFIRM || true
 CONFIRM="${CONFIRM:-Y}"
 
 if [[ "$CONFIRM" =~ ^[Yy] ]]; then
-  git push "$REMOTE" HEAD
-  git push "$REMOTE" "v${NEW_VERSION}"
-  green "✓ 已推送提交和标签到 $REMOTE"
+  git push -u "$REMOTE" "$RELEASE_BRANCH"
+  green "✓ 已推送分支 $RELEASE_BRANCH 到 $REMOTE"
+
+  # 通过 GitHub CLI 创建 Release PR
+  if command -v gh >/dev/null 2>&1; then
+    PR_URL=$(gh pr create \
+      --title "release: v${NEW_VERSION}" \
+      --body "## Release v${NEW_VERSION}
+
+版本变更：\`$CURRENT\` → \`$NEW_VERSION\`
+
+### 变更文件
+- \`VERSION\`
+- \`backend/pyproject.toml\`
+
+### 合并后自动流程
+1. \`auto-tag-release.yml\` 检测 VERSION 变更 → 创建标签 \`v${NEW_VERSION}\`
+2. \`docker-images.yml\` 被触发 → 构建 Docker 镜像 + 推送 GHCR
+3. 自动生成 GitHub Release（含 AI Release Notes）" \
+      --base main \
+      --head "$RELEASE_BRANCH" \
+      --label "release" 2>&1) || {
+      red "⚠ gh pr create 失败，请手动创建 PR:"
+      echo "  https://github.com/yzxingtu/novusai-saas/compare/main...$RELEASE_BRANCH"
+    }
+
+    if [[ "$PR_URL" == http* ]]; then
+      green "✓ 已创建 Release PR: $PR_URL"
+    fi
+  else
+    cyan "未安装 GitHub CLI，请手动创建 PR:"
+    echo "  https://github.com/yzxingtu/novusai-saas/compare/main...$RELEASE_BRANCH"
+  fi
+
   echo ""
-  green "GitHub Actions 将自动构建 Docker 镜像并发布 Release。"
+  green "后续流程（PR 合并后自动执行）："
+  green "  1. auto-tag-release.yml 检测 VERSION 变更 → 打标签 v${NEW_VERSION}"
+  green "  2. docker-images.yml 触发 → 构建镜像 + GitHub Release"
   green "查看进度: https://github.com/yzxingtu/novusai-saas/actions"
 else
-  cyan "跳过推送。稍后可手动执行:"
-  echo "  git push $REMOTE HEAD"
-  echo "  git push $REMOTE v${NEW_VERSION}"
+  cyan "跳过推送。分支已创建在本地，稍后可手动推送:"
+  echo "  git push -u $REMOTE $RELEASE_BRANCH"
+  echo "  gh pr create --base main --head $RELEASE_BRANCH --title 'release: v${NEW_VERSION}'"
 fi
