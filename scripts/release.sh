@@ -112,6 +112,9 @@ if [[ "$CONFIRM" =~ ^[Yy] ]]; then
 
   # 通过 GitHub CLI 创建 Release PR
   if command -v gh >/dev/null 2>&1; then
+    # 确保 release 标签存在
+    gh label create release --description "版本发布 PR" --color "0075ca" 2>/dev/null || true
+
     PR_URL=$(gh pr create \
       --title "release: v${NEW_VERSION}" \
       --body "## Release v${NEW_VERSION}
