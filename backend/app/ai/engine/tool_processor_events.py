@@ -92,6 +92,13 @@ def build_confirmation_event(
         event["message"] = parsed.get("message", "")
         event["total_new"] = parsed.get("total_new", 0)
         event["total_conflict"] = parsed.get("total_conflict", 0)
+    # Pass through approval_presentation for frontend card rendering
+    # 透传 approval_presentation 避免卡片先显示原始数据再切换（闪烁）
+    approval = parsed.get("approval_presentation") or parsed.get(
+        "approvalPresentation"
+    )
+    if approval and isinstance(approval, dict):
+        event["approval_presentation"] = approval
     return event
 
 

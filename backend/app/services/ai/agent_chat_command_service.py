@@ -61,6 +61,53 @@ _SAFE_PARTIAL_OUTPUT_REASONS = frozenset(
 )
 
 
+def _build_rejection_message(interaction_updates: list[dict[str, Any]] | None) -> str | None:
+    """Build a synthetic user message when the user rejects a pending confirmation.
+
+    When a user clicks "cancel" on an approval card the frontend sends an empty
+    ``message`` together with ``interaction_updates`` containing a rejection.
+    Without a user message the LLM would have no new input and would fail with
+    "Tool selection completed without execution".  This helper builds a
+    minimal message so the LLM can acknowledge the cancellation.
+
+    当用户在授权确认卡片点击「取消」时，前端发送空消息 + rejection 的
+    ``interaction_updates``。 如果不注入消息，LLM 没有新输入会异常结束。
+    此辅助函数构建一条最小化消息让 LLM 确认取消。
+    """
+    if not interaction_updates:
+        return None
+    for update in interaction_updates:
+        if not isinstance(update, dict):
+            continue
+        if str(update.get("kind", "")) != "pending_confirmation":
+            continue
+        if bool(update.get("rejected")):
+            return "取消"
+    return None
+
+
+def _build_rejection_chat_message(
+    message: str,
+    interaction_updates: list[dict[str, Any]] | None,
+) -> ChatMessage | None:
+    """Build an ``internal_only`` synthetic message for a cancelled approval.
+
+    Returns ``None`` when the user actually typed a message, or when there is
+    no pending-confirmation rejection.  The returned ``ChatMessage`` carries
+    ``internal_only=True`` so it is injected into the LLM context only — it is
+    never persisted as a real user message nor written to session memory.
+
+    返回的合成消息标记为 ``internal_only``，仅注入 LLM 上下文，不会作为真实
+    用户消息持久化，也不会写入 session memory。
+    """
+    if message:
+        return None
+    rejection_text = _build_rejection_message(interaction_updates)
+    if not rejection_text:
+        return None
+    return ChatMessage(role="user", content=rejection_text, internal_only=True)
+
+
 def _promote_safe_partial_output(result: Any) -> bool:
     if bool(getattr(result, "success", False)):
         return False
@@ -245,6 +292,16 @@ class AgentChatCommandService:
             attachments=attachments,
         )
         all_messages = merge_history_with_user_messages(history_messages, user_messages)
+
+        # When the user cancels an approval card the request carries an empty
+        # message + a rejection in interaction_updates. Inject the cancellation
+        # context as an internal_only synthetic message so the LLM can respond,
+        # while keeping `message`/`user_messages` empty so nothing is persisted
+        # as a real user message or written to session memory.
+        # 取消授权时仅注入 internal_only 合成消息供 LLM 使用，不持久化。
+        rejection_message = _build_rejection_chat_message(message, interaction_updates)
+        if rejection_message is not None:
+            all_messages = [*all_messages, rejection_message]
         hook_registry, all_messages = await run_before_agent_chat_hook(
             tenant_id=service.tenant_id,
             agent_id=agent_id,
@@ -488,6 +545,14 @@ class AgentChatCommandService:
         batch = [message] if message else []
         first_message = batch[0] if batch else ""
 
+        # When the user cancels an approval card the request carries an empty
+        # message + a rejection in interaction_updates. Build an internal_only
+        # synthetic message (injected below) so the LLM can acknowledge the
+        # cancellation, while keeping message/batch/user_msgs empty so it is
+        # never persisted as a real user message nor written to session memory.
+        # 取消授权时仅注入 internal_only 合成消息供 LLM 使用，不持久化。
+        rejection_message = _build_rejection_chat_message(message, interaction_updates)
+
         prepared_turn = await service.turn_orchestrator.prepare_conversation_turn(
             agent_id=agent_id,
             conversation_id=conversation_id,
@@ -521,6 +586,8 @@ class AgentChatCommandService:
             attachments=attachments,
         )
         all_messages = merge_history_with_user_messages(history_messages, user_msgs)
+        if rejection_message is not None:
+            all_messages = [*all_messages, rejection_message]
         hook_registry, all_messages = await run_before_agent_chat_hook(
             tenant_id=service.tenant_id,
             agent_id=agent_id,

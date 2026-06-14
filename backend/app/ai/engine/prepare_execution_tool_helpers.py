@@ -540,6 +540,62 @@ def plan_execution_tools(
             )
     # ── End Confirmation Replay Shortcircuit ──────────────────────────────────
 
+    # ── Confirmation Rejection Shortcircuit ───────────────────────────────────
+    # When the user rejects a pending confirmation, force a direct-reply turn
+    # without tools so the LLM generates a cancellation acknowledgement
+    # instead of trying to re-invoke the same tool.
+    # 用户拒绝授权确认时，强制走 direct_reply（无工具），让 LLM 生成取消回复
+    # 而不是再次尝试调用同一工具。
+    _has_current_confirmation_rejection = any(
+        str(u.get("kind") or "") == "pending_confirmation"
+        and bool(u.get("rejected"))
+        for u in (getattr(request, "interaction_updates", None) or [])
+        if isinstance(u, dict)
+    )
+    if _has_current_confirmation_rejection:
+        rejection_intent = IntentPlan(
+            intent_id="intent-confirm-reject",
+            kind="direct_reply",
+            family="none",
+            order=1,
+            user_visible_label="cancellation_acknowledgement",
+            source_text="",
+            requires_tools=False,
+            shortcircuit=True,
+            allowed_tool_names=[],
+            preferred_tool_names=[],
+            metadata={"routing_mode": "rejection_shortcircuit"},
+        )
+        rejection_policy = ToolUsePolicy(
+            family="none",
+            mode="auto",
+            allowed_tool_names=[],
+            retry_on_contract_breach=False,
+            reason="confirmation_rejection",
+        )
+        return PreparedExecutionToolPlan(
+            tools=[],
+            candidate_tool_names=[],
+            tool_use_policy=rejection_policy,
+            tool_planner={
+                "intent": "direct_reply",
+                "family": "none",
+                "reason": "rejection_shortcircuit",
+            },
+            optimize_event={
+                "total": len(all_tools),
+                "selected": 0,
+                "execution_path": "fast",
+            },
+            intent_plan=[rejection_intent],
+            intent_flags={"all_shortcircuit": True},
+            explicit_requested_families=[],
+            execution_path="fast",
+            execution_budget=BudgetGuard.build_default("fast", intent_count=1),
+            active_intent_id="intent-confirm-reject",
+        )
+    # ── End Confirmation Rejection Shortcircuit ───────────────────────────────
+
     raw_intent_plan = diagnostics.get("intent_plan")
     intent_plan = _deserialize_intent_plan_impl(raw_intent_plan)
     intent_flags = _intent_plan_gating_flags_impl(intent_plan, request=request)
