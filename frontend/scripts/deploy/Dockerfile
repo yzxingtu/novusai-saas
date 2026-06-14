@@ -27,8 +27,8 @@ COPY VERSION /
 COPY backend/app /backend/app
 COPY backend/plugins /backend/plugins
 
-# Write VITE_GLOB_* env vars into .env.production so the runtime _app.config.js picks them up
-RUN printf 'VITE_GLOB_API_URL=%s\n' "$VITE_GLOB_API_URL" > /app/apps/web-antd/.env.production
+# Override VITE_GLOB_API_URL in .env.production (keep other build-time vars intact)
+RUN sed -i "s|^VITE_GLOB_API_URL=.*|VITE_GLOB_API_URL=$VITE_GLOB_API_URL|" /app/apps/web-antd/.env.production
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm --filter @vben/web-antd... build
