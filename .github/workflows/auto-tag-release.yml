@@ -1,0 +1,59 @@
+name: Auto Tag on Version Change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'VERSION'
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create version tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # 需要对比上一次 commit 的 VERSION
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if VERSION actually changed
+        id: changed
+        run: |
+          OLD_VERSION=$(git show HEAD~1:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
+          if [ "${{ steps.ver.outputs.version }}" != "$OLD_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "VERSION 变更: $OLD_VERSION → ${{ steps.ver.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "VERSION 未变更，跳过打标签"
+          fi
+
+      - name: Check if tag already exists
+        if: steps.changed.outputs.changed == 'true'
+        id: exists
+        run: |
+          if git ls-remote --exit-code --tags origin "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "标签 ${{ steps.ver.outputs.tag }} 已存在，跳过"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag
+        if: steps.changed.outputs.changed == 'true' && steps.exists.outputs.exists == 'false'
+        run: |
+          git tag -a "${{ steps.ver.outputs.tag }}" -m "Release ${{ steps.ver.outputs.tag }}"
+          git push origin "${{ steps.ver.outputs.tag }}"
+          echo "✓ 已创建并推送标签 ${{ steps.ver.outputs.tag }}"
+          echo "  → docker-images.yml 将自动构建镜像并发布 GitHub Release"
