@@ -18,7 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # 需要对比上一次 commit 的 VERSION
+          # 使用 PAT 以便推送的标签能触发下游 workflow（docker-images.yml）
+          # 若未配置 RELEASE_TOKEN，回退到 GITHUB_TOKEN（下游不会自动触发）
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 完整历史用于版本对比
 
       - name: Read version
         id: ver
@@ -27,16 +30,29 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check if VERSION actually changed
+      - name: Check if VERSION actually changed in this push
         id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
         run: |
-          OLD_VERSION=$(git show HEAD~1:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
-          if [ "${{ steps.ver.outputs.version }}" != "$OLD_VERSION" ]; then
+          # 新分支首次推送时 before 全为零
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "VERSION 变更: $OLD_VERSION → ${{ steps.ver.outputs.version }}"
+            echo "新分支合并，VERSION=${{ steps.ver.outputs.version }}"
+            exit 0
+          fi
+
+          # 对比推送前后的 VERSION 文件内容
+          OLD_VERSION=$(git show "${BEFORE}:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "")
+          NEW_VERSION="${{ steps.ver.outputs.version }}"
+
+          if [ "$NEW_VERSION" != "$OLD_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "VERSION 变更: $OLD_VERSION → $NEW_VERSION"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "VERSION 未变更，跳过打标签"
+            echo "VERSION 未变更 ($NEW_VERSION)，跳过打标签"
           fi
 
       - name: Check if tag already exists
@@ -53,6 +69,8 @@ jobs:
       - name: Create and push tag
         if: steps.changed.outputs.changed == 'true' && steps.exists.outputs.exists == 'false'
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.ver.outputs.tag }}" -m "Release ${{ steps.ver.outputs.tag }}"
           git push origin "${{ steps.ver.outputs.tag }}"
           echo "✓ 已创建并推送标签 ${{ steps.ver.outputs.tag }}"
