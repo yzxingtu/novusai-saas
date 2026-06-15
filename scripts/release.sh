@@ -16,6 +16,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$REPO_ROOT/VERSION"
 PYPROJECT="$REPO_ROOT/backend/pyproject.toml"
+UV_LOCK="$REPO_ROOT/backend/uv.lock"
 REMOTE="${RELEASE_REMOTE:-$(git remote | head -1)}"
 
 # ── 颜色输出 ─────────────────────────────────────────
@@ -95,7 +96,15 @@ else
 fi
 cyan "✓ 已更新 backend/pyproject.toml"
 
-git add "$VERSION_FILE" "$PYPROJECT"
+# 更新 backend/uv.lock
+if command -v uv >/dev/null 2>&1; then
+  (cd "$REPO_ROOT/backend" && uv lock)
+  cyan "✓ 已更新 backend/uv.lock"
+else
+  cyan "⚠ 未安装 uv，跳过 lockfile 更新（CI 可能校验失败）"
+fi
+
+git add "$VERSION_FILE" "$PYPROJECT" "$UV_LOCK"
 git commit -m "release: v${NEW_VERSION}"
 
 green "✓ 已提交版本变更"
@@ -112,6 +121,9 @@ if [[ "$CONFIRM" =~ ^[Yy] ]]; then
 
   # 通过 GitHub CLI 创建 Release PR
   if command -v gh >/dev/null 2>&1; then
+    # 确保 release 标签存在（仅忽略“已存在”错误）
+    gh label create release --description "版本发布 PR" --color "0075ca" 2>&1 | grep -qi "already exists" || true
+
     PR_URL=$(gh pr create \
       --title "release: v${NEW_VERSION}" \
       --body "## Release v${NEW_VERSION}
@@ -121,6 +133,8 @@ if [[ "$CONFIRM" =~ ^[Yy] ]]; then
 ### 变更文件
 - \`VERSION\`
 - \`backend/pyproject.toml\`
+- \`backend/uv.lock\`
+- \`scripts/release.sh\`
 
 ### 合并后自动流程
 1. \`auto-tag-release.yml\` 检测 VERSION 变更 → 创建标签 \`v${NEW_VERSION}\`
