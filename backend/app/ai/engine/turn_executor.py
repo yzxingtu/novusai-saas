@@ -698,7 +698,7 @@ class _TurnRunLoop:
     def _max_tool_rounds(self) -> int:
         """获取最大工具轮次数。"""
         if self.state.budget is None or self.state.budget.max_tool_rounds <= 0:
-            return 8  # 默认值
+            return 6  # 默认值（TODO: 后续从智能体配置读取）
         return int(self.state.budget.max_tool_rounds)
 
     def _handle_budget_exit(self, reason: str) -> None:
@@ -752,11 +752,24 @@ class _TurnRunLoop:
                 reason=f"react_round_{round_idx}",
             )
 
+            # ReAct 第 2 轮起 tool_choice 改为 auto，允许 LLM 给出纯文本回复退出循环
+            round_policy = (
+                self.active_policy
+                if round_idx == 0
+                else ToolUsePolicy(
+                    family=self.active_policy.family,
+                    mode="auto",
+                    allowed_tool_names=self.active_policy.allowed_tool_names,
+                    retry_on_contract_breach=self.active_policy.retry_on_contract_breach,
+                    reason=f"{self.active_policy.reason}:react_round_{round_idx}_auto",
+                )
+            )
+
             # LLM 调用（带全集工具）
             model_round = await self.io.call_llm(
                 messages=self.messages,
                 tools=self.tools or None,  # 不再按 intent 限制
-                tool_use_policy=self.active_policy,
+                tool_use_policy=round_policy,
                 react_round_index=round_idx,
             )
             self._apply_model_round(model_round, replace_totals=(round_idx == 0))
