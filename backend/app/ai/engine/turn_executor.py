@@ -757,6 +757,7 @@ class _TurnRunLoop:
                 messages=self.messages,
                 tools=self.tools or None,  # 不再按 intent 限制
                 tool_use_policy=self.active_policy,
+                react_round_index=round_idx,
             )
             self._apply_model_round(model_round, replace_totals=(round_idx == 0))
 

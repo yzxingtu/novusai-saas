@@ -12,6 +12,7 @@ from .stream_generation_view import build_stream_generation_view
 from .turn_executor import ModelRoundResult
 from .turn_flow_projector import (
     build_answer_assembly_turn_flow_event,
+    build_react_round_started_event,
     build_thinking_turn_flow_event,
 )
 
@@ -38,6 +39,8 @@ async def prepare_stream_round(
     adapter: StreamIOAdapter,
     *,
     round_kind: str,
+    react_round_index: int | None = None,
+    tool_count: int = 0,
 ) -> Any:
     view = _resolve_generation_view(adapter)
     runtime_state = view.runtime
@@ -46,6 +49,14 @@ async def prepare_stream_round(
     elif runtime_state.clear_before_next_message:
         runtime_state.clear_before_next_message = False
         await adapter.handler._emit_clear_content_if_needed()
+
+    # ReAct 模式：发出 turn flow 阶段事件（thinking + tool_selection）
+    if react_round_index is not None:
+        for event in build_react_round_started_event(
+            round_index=react_round_index,
+            tool_count=tool_count,
+        ):
+            await adapter.handler._emit_runtime_event(event)
 
     runtime_context = runtime_state.next_runtime_context
     runtime_state.next_runtime_context = None
