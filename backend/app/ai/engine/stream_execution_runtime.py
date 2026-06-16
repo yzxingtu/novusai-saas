@@ -228,7 +228,7 @@ class StreamIOAdapter:
         **kwargs: Any,
     ) -> ModelRoundResult:
         round_kind = str(kwargs.get("breach_retry_result") or "").strip()
-        react_round_index = kwargs.get("react_round_index")
+        react_round_index = kwargs.pop("react_round_index", None)
         runtime_context = await prepare_stream_round(
             self,
             round_kind=round_kind,
