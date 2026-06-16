@@ -12,7 +12,7 @@ class BudgetGuard:
             return ExecutionBudget(
                 max_prompt_tokens=4000,
                 max_completion_tokens=2000,
-                max_tool_rounds=2,
+                max_tool_rounds=4,
                 max_elapsed_ms=40000,
                 max_retry_per_intent=1,
                 max_candidate_tools=3,
@@ -23,7 +23,7 @@ class BudgetGuard:
             return ExecutionBudget(
                 max_prompt_tokens=8000,
                 max_completion_tokens=4000,
-                max_tool_rounds=3,
+                max_tool_rounds=8,
                 max_elapsed_ms=60000,
                 max_retry_per_intent=1,
                 max_candidate_tools=7,
@@ -33,7 +33,7 @@ class BudgetGuard:
         return ExecutionBudget(
             max_prompt_tokens=12000,
             max_completion_tokens=6000,
-            max_tool_rounds=min(6, max(2, intent_count * 2)),
+            max_tool_rounds=min(12, max(4, intent_count * 3)),
             max_elapsed_ms=75000,
             max_retry_per_intent=1,
             max_candidate_tools=8,

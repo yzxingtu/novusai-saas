@@ -400,6 +400,7 @@ async def test_turn_executor_runs_time_shortcircuit_without_provider_call_for_co
 async def test_turn_executor_keeps_post_tool_follow_up_for_non_deterministic_tools() -> (
     None
 ):
+    """验证 ReAct 循环在工具执行后继续调用 LLM 生成最终回复。"""
     tools = [ToolDefinition(name="crm_lookup", description="Lookup CRM record")]
     intents = [
         IntentPlan(
@@ -465,13 +466,13 @@ async def test_turn_executor_keeps_post_tool_follow_up_for_non_deterministic_too
         agent=SimpleNamespace(id=1),
     )
 
+    # ReAct 循环：第 1 次 LLM 调用返回 tool_calls，第 2 次返回纯文本
     assert result.output == "客户状态是 active。"
     assert len(io.call_history) == 2
-    assert io.call_history[1]["breach_retry_result"] == "normal_follow_up_round"
-    assert io.call_history[1]["tools"] is None
+    # ReAct 循环中第 2 次调用是普通轮次，不需要 normal_follow_up_round 标记
     assert any(
         event.kind == "turn.round_started"
-        and event.data.get("round_kind") == "normal_follow_up_round"
+        and event.data.get("round_kind") == "react_round"
         for event in state.turn_events
     )
 
@@ -480,6 +481,7 @@ async def test_turn_executor_keeps_post_tool_follow_up_for_non_deterministic_too
 async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_missing() -> (
     None
 ):
+    """验证 ReAct 循环中缺失参数澄清仍然工作。"""
     tools = [ToolDefinition(name="get_current_weather", description="Weather")]
     intents = [
         IntentPlan(
@@ -523,8 +525,9 @@ async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_m
         agent=SimpleNamespace(id=1),
     )
 
+    # ReAct 循环中缺失参数澄清仍然工作
     assert result.output == "你想查询哪个城市的天气？"
     assert len(io.call_history) == 1
     assert io.call_history[0]["tools"] is None
-    assert io.call_history[0]["breach_retry_result"] == "intent_retry"
+    # ReAct 循环中不再使用 intent_retry 标记，而是通过短路处理
     assert state.intent_plan[0].status == "completed"

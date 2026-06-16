@@ -503,15 +503,12 @@ class _TurnRunLoop:
         self.messages = self.prep.messages
         self.turn_start_index = current_turn_start_index(self.messages)
         self.tools = list(self.prep.tools or [])
+        # ReAct: 使用全集工具，不再按 intent 限制工具选择
+        # Intent 暂时保留用于确定性短路和诊断（待 #50-C 清理）
+        self.active_tools = self.tools
         self.active_policy = self.prep.tool_use_policy
-        self.active_tools, self.active_policy, self.intent = (
-            TurnExecutor._scope_tools_to_active_intent(
-                state=self.state,
-                tools=self.tools,
-                policy=self.active_policy,
-                io=self.io,
-            )
-        )
+        # 保留 intent 用于确定性短路检查，但不用于工具选择
+        self.intent = active_intent(self.state)
 
     @property
     def turn_messages(self) -> list[ChatMessage]:
@@ -658,12 +655,173 @@ class _TurnRunLoop:
         intent.metadata["clarification_requested"] = True
 
     async def run(self) -> TurnExecutionResult:
-        await self._run_initial_round()
-        await self._run_tool_batch_or_update_intents()
-        await self._run_contract_retry_round()
-        await self._run_intent_retry_loop()
-        await self._maybe_run_post_tool_follow_up_round()
+        # Phase 1: 短路检查（保留确定性短路）
+        shortcircuit_applied = await self._try_shortcircuit()
+
+        # Phase 2: ReAct 循环（如果是短路且有 tool_calls，则执行工具后结束）
+        if shortcircuit_applied:
+            # 确定性短路设置了 synthetic response，需要执行工具
+            if getattr(self.response, "tool_calls", None):
+                await self._execute_tool_batch_in_loop()
+            return await self._finalize_result()
+
+        await self._run_react_loop()
+
+        # Phase 3: 结果整理
         return await self._finalize_result()
+
+    async def _try_shortcircuit(self) -> bool:
+        """尝试确定性短路，返回 True 表示已短路。
+
+        保留的短路类型：
+        - cached_shortcircuit: 缓存结果直接返回
+        - deterministic_tool_shortcircuit: time_query / confirmation_replay / memory_*
+        - missing_args_clarification: 缺失参数澄清
+        """
+        # 1. 缓存短路
+        shortcircuit_intent = cached_shortcircuit_intent(self.state)
+        if shortcircuit_intent is not None:
+            self._apply_cached_shortcircuit(shortcircuit_intent)
+            return True
+
+        # 2. 确定性工具短路（time_query/confirmation_replay/memory_save/memory_recall）
+        if self._apply_deterministic_tool_shortcircuit():
+            return True
+
+        # 3. 缺失参数澄清（暂时保留，待 #50-C 清理）
+        if intent_requires_clarification(self.intent):
+            await self._run_missing_args_clarification(self.intent)
+            return True
+
+        return False
+
+    def _max_tool_rounds(self) -> int:
+        """获取最大工具轮次数。"""
+        if self.state.budget is None or self.state.budget.max_tool_rounds <= 0:
+            return 8  # 默认值
+        return int(self.state.budget.max_tool_rounds)
+
+    def _handle_budget_exit(self, reason: str) -> None:
+        """处理预算耗尽情况。"""
+        self.state.register_provider_failure(
+            kind="budget_exit",
+            event={"kind": "budget_exit", "reason": reason},
+        )
+        # 构建空响应
+        self.response = ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            total_tokens=0,
+            output_tokens=0,
+        )
+        # 设置 decision 为 partial exit
+        self.decision = RecoveryDecision(
+            action="return_partial",
+            reason=reason,
+            provider_failure_kind="budget_exit",
+        )
+
+    async def _run_react_loop(self) -> None:
+        """LLM 带全集工具循环调用，直到纯文本回复或预算耗尽。
+
+        ReAct 循环流程：
+        1. 检查预算
+        2. 调用 LLM（带全集工具）
+        3. 如果有 tool_calls：执行工具 → 结果回写 → 继续循环
+        4. 如果无 tool_calls：检查 consent gate → 纯文本回复，循环结束
+        """
+        max_rounds = self._max_tool_rounds()
+
+        # 初始预算检查
+        initial_budget_exit = self.state.budget_exit_reason()
+        if initial_budget_exit:
+            self._handle_budget_exit(initial_budget_exit)
+            return
+
+        for round_idx in range(max_rounds):
+            # 预算检查
+            budget_exit = self.state.budget_exit_reason()
+            if budget_exit:
+                self._handle_budget_exit(budget_exit)
+                return
+
+            # 发出 round 事件
+            self.emit_round(
+                round_kind="react_round",
+                policy=self.active_policy,
+                tools=self.tools,  # 全集工具
+                reason=f"react_round_{round_idx}",
+            )
+
+            # LLM 调用（带全集工具）
+            model_round = await self.io.call_llm(
+                messages=self.messages,
+                tools=self.tools or None,  # 不再按 intent 限制
+                tool_use_policy=self.active_policy,
+            )
+            self._apply_model_round(model_round, replace_totals=(round_idx == 0))
+
+            # 无 tool_calls → 检查 consent gate 然后结束
+            if not getattr(self.response, "tool_calls", None):
+                # 在纯文本回复后检查 consent gate（可能从恢复场景来）
+                await self._check_consent_gate()
+                return
+
+            # 确认门控检查（工具执行前检查）
+            if await self._check_consent_gate():
+                return  # 暂停等待用户确认
+
+            # 执行工具批次
+            await self._execute_tool_batch_in_loop()
+
+            # 工具执行后再次检查确认门控
+            if await self._check_consent_gate():
+                return
+
+            # 注册工具轮次
+            self.state.register_tool_round()
+
+        # 循环结束但仍有 tool_calls，说明预算耗尽
+        budget_exit = self.state.budget_exit_reason() or "tool_round_budget_exceeded"
+        self._handle_budget_exit(budget_exit)
+
+    async def _execute_tool_batch_in_loop(self) -> None:
+        """在 ReAct 循环内执行工具批次。"""
+        (
+            self.response,
+            extra_tool_results,
+            self.total_tokens,
+            self.completion_tokens_used,
+        ) = await execute_tool_batch(
+            state=self.state,
+            io=self.io,
+            response=self.response,
+            tools=self.tools,  # 全集
+            all_tools=self.prep.all_tools or self.tools,
+            messages=self.messages,
+            turn_messages=self.turn_messages,
+            tool_use_policy=self.active_policy,
+            input_variables=self.request.input_variables,
+            total_tokens=self.total_tokens,
+            completion_tokens_used=self.completion_tokens_used,
+        )
+        self.tool_results.extend(extra_tool_results)
+
+    async def _check_consent_gate(self) -> bool:
+        """检查是否需要用户确认，返回 True 表示已暂停。
+
+        当工具执行需要用户确认时（consent_mode="ask"），
+        构建 pause_for_consent decision 并暂停执行。
+        复用 RecoveryManager.decide 获取 decision。
+        """
+        decision = RecoveryManager.decide(
+            self.state.intent_plan,
+            budget=self.state.budget,
+            provider_failure_kind=self.state.provider_failure_kind,
+        )
+        if decision is not None and decision.action == "pause_for_consent":
+            self.decision = decision
+            return True
+        return False
 
     async def _run_initial_round(self) -> None:
         initial_budget_exit = self.state.budget_exit_reason()
