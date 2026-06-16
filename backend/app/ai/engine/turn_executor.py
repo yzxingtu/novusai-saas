@@ -663,6 +663,14 @@ class _TurnRunLoop:
             # 确定性短路设置了 synthetic response，需要执行工具
             if getattr(self.response, "tool_calls", None):
                 await self._execute_tool_batch_in_loop()
+                self.state.register_tool_round()
+                # 仅 confirmation_replay 写操作执行后需要 LLM 总结
+                # time_query 等短路工具结果即最终回复，无需 LLM
+                sc_kind = self.state.preparation_diagnostics.get(
+                    "deterministic_shortcircuit_intent_kind"
+                )
+                if sc_kind == "confirmation_replay":
+                    await self._run_shortcircuit_summary()
             return await self._finalize_result()
 
         await self._run_react_loop()
@@ -836,6 +844,32 @@ class _TurnRunLoop:
             self.decision = decision
             return True
         return False
+
+    async def _run_shortcircuit_summary(self) -> None:
+        """短路执行工具后，调用 LLM 生成总结回复。
+
+        confirmation_replay 等写操作在短路路径执行工具后，
+        需要再调一轮 LLM 生成人类可读的总结回复。
+        """
+        summary_policy = ToolUsePolicy(
+            family="none",
+            mode="none",
+            allowed_tool_names=[],
+            retry_on_contract_breach=False,
+            reason="shortcircuit_summary",
+        )
+        self.emit_round(
+            round_kind="shortcircuit_summary",
+            policy=summary_policy,
+            tools=[],
+            reason="shortcircuit_post_tool_summary",
+        )
+        model_round = await self.io.call_llm(
+            messages=self.messages,
+            tools=None,
+            tool_use_policy=summary_policy,
+        )
+        self._apply_model_round(model_round, replace_totals=False)
 
     async def _run_initial_round(self) -> None:
         initial_budget_exit = self.state.budget_exit_reason()
