@@ -577,9 +577,51 @@ def _has_provider_event_kind(diagnostics_payload: dict[str, Any], kind: str) -> 
     )
 
 
+def _react_round_events(
+    turn_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Extract turn.round_started events with round_kind='react_round'."""
+    results: list[dict[str, Any]] = []
+    for event in turn_events:
+        if event.get("kind") != "turn.round_started":
+            continue
+        data = _as_dict(event.get("data"))
+        if data.get("round_kind") == "react_round":
+            results.append(event)
+    return results
+
+
 def _tool_selection_stage(
     diagnostics_payload: dict[str, Any],
 ) -> TurnFlowStage:
+    turn_events = _extract_turn_events(diagnostics_payload)
+    react_rounds = _react_round_events(turn_events)
+
+    if react_rounds:
+        # ReAct 模式：LLM 直接获得全集工具，没有显式过滤步骤
+        first_round_data = _as_dict(react_rounds[0].get("data"))
+        tool_names = _as_list(first_round_data.get("tool_names"))
+        all_tools_count = len(tool_names)
+        summary = (
+            f"{all_tools_count} tools available (ReAct)"
+            if all_tools_count > 0
+            else "No tools available"
+        )
+        return TurnFlowStage(
+            id="tool_selection",
+            type="tool_selection",
+            status="completed" if all_tools_count > 0 else "skipped",  # type: ignore[arg-type]
+            title="Tool Selection",
+            summary=summary,
+            detail_lines=[summary],
+            metrics={
+                "all_tools_count": all_tools_count,
+                "candidate_tools_count": all_tools_count,
+                "filtering_reason": "react_full_toolset",
+            },
+        )
+
+    # 传统模式：使用 tool_filtering 诊断数据
     filtering = _as_dict(diagnostics_payload.get("tool_filtering"))
     all_tools_count = _as_int(filtering.get("all_tools_count"), 0)
     candidate_tools_count = _as_int(filtering.get("candidate_tools_count"), 0)
@@ -612,6 +654,13 @@ def _tool_execution_stage(
     round_count = _count_turn_events(turn_events, "turn.tool_round")
     completed_count = _count_turn_events(turn_events, "turn.tool_completed")
     failed_count = _count_turn_events(turn_events, "turn.tool_failed")
+
+    # ReAct 模式：用 react_round 事件补充轮次计数
+    react_rounds = _react_round_events(turn_events)
+    react_round_count = len(react_rounds)
+    if react_round_count > 0:
+        round_count = max(round_count, react_round_count)
+
     normalized_tool_results = [
         _tool_result_payload(result)
         for result in (tool_results or [])
@@ -653,6 +702,7 @@ def _tool_execution_stage(
         metrics={
             "tool_call_count": completed_count + failed_count,
             "tool_rounds": round_count,
+            "react_rounds": react_round_count,
             "completed_tool_calls": completed_count,
             "failed_tool_calls": failed_count,
         },
@@ -1060,6 +1110,46 @@ def build_tool_execution_result_event(
     )
 
 
+def build_react_round_started_event(
+    *,
+    round_index: int,
+    tool_count: int = 0,
+) -> list[dict[str, Any]]:
+    """Build turn flow stage events emitted at the start of a ReAct round."""
+    events: list[dict[str, Any]] = [
+        _canonical_stage_event_payload(
+            stage_type="thinking",
+            status="running",
+            title="Thinking",
+            summary=f"ReAct round {round_index + 1}",
+        ),
+    ]
+    if tool_count > 0:
+        events.append(
+            _canonical_stage_event_payload(
+                stage_type="tool_selection",
+                status="running",
+                title="Tool Selection",
+                summary=f"{tool_count} tools available (ReAct)",
+                metrics={
+                    "all_tools_count": tool_count,
+                    "candidate_tools_count": tool_count,
+                },
+            )
+        )
+    return events
+
+
+def build_react_answer_assembly_event() -> dict[str, Any]:
+    """Build answer_assembly stage event when ReAct loop produces final text."""
+    return _canonical_stage_event_payload(
+        stage_type="answer_assembly",
+        status="running",
+        title="Answer Assembly",
+        summary="Synthesizing final answer",
+    )
+
+
 def build_answer_assembly_turn_flow_event() -> dict[str, Any]:
     return _canonical_stage_update_payload(
         stage_type="answer_assembly",
@@ -1107,6 +1197,8 @@ def build_turn_answer_card_event(
 __all__ = [
     "build_answer_assembly_turn_flow_event",
     "build_initial_turn_flow_events",
+    "build_react_answer_assembly_event",
+    "build_react_round_started_event",
     "build_turn_answer_card_event",
     "build_turn_evidence_events",
     "build_turn_evidence_items",

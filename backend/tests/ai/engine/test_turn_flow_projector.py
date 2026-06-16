@@ -582,3 +582,177 @@ def test_build_turn_flow_view_model_strips_trace_id_suffix_from_error_surface() 
 
     assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
     assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"
+
+
+# --- ReAct round projection tests ---
+
+
+build_react_round_started_event = (
+    turn_flow_projector.build_react_round_started_event
+)
+build_react_answer_assembly_event = (
+    turn_flow_projector.build_react_answer_assembly_event
+)
+
+
+def test_react_round_projects_tool_selection_from_round_events() -> None:
+    """ReAct 多轮执行时，tool_selection stage 从 react_round 事件导出。"""
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "turn_events": [
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 10,
+                    "data": {
+                        "round_kind": "react_round",
+                        "tool_names": ["get_weather", "search_kb", "memory_save"],
+                    },
+                },
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 500,
+                    "data": {
+                        "round_kind": "react_round",
+                        "tool_names": ["get_weather", "search_kb", "memory_save"],
+                    },
+                },
+            ],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        tool_results=[
+            {
+                "name": "get_weather",
+                "success": True,
+                "output": "北京晴",
+                "tool_call_id": "tc_1",
+            },
+            {
+                "name": "search_kb",
+                "success": True,
+                "output": "KB result",
+                "tool_call_id": "tc_2",
+            },
+        ],
+        output="北京今天晴天。",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    tool_selection_stage = next(
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_selection"
+    )
+    assert tool_selection_stage["status"] == "completed"
+    assert tool_selection_stage["metrics"]["all_tools_count"] == 3
+    assert tool_selection_stage["metrics"]["filtering_reason"] == "react_full_toolset"
+
+
+def test_react_round_projects_tool_execution_with_react_round_count() -> None:
+    """ReAct 多轮执行时，tool_execution stage 正确聚合 react_round 轮次。"""
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "turn_events": [
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 10,
+                    "data": {"round_kind": "react_round", "tool_names": ["a", "b"]},
+                },
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 200,
+                    "data": {"round_kind": "react_round", "tool_names": ["a", "b"]},
+                },
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 400,
+                    "data": {"round_kind": "react_round", "tool_names": ["a", "b"]},
+                },
+            ],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        tool_results=[
+            {"name": "a", "success": True, "output": "r1", "tool_call_id": "tc_1"},
+            {"name": "b", "success": True, "output": "r2", "tool_call_id": "tc_2"},
+            {"name": "a", "success": False, "error": "timeout", "tool_call_id": "tc_3"},
+        ],
+        output="最终答案",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    tool_execution_stage = next(
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_execution"
+    )
+    assert tool_execution_stage["metrics"]["react_rounds"] == 3
+    assert tool_execution_stage["metrics"]["tool_call_count"] == 3
+    assert tool_execution_stage["metrics"]["completed_tool_calls"] == 2
+    assert tool_execution_stage["metrics"]["failed_tool_calls"] == 1
+    assert tool_execution_stage["status"] == "error"  # 有失败的工具
+
+
+def test_build_react_round_started_event_emits_thinking_and_tool_selection() -> None:
+    """build_react_round_started_event 发出 thinking 和 tool_selection 阶段事件。"""
+    events = build_react_round_started_event(round_index=0, tool_count=5)
+
+    assert len(events) == 2
+    thinking_event = events[0]
+    assert thinking_event["stage"]["type"] == "thinking"
+    assert thinking_event["stage"]["status"] == "running"
+    assert "ReAct round 1" in thinking_event["stage"]["summary"]
+
+    selection_event = events[1]
+    assert selection_event["stage"]["type"] == "tool_selection"
+    assert selection_event["stage"]["status"] == "running"
+    assert selection_event["stage"]["metrics"]["all_tools_count"] == 5
+
+
+def test_build_react_round_started_event_skips_tool_selection_when_no_tools() -> None:
+    """没有工具时只发出 thinking 事件。"""
+    events = build_react_round_started_event(round_index=2, tool_count=0)
+
+    assert len(events) == 1
+    assert events[0]["stage"]["type"] == "thinking"
+
+
+def test_build_react_answer_assembly_event_emits_stage() -> None:
+    """build_react_answer_assembly_event 发出 answer_assembly 阶段事件。"""
+    event = build_react_answer_assembly_event()
+    assert event["stage"]["type"] == "answer_assembly"
+    assert event["stage"]["status"] == "running"
+    assert "Synthesizing" in event["stage"]["summary"]
+
+
+def test_react_round_tool_selection_skipped_when_no_tools_available() -> None:
+    """ReAct 模式且无工具时，tool_selection stage 应为 skipped。"""
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "turn_events": [
+                {
+                    "kind": "turn.round_started",
+                    "timestamp_ms": 10,
+                    "data": {"round_kind": "react_round", "tool_names": []},
+                },
+            ],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        tool_results=None,
+        output="纯文本回复",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    tool_selection_stage = next(
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_selection"
+    )
+    assert tool_selection_stage["status"] == "skipped"
