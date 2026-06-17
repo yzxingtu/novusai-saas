@@ -5,7 +5,8 @@
 <p align="center">
   <a href="https://nvuai.cc">官网</a> ·
   <a href="https://nvuai.cc/docs/quick-start">快速开始</a> ·
-  <a href="https://nvuai.cc/docs/quick-start">文档</a>
+  <a href="https://nvuai.cc/docs/quick-start">文档</a> ·
+  <a href="https://qm.qq.com/q/lyeGthTbm8">QQ 交流群</a>
 </p>
 
 # NovusAI SaaS
@@ -31,6 +32,7 @@ NovusAI SaaS 是一个面向二次开发的多租户 AI SaaS 开发框架。它�
 - [部署说明](#部署说明)
 - [扩展开发](#扩展开发)
 - [贡献](#贡献)
+- [社区交流](#社区交流)
 - [安全](#安全)
 - [许可证](#许可证)
 
@@ -316,6 +318,10 @@ docker compose --env-file production.env -f docker-compose.prod.yml up -d
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request。提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，并确保相关测试、格式化和静态检查通过。
+
+## 社区交流
+
+- **QQ 交流群**：[点击加群](https://qm.qq.com/q/lyeGthTbm8)，与其他开发者交流使用经验、反馈问题、参与讨论。
 
 ## 安全
 
