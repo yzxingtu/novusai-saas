@@ -454,22 +454,6 @@ watch(canCollapseKernel, (collapsible) => {
 onBeforeUnmount(() => {
   clearKernelAutoCollapseTimer();
 });
-
-function handleApprove() {
-  if (resolvedState.value.pendingAction?.kind === 'confirmation') {
-    emit('confirm');
-    return;
-  }
-  emit('consentConfirm');
-}
-
-function handleReject() {
-  if (resolvedState.value.pendingAction?.kind === 'confirmation') {
-    emit('reject');
-    return;
-  }
-  emit('consentReject');
-}
 </script>
 
 <template>
@@ -648,11 +632,11 @@ function handleReject() {
       />
     </div>
 
+    <!-- Inline card only shown when resolved; pending state is shown as floating card -->
     <ActionConsentGate
+      v-if="resolvedState.pendingAction?.resolved"
       :action="resolvedState.pendingAction"
       :compact="compact"
-      @approve="handleApprove"
-      @reject="handleReject"
     />
     <slot name="diagnostics"></slot>
   </div>

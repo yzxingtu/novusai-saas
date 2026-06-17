@@ -321,6 +321,63 @@ docker compose --env-file production.env -f docker-compose.prod.yml up -d
 
 安全漏洞请按 [SECURITY.md](SECURITY.md) 中的方式报告。请不要在公开 Issue 中披露敏感漏洞细节。
 
+## 鸣谢
+
+NovusAI SaaS 基于众多优秀的开源项目构建，在此向以下开源社区和项目表示感谢：
+
+### 前端
+
+- [Vue 3](https://vuejs.org/) — 渐进式前端框架
+- [Vben Admin](https://github.com/vbenjs/vue-vben-admin) — 中后台管理框架
+- [Ant Design Vue](https://antdv.com/) — 企业级 UI 组件库
+- [Vite](https://vitejs.dev/) — 下一代前端构建工具
+- [TypeScript](https://www.typescriptlang.org/) — 类型安全的 JavaScript 超集
+- [Tailwind CSS](https://tailwindcss.com/) — 实用优先的 CSS 框架
+- [Vue I18n](https://vue-i18n.intlify.dev/) — Vue 国际化方案
+- [Iconify](https://iconify.design/) / [Lucide](https://lucide.dev/) — 图标方案
+- [Vitest](https://vitest.dev/) — 单元测试框架
+- [pnpm](https://pnpm.io/) — 高效的包管理器
+- [Turbo](https://turbo.build/) —  Monorepo 构建系统
+
+### 后端
+
+- [FastAPI](https://fastapi.tiangolo.com/) — 高性能 Python Web 框架
+- [SQLAlchemy](https://www.sqlalchemy.org/) — Python SQL 工具包与 ORM
+- [Alembic](https://alembic.sqlalchemy.org/) — 数据库迁移框架
+- [Pydantic](https://docs.pydantic.dev/) — 数据验证与设置管理
+- [Celery](https://docs.celeryq.dev/) — 分布式任务队列
+- [Redis](https://redis.io/) — 内存数据结构存储
+- [PostgreSQL](https://www.postgresql.org/) — 关系型数据库
+- [pgvector](https://github.com/pgvector/pgvector) — PostgreSQL 向量扩展
+- [Socket.IO](https://socket.io/) — 实时双向通信
+- [OpenAI Python SDK](https://github.com/openai/openai-python) — OpenAI API 客户端
+- [Loguru](https://github.com/Delgan/loguru) — Python 日志库
+- [Jinja2](https://jinja.palletsprojects.com/) — Python 模板引擎
+- [Pillow](https://python-pillow.org/) — Python 图像处理库
+
+### RAG / 文档处理
+
+- [PyMuPDF](https://github.com/pymupdf/PyMuPDF) — PDF 解析与处理
+- [python-docx](https://github.com/python-openxml/python-docx) — Word 文档处理
+- [beautifulsoup4](https://www.crummy.com/software/BeautifulSoup/) — HTML/XML 解析
+- [pandas](https://pandas.pydata.org/) — 数据分析与处理
+- [openpyxl](https://openpyxl.readthedocs.io/) — Excel 读写
+
+### 工程化与测试
+
+- [pytest](https://docs.pytest.org/) — Python 测试框架
+- [Ruff](https://docs.astral.sh/ruff/) — Python 代码检查与格式化
+- [mypy](https://mypy.readthedocs.io/) — Python 静态类型检查
+- [ESLint](https://eslint.org/) / [Prettier](https://prettier.io/) / [Stylelint](https://stylelint.io/) — 前端代码质量工具
+
+### 文档与部署
+
+- [Docusaurus](https://docusaurus.io/) — 文档网站构建框架
+- [Docker](https://www.docker.com/) / [Docker Compose](https://docs.docker.com/compose/) — 容器化部署
+- [Nginx](https://nginx.org/) — 高性能 Web 服务器与反向代理
+
+感谢所有开源贡献者的辛勤工作，这些项目构成了 NovusAI SaaS 的技术基石。
+
 ## 许可证
 
 本项目采用 [MIT License](LICENSE)。

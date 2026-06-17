@@ -719,6 +719,8 @@
     "approvalTarget": "目标",
     "approvalDetail": "详情",
     "approvalTechnicalDetails": "技术详情",
+    "expandDetails": "展开详情",
+    "collapseDetails": "收起详情",
     "args": "输入：",
     "noAgentAvailable": "暂无可用智能体，请联系管理员配置",
     "routeFailedHint": "请选择智能体后重试，或稍后再次发送。",

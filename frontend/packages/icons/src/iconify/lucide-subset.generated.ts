@@ -64,6 +64,7 @@ export const LUCIDE_ICON_NAMES = [
   "chevron-down",
   "chevron-left",
   "chevron-right",
+  "chevron-up",
   "circle",
   "circle-alert",
   "circle-check",
@@ -412,6 +413,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:chevron-down",
   "lucide:chevron-left",
   "lucide:chevron-right",
+  "lucide:chevron-up",
   "lucide:circle",
   "lucide:circle-alert",
   "lucide:circle-check",
@@ -957,6 +959,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "chevron-right": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m9 18l6-6l-6-6\"/>"
+    },
+    "chevron-up": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18 15l-6-6l-6 6\"/>"
     },
     "circle": {
       "body": "<circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"/>"
