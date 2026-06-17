@@ -5,7 +5,8 @@
 <p align="center">
   <a href="https://nvuai.cc">Website</a> ·
   <a href="https://nvuai.cc/docs/quick-start">Quick Start</a> ·
-  <a href="https://nvuai.cc/docs">Docs</a>
+  <a href="https://nvuai.cc/docs">Docs</a> ·
+  <a href="https://qm.qq.com/q/lyeGthTbm8">QQ Group</a>
 </p>
 
 # NovusAI SaaS
@@ -31,6 +32,7 @@ NovusAI SaaS is a multi-tenant, AI-native SaaS development framework for buildin
 - [Deployment](#deployment)
 - [Extension Development](#extension-development)
 - [Contributing](#contributing)
+- [Community](#community)
 - [Security](#security)
 - [License](#license)
 
@@ -317,6 +319,10 @@ Recommended extension locations:
 ## Contributing
 
 Issues and pull requests are welcome. Before submitting changes, read [CONTRIBUTING.md](CONTRIBUTING.md) and make sure relevant tests, formatting, and static checks pass.
+
+## Community
+
+- **QQ Group**: [Join us](https://qm.qq.com/q/lyeGthTbm8) to connect with other developers, share experiences, report issues, and join discussions.
 
 ## Security
 
