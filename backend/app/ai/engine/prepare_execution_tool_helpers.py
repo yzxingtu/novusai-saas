@@ -311,12 +311,9 @@ def plan_execution_tools(
         retry_on_contract_breach=False,
         reason="react_autonomous_tool_selection",
     )
-    # Use "normal" path for ReAct autonomous execution - allows more tools and rounds
+    # ReAct autonomous path: no candidate tool limit, LLM chooses freely
     execution_path = "normal"
-    execution_budget = BudgetGuard.build_default(
-        execution_path,
-        intent_count=1,  # Treat as single-intent for budget purposes
-    )
+    execution_budget = BudgetGuard.build_for_react()
     return PreparedExecutionToolPlan(
         tools=tools,
         candidate_tool_names=candidate_tool_names,
