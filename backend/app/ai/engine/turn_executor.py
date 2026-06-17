@@ -833,8 +833,12 @@ class _TurnRunLoop:
 
         当工具执行需要用户确认时（consent_mode="ask"），
         构建 pause_for_consent decision 并暂停执行。
-        复用 RecoveryManager.decide 获取 decision。
+        
+        检查两层：
+        1. 先从 intent_plan 检查（传统流程）
+        2. 再从 messages 直接检查（ReAct 动态工具选择流程）
         """
+        # 传统检查：基于 intent_plan
         decision = RecoveryManager.decide(
             self.state.intent_plan,
             budget=self.state.budget,
@@ -843,6 +847,31 @@ class _TurnRunLoop:
         if decision is not None and decision.action == "pause_for_consent":
             self.decision = decision
             return True
+        
+        # ReAct 补充检查：直接从 messages 检查 pending_consent
+        # ReAct 流程中 intent_plan 可能未包含动态选择的工具，
+        # 需要从 messages 直接提取 pending_consent payload
+        from .recovery_consent_helpers import extract_pending_consent_payload
+        pending_payload = extract_pending_consent_payload(self.messages)
+        if pending_payload and not pending_payload.get("resolved"):
+            self.decision = RecoveryDecision(
+                action="pause_for_consent",
+                target_intent_id=None,
+                completed_intent_ids=[
+                    item.intent_id
+                    for item in self.state.intent_plan
+                    if item.status == "completed"
+                ],
+                unfinished_intent_ids=[
+                    item.intent_id
+                    for item in self.state.intent_plan
+                    if item.status not in {"completed", "skipped"}
+                ],
+                reason="awaiting_user_consent",
+                metadata={"pending_consent": pending_payload},
+            )
+            return True
+        
         return False
 
     async def _run_shortcircuit_summary(self) -> None:
