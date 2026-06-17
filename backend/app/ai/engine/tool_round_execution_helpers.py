@@ -33,6 +33,22 @@ class ToolRoundExecutionOutcome:
     early_return: tuple[ChatResponse | None, list[ToolResult], int, int] | None = None
 
 
+def _trim_last_assistant_tool_calls(
+    messages: list[ChatMessage],
+    kept_tool_calls: list[dict[str, Any]],
+) -> None:
+    """将最近一条带 tool_calls 的 assistant 消息收敛为 kept_tool_calls。
+
+    consent 门控暂停时，已追加的 assistant 消息可能包含当前待确认工具之后
+    尚未执行的 tool_calls，这些 tool_calls 没有匹配的 tool 响应，会在历史
+    重投时触发 provider 报错。此处将其裁剪为已处理 + 当前待确认的部分。
+    """
+    for message in reversed(messages):
+        if message.role == "assistant" and message.tool_calls:
+            message.tool_calls = list(kept_tool_calls)
+            return
+
+
 def prepare_parallel_readonly_batch(
     *,
     processor: ToolCallProcessor,
@@ -214,7 +230,7 @@ async def execute_tool_round(
             tracked_tool_result_bytes=state.tracked_tool_result_bytes
         )
 
-    for tc in tool_calls:
+    for tc_index, tc in enumerate(tool_calls):
         tc_id = tc.get("id", "")
         func = tc.get("function", {})
         func_name = func.get("name", "")
@@ -245,6 +261,12 @@ async def execute_tool_round(
                         arguments,
                     )
                 )
+                # Consent 门控暂停时，丢弃当前待确认工具之后尚未执行的 tool_calls，
+                # 仅保留「已处理 + 当前待确认」这一段。被保留项均有匹配的 tool 消息
+                # （执行结果 / 拒绝消息 / consent_ask 消息），避免历史重投时出现无
+                # 匹配 tool 响应的孤儿 tool_calls。
+                kept_tool_calls = list(tool_calls[: tc_index + 1])
+                _trim_last_assistant_tool_calls(state.messages, kept_tool_calls)
                 return ToolRoundExecutionOutcome(
                     tracked_tool_result_bytes=state.tracked_tool_result_bytes,
                     early_return=(
@@ -252,7 +274,7 @@ async def execute_tool_round(
                             message=ChatMessage(
                                 role="assistant",
                                 content=current_response.message.content or "",
-                                tool_calls=tool_calls,
+                                tool_calls=kept_tool_calls,
                                 metadata={"pending_consent": pending_consent},
                             ),
                             metadata={

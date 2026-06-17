@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
@@ -498,6 +499,8 @@ class _TurnRunLoop:
     completion_tokens_used: int = field(init=False, default=0)
     decision: RecoveryDecision | None = field(init=False, default=None)
     ran_post_tool_follow_up: bool = field(init=False, default=False)
+    empty_action_nudged: bool = field(init=False, default=False)
+    previous_tool_call_signature: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self.messages = self.prep.messages
@@ -662,8 +665,9 @@ class _TurnRunLoop:
         if shortcircuit_applied:
             # 确定性短路设置了 synthetic response，需要执行工具
             if getattr(self.response, "tool_calls", None):
+                # 工具轮次由 execute_tool_batch 内的 delta 计数统一注册，
+                # 此处不再显式 register_tool_round，避免预算双计。
                 await self._execute_tool_batch_in_loop()
-                self.state.register_tool_round()
                 sc_kind = self.state.preparation_diagnostics.get(
                     "deterministic_shortcircuit_intent_kind"
                 )
@@ -671,6 +675,7 @@ class _TurnRunLoop:
                     # confirmation_replay 执行完写操作后，进入完整 ReAct 循环
                     # 让 LLM 用全集工具继续后续步骤（如创建后发布）
                     self._restore_full_tools_for_react()
+                    self._inject_replay_continuation_guidance()
                     await self._run_react_loop()
                 # time_query 等短路工具结果即最终回复，无需额外处理
             return await self._finalize_result()
@@ -724,6 +729,119 @@ class _TurnRunLoop:
             allowed_tool_names=all_tool_names,
             retry_on_contract_breach=True,
             reason="confirmation_replay_post_react_full_tools",
+        )
+
+    def _inject_replay_continuation_guidance(self) -> None:
+        """confirmation_replay 续跑前注入续作引导。
+
+        授权操作执行后，模型常直接输出总结而不继续用户原始请求里的后续步骤
+        （如创建公告后未发布）。注入一条内部 system 引导，提示模型继续执行
+        尚未完成的步骤，全部完成后再用纯文本总结，避免步骤被丢弃。
+        """
+        self.state.preparation_diagnostics["react_replay_continuation_guidance"] = True
+        self.messages.append(
+            ChatMessage(
+                role="system",
+                content=(
+                    "用户先前授权的操作已执行完成。"
+                    "请检查用户的原始请求是否还有尚未完成的后续步骤"
+                    "（例如创建后需要发布、提交或继续下一步操作）；"
+                    "如有，请继续调用相应工具逐步完成，"
+                    "全部步骤完成后再用纯文本总结最终结果；"
+                    "若已全部完成则直接用纯文本总结，不要再调用工具。"
+                ),
+                metadata={"react_replay_continuation_guidance": True},
+                internal_only=True,
+            )
+        )
+
+    def _round_policy_expects_tools(self, round_policy: ToolUsePolicy | None) -> bool:
+        """判断本轮策略是否明确要求使用工具。"""
+        return bool(
+            round_policy is not None
+            and getattr(round_policy, "mode", None) == "required"
+            and self.tools
+        )
+
+    async def _maybe_nudge_empty_action(
+        self,
+        *,
+        round_idx: int,
+        round_policy: ToolUsePolicy | None,
+    ) -> bool:
+        """一次性"空动作"纠偏。
+
+        当首轮策略要求使用工具、本 turn 内尚无任何工具结果，模型却直接返回
+        纯文本时，追加一次引导并重试，避免模型"口头完成"而不实际调用工具。
+        受 1 次上限约束，不会引入新循环。
+        返回 True 表示已注入纠偏、应继续循环重试。
+        """
+        if self.empty_action_nudged:
+            return False
+        if round_idx != 0 or self.tool_results:
+            return False
+        if not self._round_policy_expects_tools(round_policy):
+            return False
+
+        self.empty_action_nudged = True
+        self.state.preparation_diagnostics["react_empty_action_nudged"] = True
+        self.messages.append(
+            ChatMessage(
+                role="system",
+                content=(
+                    "你尚未调用任何工具就给出了文本回复。"
+                    "本次请求需要通过工具来真正完成操作，"
+                    "请先调用合适的工具执行用户请求的操作，"
+                    "所有操作完成后再用纯文本总结结果。"
+                ),
+                metadata={"react_empty_action_nudge": True},
+                internal_only=True,
+            )
+        )
+        return True
+
+    @staticmethod
+    def _tool_calls_signature(response: ChatResponse | None) -> str:
+        """计算一组 tool_calls 的规范化签名（name + 排序后参数）。
+
+        用于检测 ReAct 循环中模型反复发起完全相同的工具调用（无进展）。
+        """
+        tool_calls = getattr(response, "tool_calls", None) or []
+        parts: list[str] = []
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+            function = tool_call.get("function") or {}
+            name = str(function.get("name") or "").strip()
+            raw_args = function.get("arguments")
+            if isinstance(raw_args, str):
+                try:
+                    parsed_args = json.loads(raw_args) if raw_args.strip() else {}
+                    normalized_args = json.dumps(
+                        parsed_args, sort_keys=True, ensure_ascii=False
+                    )
+                except (ValueError, TypeError):
+                    normalized_args = raw_args.strip()
+            elif raw_args is None:
+                normalized_args = "{}"
+            else:
+                normalized_args = json.dumps(
+                    raw_args, sort_keys=True, ensure_ascii=False, default=str
+                )
+            parts.append(f"{name}:{normalized_args}")
+        return "|".join(sorted(parts))
+
+    def _handle_no_progress_break(self) -> None:
+        """检测到连续相同工具调用（无进展）时中断循环并走 partial 退出。"""
+        self.state.preparation_diagnostics["react_no_progress_break"] = True
+        self.response = ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            total_tokens=0,
+            output_tokens=0,
+        )
+        self.decision = RecoveryDecision(
+            action="return_partial",
+            reason="react_no_progress",
         )
 
     def _max_tool_rounds(self) -> int:
@@ -805,25 +923,36 @@ class _TurnRunLoop:
             )
             self._apply_model_round(model_round, replace_totals=(round_idx == 0))
 
-            # 无 tool_calls → 检查 consent gate 然后结束
+            # 无 tool_calls → 先尝试一次性空动作纠偏，再检查 consent gate 然后结束
             if not getattr(self.response, "tool_calls", None):
+                if await self._maybe_nudge_empty_action(
+                    round_idx=round_idx,
+                    round_policy=round_policy,
+                ):
+                    continue
                 # 在纯文本回复后检查 consent gate（可能从恢复场景来）
                 await self._check_consent_gate()
                 return
+
+            # P1-3: 无进展检测——连续两轮发起完全相同的工具调用则中断，
+            # 避免模型卡在重复调用上刷预算（在执行前判断，不产生孤儿调用）。
+            signature = self._tool_calls_signature(self.response)
+            if signature and signature == self.previous_tool_call_signature:
+                self._handle_no_progress_break()
+                return
+            self.previous_tool_call_signature = signature
 
             # 确认门控检查（工具执行前检查）
             if await self._check_consent_gate():
                 return  # 暂停等待用户确认
 
-            # 执行工具批次
+            # 执行工具批次（工具轮次由 execute_tool_batch 内的 delta 计数统一
+            # 注册，不在此处再次显式 register_tool_round，避免预算双计）
             await self._execute_tool_batch_in_loop()
 
             # 工具执行后再次检查确认门控
             if await self._check_consent_gate():
                 return
-
-            # 注册工具轮次
-            self.state.register_tool_round()
 
         # 循环结束但仍有 tool_calls，说明预算耗尽
         budget_exit = self.state.budget_exit_reason() or "tool_round_budget_exceeded"

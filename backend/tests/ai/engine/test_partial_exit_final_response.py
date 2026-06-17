@@ -238,7 +238,15 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
         sync_calls["count"] += 1
         if self.budget is None:
             return
-        if sync_calls["count"] >= 2:
+        # Trigger the elapsed stop-loss once the first tool round has completed.
+        # This keeps the tool evidence available for the cached partial output
+        # while preventing the follow-up synthesis LLM call. Driving this off of
+        # tool_rounds_used (instead of a raw sync_elapsed call counter) keeps the
+        # test decoupled from the exact number of internal budget checks.
+        # 在第一个工具轮完成后触发超时止损：保留工具证据用于缓存式部分输出，
+        # 同时阻止后续总结 LLM 调用。以 tool_rounds_used 驱动而非 sync_elapsed
+        # 调用计数，避免与内部预算检查次数耦合。
+        if self.budget.tool_rounds_used >= 1:
             self.budget.elapsed_ms_used = self.budget.max_elapsed_ms + 1
         else:
             self.budget.elapsed_ms_used = 0
