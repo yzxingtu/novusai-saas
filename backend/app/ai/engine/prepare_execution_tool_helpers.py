@@ -311,10 +311,11 @@ def plan_execution_tools(
         retry_on_contract_breach=False,
         reason="react_autonomous_tool_selection",
     )
-    execution_path = "fast"
+    # Use "normal" path for ReAct autonomous execution - allows more tools and rounds
+    execution_path = "normal"
     execution_budget = BudgetGuard.build_default(
         execution_path,
-        intent_count=0,
+        intent_count=1,  # Treat as single-intent for budget purposes
     )
     return PreparedExecutionToolPlan(
         tools=tools,
