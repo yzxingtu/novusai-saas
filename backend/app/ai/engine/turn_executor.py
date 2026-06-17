@@ -670,6 +670,7 @@ class _TurnRunLoop:
                 if sc_kind == "confirmation_replay":
                     # confirmation_replay 执行完写操作后，进入完整 ReAct 循环
                     # 让 LLM 用全集工具继续后续步骤（如创建后发布）
+                    self._restore_full_tools_for_react()
                     await self._run_react_loop()
                 # time_query 等短路工具结果即最终回复，无需额外处理
             return await self._finalize_result()
@@ -703,6 +704,27 @@ class _TurnRunLoop:
             return True
 
         return False
+
+    def _restore_full_tools_for_react(self) -> None:
+        """confirmation_replay 短路后恢复全集工具和 auto 策略。
+
+        短路阶段只加载了 replay 工具（invoke_internal_operation），
+        进入 ReAct 循环前需要恢复完整工具集（含 list/describe/invoke），
+        否则 LLM 无法发现和调用后续操作（如发布）。
+        """
+        full_tools = getattr(self.prep, "all_tools", None) or []
+        if full_tools:
+            self.tools = list(full_tools)
+            self.active_tools = self.tools
+        # 重置 policy 为 auto 模式，允许 LLM 自主选择工具
+        all_tool_names = [t.name for t in self.tools]
+        self.active_policy = ToolUsePolicy(
+            family=self.active_policy.family if self.active_policy else "internal_ops",
+            mode="auto",
+            allowed_tool_names=all_tool_names,
+            retry_on_contract_breach=True,
+            reason="confirmation_replay_post_react_full_tools",
+        )
 
     def _max_tool_rounds(self) -> int:
         """获取最大工具轮次数。"""
