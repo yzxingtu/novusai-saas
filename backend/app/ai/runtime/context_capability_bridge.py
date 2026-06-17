@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ai.capabilities import CapabilityDescriptionBuilder
-from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
+from app.ai.engine.intent_completion_helpers import is_capability_reporting_query
 from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
@@ -326,7 +326,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
         agent: Any,
         request: Any,
         skill_result: Any | None,
-        intent_plan: list[Any],
         intent_flags: dict[str, bool],
         capability_inputs: ContextCapabilityInputs,
         capability_injection_decision: dict[str, Any],
@@ -343,7 +342,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 request=request,
                 skill_result=skill_result,
                 state=assembler_state,
-                intent_plan=intent_plan,
             )
             self.bundle_projection.apply_to_skill_result(
                 skill_result=skill_result,

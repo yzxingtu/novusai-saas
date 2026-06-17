@@ -33,7 +33,6 @@ from app.ai.context.contributors import MemoryContributor, RAGContributor
 from app.ai.context.decision_helpers import (
     extract_last_user_text,
 )
-from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.context.pruning import TransientPruner
 from app.ai.runtime.contracts import (
     CapabilityBundle,
@@ -165,7 +164,6 @@ class ConversationContextEngine(ContextEngine):
         skill_result: SkillResolveResult | None = None,
     ) -> ContextAssembly:
         self._compaction_snapshot_written_in_assemble = False
-        from app.ai.engine.intent_planner import IntentPlanner
 
         initial_state = await assemble_initial_context_state(
             db=self.db,
@@ -175,15 +173,6 @@ class ConversationContextEngine(ContextEngine):
             prompt_bridge=self.base_engine,
             capability_bridge=self.capability_bridge,
             load_agent_kb_bindings_fn=load_agent_kb_bindings,
-            intent_plan_callable=IntentPlanner.plan_turn,
-            intent_flag_resolver=(
-                lambda intent_plan, active_request: (
-                    ContextPipelineOrchestrator.compute_intent_flags(
-                        intent_plan,
-                        active_request,
-                    ).to_dict()
-                )
-            ),
         )
         messages = list(initial_state.messages or [])
         requested_kb_ids = list(initial_state.kb_selection.requested_kb_ids or [])
@@ -367,15 +356,15 @@ class ConversationContextEngine(ContextEngine):
         memory_contribution = await self.memory_contributor.contribute(
             db=self.db,
             enabled=bool(
-                intent_flags["memory_context_enabled"] and long_term_memory_enabled
+                intent_flags.get("memory_context_enabled") and long_term_memory_enabled
             ),
             user_id=request.user_id,
             tenant_id=request.tenant_id,
             agent_id=agent.id,
             current_user_text=current_user_text,
-            should_run_memory_profile=bool(intent_flags["should_run_memory_profile"]),
+            should_run_memory_profile=bool(intent_flags.get("should_run_memory_profile")),
             should_run_memory_vector_recall=bool(
-                intent_flags["should_run_memory_vector_recall"]
+                intent_flags.get("should_run_memory_vector_recall")
             ),
             should_run_vector_recall_for_text=self._should_run_memory_vector_recall,
             provider_factory=get_long_term_memory_provider,
@@ -431,7 +420,6 @@ class ConversationContextEngine(ContextEngine):
                 estimated_tokens_after_prune=estimated_tokens,
                 context_compacted=context_compacted,
                 memory_recalled=memory_recalled,
-                intent_plan=intent_plan,
                 intent_flags=intent_flags,
                 dynamic_capability_awareness_enabled=(
                     dynamic_capability_awareness_enabled
@@ -489,7 +477,6 @@ class ConversationContextEngine(ContextEngine):
             agent=agent,
             request=request,
             skill_result=skill_result,
-            intent_plan=intent_plan,
             intent_flags=intent_flags,
             capability_inputs=capability_inputs,
             capability_injection_decision=capability_injection_decision,

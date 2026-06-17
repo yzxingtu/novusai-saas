@@ -397,7 +397,6 @@ class TurnRecord:
     selected_skill_names: list[str] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
     fallback_history: list[FallbackRecord] = field(default_factory=list)
-    intent_plan: list[dict[str, Any]] = field(default_factory=list)
     completed_intent_ids: list[str] = field(default_factory=list)
     unfinished_intent_ids: list[str] = field(default_factory=list)
     retry_events: list[dict[str, Any]] = field(default_factory=list)

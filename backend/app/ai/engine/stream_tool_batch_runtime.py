@@ -425,7 +425,8 @@ async def _run_sequential_batch(
                 )
             )
             state.round_has_confirmation = True
-            continue
+            state.round_stopped_early = True
+            break  # Stop executing remaining tools — consent gate pauses the batch
 
         await callbacks.emit_event(
             processor.build_tool_start_event(

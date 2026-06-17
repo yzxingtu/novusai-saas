@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
+from app.ai.engine.intent_completion_helpers import is_capability_reporting_query
 from app.ai.runtime.types import (
     capability_pack_descriptor_is_live,
     tool_is_auto_injected_runtime_builtin,

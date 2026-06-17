@@ -1,4 +1,9 @@
-"""Intent-derived tool policy helpers."""
+"""Intent-derived tool policy helpers.
+
+After intent planner removal (#57), these functions return empty results
+since intent_plan is no longer computed. Retained for API compatibility
+with tool contract breach analysis.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +13,6 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 from .base_helpers import tool_call_name
-from .intent_runtime_accessors import (
-    resolve_intent_plan_view,
-    resolve_requested_intents_from_input_variables,
-)
 
 
 def extract_recent_successful_tool_names(
@@ -37,36 +38,14 @@ def extract_recent_successful_tool_names(
     return names
 
 
-def _push_unique(items: list[str], value: str) -> None:
-    normalized = str(value or "").strip()
-    if normalized and normalized not in items:
-        items.append(normalized)
-
-
 def detect_requested_turn_intents(
     user_text: str,
     *,
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
 ) -> list[str]:
-    normalized = (user_text or "").strip()
-    if not normalized:
-        return []
-
-    planned = resolve_intent_plan_view(input_variables)
-    if not planned:
-        requested = resolve_requested_intents_from_input_variables(input_variables)
-        if requested:
-            requested_intents = [
-                str(intent_name or "").strip() for intent_name in requested
-            ]
-            normalized_requested_intents: list[str] = []
-            for intent_name in requested_intents:
-                _push_unique(normalized_requested_intents, intent_name)
-            return normalized_requested_intents
-        _ = tools, input_variables
-        return []
-    _ = planned
+    """No-op after intent planner removal (#57)."""
+    _ = user_text, tools, input_variables
     return []
 
 
@@ -76,6 +55,7 @@ def collect_completed_turn_intents(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
 ) -> set[str]:
+    """No-op after intent planner removal (#57)."""
     _ = messages, tools, input_variables
     return set()
 
@@ -83,4 +63,5 @@ def collect_completed_turn_intents(
 __all__ = [
     "collect_completed_turn_intents",
     "detect_requested_turn_intents",
+    "extract_recent_successful_tool_names",
 ]

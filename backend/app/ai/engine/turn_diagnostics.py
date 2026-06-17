@@ -100,6 +100,8 @@ class TurnDiagnostics:
             return "bounded_multi_intent"
         if (execution_path or "") == "deep":
             return "complex_multi_intent"
+        if (execution_path or "") == "react":
+            return "react_autonomous"
         return "default_path"
 
     @staticmethod

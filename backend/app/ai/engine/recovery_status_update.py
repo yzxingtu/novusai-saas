@@ -12,10 +12,10 @@ from .recovery_tool_result_helpers import (
     intent_result_from_tool_results,
     successful_tool_names,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     intent_completion_matches as resolve_intent_completion_matches,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     intent_completion_signals as resolve_intent_completion_signals,
 )
 from .types import IntentPlan

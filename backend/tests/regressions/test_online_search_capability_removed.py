@@ -1,7 +1,7 @@
 """Test type: behavioral
 Regression for: 05-05-remove-online-search-capability
 Scope: resolver output, deterministic intent planning, and provider payload surfaces.
-Real dependencies: resolve_for_agent, SkillResolveResult sanitization, IntentPlanner,
+Real dependencies: resolve_for_agent, SkillResolveResult sanitization,
 AIProviderService config normalization, and OpenAI-compatible payload builders.
 Mocked dependencies: SQLAlchemy execute stub and local adapter transport only; no
 LLM/tool executor mocks.
@@ -18,7 +18,6 @@ from app.ai.adapters.openai_compatible.request_payload_builders import (
     build_chat_completions_request,
     build_responses_request,
 )
-from app.ai.engine.intent_planner import IntentPlanner
 from app.ai.skills.resolver import resolve_for_agent
 from app.ai.types import ChatMessage
 from app.schemas.ai.invalid_ai_runtime_input import (
@@ -114,26 +113,6 @@ async def test_current_information_prompts_do_not_expose_online_search_tools() -
     assert resolved_tool_names.isdisjoint(REMOVED_ONLINE_SEARCH_NAMES)
     assert set(resolved.selected_tool_names).isdisjoint(REMOVED_ONLINE_SEARCH_NAMES)
     assert set(resolved.selected_skill_names).isdisjoint(REMOVED_ONLINE_SEARCH_NAMES)
-
-    for prompt in (
-        "查一下今日AI 新闻",
-        "查一下大模型排行榜 2026 水平排行！",
-        "search today's AI news",
-    ):
-        plans = IntentPlanner.plan_turn(
-            messages=[ChatMessage(role="user", content=prompt)],
-            tools=resolved.tools,
-            input_variables={},
-            continuation_context=None,
-        )
-
-        assert [plan.kind for plan in plans] == ["direct_reply"]
-        assert [plan.family for plan in plans] == ["none"]
-        assert plans[0].requires_tools is False
-        plan_tool_names = set(plans[0].allowed_tool_names)
-        plan_tool_names.update(plans[0].preferred_tool_names)
-        plan_tool_names.update(plans[0].completion_signals)
-        assert plan_tool_names.isdisjoint(REMOVED_ONLINE_SEARCH_NAMES)
 
 
 def test_provider_config_surfaces_strip_online_search_settings() -> None:

@@ -10,9 +10,6 @@ from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
-from .intent_plan_accessors import (
-    attach_intent_plan_to_input_variables as _attach_intent_plan_to_input_variables_impl,
-)
 from .system_prompt_helpers import (
     build_capability_reporting_hint as _build_capability_reporting_hint_impl,
 )
@@ -29,16 +26,7 @@ from .system_prompt_helpers import (
     build_time_tools_hint as _build_time_tools_hint_impl,
 )
 from .system_prompt_helpers import (
-    deserialize_intent_plan as _deserialize_intent_plan_impl,
-)
-from .system_prompt_helpers import (
     inject_runtime_summary as _inject_runtime_summary_impl,
-)
-from .system_prompt_helpers import (
-    intent_completion_signals as _intent_completion_signals_impl,
-)
-from .system_prompt_helpers import (
-    intent_plan_gating_flags as _intent_plan_gating_flags_impl,
 )
 from .system_prompt_helpers import (
     is_capability_reporting_query as _is_capability_reporting_query_impl,
@@ -72,10 +60,7 @@ class BasePromptSystemSupportMixin:
             render_contract=render_prompt_contract,
         )
 
-    _deserialize_intent_plan = staticmethod(_deserialize_intent_plan_impl)
-    _intent_plan_gating_flags = staticmethod(_intent_plan_gating_flags_impl)
     _is_capability_reporting_query = staticmethod(_is_capability_reporting_query_impl)
-    _intent_completion_signals = staticmethod(_intent_completion_signals_impl)
     _build_time_tools_hint = staticmethod(_build_time_tools_hint_impl)
     _build_capability_reporting_hint = staticmethod(
         _build_capability_reporting_hint_impl
@@ -85,9 +70,13 @@ class BasePromptSystemSupportMixin:
     _build_ordered_capability_hint = staticmethod(
         _build_ordered_capability_hint_default_impl
     )
-    _attach_intent_plan_to_input_variables = staticmethod(
-        _attach_intent_plan_to_input_variables_impl
-    )
+
+    @staticmethod
+    def _attach_intent_plan_to_input_variables(
+        input_variables: dict[str, Any] | None,
+        intent_plan: list[Any] | None,
+    ) -> None:
+        """No-op: intent planner removed (#57)."""
 
 
 __all__ = ["BasePromptSystemSupportMixin"]

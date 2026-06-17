@@ -42,6 +42,25 @@ class BudgetGuard:
         )
 
     @staticmethod
+    def build_for_react() -> ExecutionBudget:
+        """Budget for ReAct autonomous tool selection.
+
+        Key difference: max_candidate_tools=0 means no limit on candidate tools,
+        since the LLM autonomously selects tools via function calling.
+        Other limits (rounds, time) are kept to prevent infinite loops.
+        """
+        return ExecutionBudget(
+            max_prompt_tokens=8000,
+            max_completion_tokens=4000,
+            max_tool_rounds=8,
+            max_elapsed_ms=60000,
+            max_retry_per_intent=1,
+            max_candidate_tools=0,  # 0 = no limit
+            max_tool_result_bytes=40000,
+            finalization_grace_ms=15000,
+        )
+
+    @staticmethod
     def relax_for_meta_tool_chain(
         budget: ExecutionBudget | None,
     ) -> ExecutionBudget | None:

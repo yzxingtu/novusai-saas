@@ -29,8 +29,6 @@ KbBindingLoader = Callable[
     [Any, int, int | None],
     Awaitable[tuple[list[int] | None, dict[int, float]]],
 ]
-IntentPlanCallable = Callable[..., list[Any]]
-IntentFlagResolver = Callable[[list[Any], Any | None], dict[str, bool]]
 
 
 @dataclass(frozen=True)
@@ -127,9 +125,15 @@ async def assemble_initial_context_state(
     prompt_bridge: PromptBridge,
     capability_bridge: ContextCapabilityBridge,
     load_agent_kb_bindings_fn: KbBindingLoader,
-    intent_plan_callable: IntentPlanCallable,
-    intent_flag_resolver: IntentFlagResolver,
+    intent_plan_callable: Any | None = None,
+    intent_flag_resolver: Any | None = None,
 ) -> InitialContextAssemblyResult:
+    """
+    Assemble initial context state.
+
+    intent_plan_callable and intent_flag_resolver are deprecated and ignored;
+    retained only for backwards-compatible call signatures.
+    """
     messages = build_system_and_request_messages(
         prompt_bridge=prompt_bridge,
         agent=agent,
@@ -162,14 +166,9 @@ async def assemble_initial_context_state(
         capability_inputs=provisional_capability_inputs,
     )
     provisional_continuation_context = None
-    intent_plan = intent_plan_callable(
-        messages=messages,
-        tools=list(provisional_bundle.tools),
-        input_variables=getattr(request, "input_variables", None),
-        continuation_context=provisional_continuation_context,
-        capability_bundle=provisional_bundle,
-    )
-    intent_flags = intent_flag_resolver(intent_plan, request)
+    # Intent planner removed (#57): ReAct loop handles tool selection.
+    intent_plan: list[Any] = []
+    intent_flags: dict[str, bool] = {}
     if skill_result is not None:
         apply_turn_skill_activation(
             skill_result=skill_result,
@@ -182,15 +181,6 @@ async def assemble_initial_context_state(
             skill_result=skill_result,
             capability_inputs=provisional_capability_inputs,
         )
-        provisional_continuation_context = None
-        intent_plan = intent_plan_callable(
-            messages=messages,
-            tools=list(provisional_bundle.tools),
-            input_variables=getattr(request, "input_variables", None),
-            continuation_context=provisional_continuation_context,
-            capability_bundle=provisional_bundle,
-        )
-        intent_flags = intent_flag_resolver(intent_plan, request)
     return InitialContextAssemblyResult(
         messages=messages,
         kb_selection=kb_selection,
@@ -198,8 +188,8 @@ async def assemble_initial_context_state(
         provisional_capability_inputs=provisional_capability_inputs,
         provisional_bundle=provisional_bundle,
         provisional_continuation_context=provisional_continuation_context,
-        intent_plan=list(intent_plan or []),
-        intent_flags=dict(intent_flags or {}),
+        intent_plan=intent_plan,
+        intent_flags=intent_flags,
         capability_injection_decision=build_capability_injection_decision(intent_flags),
     )
 

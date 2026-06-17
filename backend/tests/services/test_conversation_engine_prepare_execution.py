@@ -18,7 +18,7 @@ from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.conversation_sync_io_adapter import _SyncIOAdapter
 from app.ai.engine.stream_runtime_contract import build_stream_runtime_contract
-from app.ai.engine.types import ExecutionRequest, IntentPlan, ToolUsePolicy
+from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
 from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
 from app.ai.runtime.contracts import ContextCapabilityAwareness
 from app.ai.skills.resolver import SkillResolveResult
@@ -92,30 +92,6 @@ def _build_invalid_runtime_skill_result() -> SkillResolveResult:
             ToolDefinition(name="legacy_page_write", description="Retired page write"),
         ]
     )
-
-
-def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
-    family_by_kind = {
-        "weather_query": "weather",
-        "time_query": "time_ops",
-    }
-    return [
-        IntentPlan(
-            intent_id=f"intent-{index}",
-            kind=kind,
-            family=(
-                "memory"
-                if kind.startswith("memory_")
-                else family_by_kind.get(kind, "none")
-            ),
-            order=index,
-            user_visible_label=kind,
-            source_text="test intent",
-            shortcircuit=kind.startswith("memory_"),
-            metadata={},
-        )
-        for index, kind in enumerate(kinds, start=1)
-    ]
 
 
 @pytest.fixture(autouse=True)
@@ -215,7 +191,7 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
         )
 
     assert prep.continuation_context is None
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.intent_plan == []
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.diagnostics.get("continuation_source") is None
@@ -813,10 +789,6 @@ async def test_prepare_execution_exposes_memory_recall_context_tool_when_enabled
             "app.ai.rag_injector.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
         ),
-        patch(
-            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=_build_intent_plan("direct_reply"),
-        ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
             "app.ai.context.engine.get_long_term_memory_provider",
@@ -873,10 +845,6 @@ async def test_prepare_execution_leaves_profile_snapshot_to_memory_tool() -> Non
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
-        ),
-        patch(
-            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=_build_intent_plan("direct_reply"),
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
@@ -1181,30 +1149,12 @@ async def test_prepare_execution_exposes_plugin_weather_tools_by_metadata_only()
             skill_result=_build_structured_skill_result(),
         )
 
-    assert prep.execution_path == "normal"
-    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
-    assert [intent.family for intent in prep.intent_plan] == ["weather"]
-    assert prep.intent_plan[0].requires_tools is True
-    assert prep.intent_plan[0].shortcircuit is False
-    assert [tool.name for tool in prep.tools] == [
-        "get_current_weather",
-        "get_weather_forecast",
-    ]
-    assert prep.intent_plan[0].allowed_tool_names == [
-        "get_current_weather",
-        "get_weather_forecast",
-    ]
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="weather",
-        mode="required",
-        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
-        retry_on_contract_breach=True,
-        reason="intent:weather_query",
-    )
-    assert prep.execution_budget is not None
-    assert prep.execution_budget.max_tool_rounds == 3
+    assert prep.execution_path == "fast"
+    assert prep.intent_plan == []
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.diagnostics["capability_injection_decision"] == {
-        "all_shortcircuit": False,
+        "all_shortcircuit": True,
         "skills_injected": True,
         "kb_injected": False,
         "memory_injected": False,
@@ -1238,17 +1188,9 @@ async def test_prepare_execution_page_summary_turn_uses_no_page_tools() -> None:
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.intent_plan == []
     assert prep.tools == []
-    assert prep.intent_plan[0].allowed_tool_names == []
     assert prep.tool_use_policy == ToolUsePolicy()
-    assert prep.diagnostics["capability_injection_decision"] == {
-        "all_shortcircuit": True,
-        "skills_injected": False,
-        "kb_injected": False,
-        "memory_injected": False,
-        "bypass_reason": "all_shortcircuit",
-    }
 
 
 @pytest.mark.asyncio
@@ -1279,7 +1221,7 @@ async def test_prepare_execution_record_search_with_weather_keyword_does_not_for
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.intent_plan == []
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.execution_budget is not None
@@ -1373,7 +1315,7 @@ async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() ->
             skill_result=_build_structured_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.intent_plan == []
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
 
@@ -1403,6 +1345,6 @@ async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> No
             skill_result=_build_structured_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.intent_plan == []
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
