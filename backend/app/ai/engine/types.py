@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from app.ai.routing.router import RouteResult
 
 
-ExecutionPath = Literal["fast", "normal", "deep"]
+ExecutionPath = Literal["fast", "normal", "deep", "react"]
 IntentStatus = Literal[
     "pending",
     "running",

@@ -312,7 +312,7 @@ def plan_execution_tools(
         reason="react_autonomous_tool_selection",
     )
     # ReAct autonomous path: no candidate tool limit, LLM chooses freely
-    execution_path = "normal"
+    execution_path = "react"
     execution_budget = BudgetGuard.build_for_react()
     return PreparedExecutionToolPlan(
         tools=tools,
