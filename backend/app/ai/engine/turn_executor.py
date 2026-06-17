@@ -664,13 +664,14 @@ class _TurnRunLoop:
             if getattr(self.response, "tool_calls", None):
                 await self._execute_tool_batch_in_loop()
                 self.state.register_tool_round()
-                # 仅 confirmation_replay 写操作执行后需要 LLM 总结
-                # time_query 等短路工具结果即最终回复，无需 LLM
                 sc_kind = self.state.preparation_diagnostics.get(
                     "deterministic_shortcircuit_intent_kind"
                 )
                 if sc_kind == "confirmation_replay":
-                    await self._run_shortcircuit_summary()
+                    # confirmation_replay 执行完写操作后，进入完整 ReAct 循环
+                    # 让 LLM 用全集工具继续后续步骤（如创建后发布）
+                    await self._run_react_loop()
+                # time_query 等短路工具结果即最终回复，无需额外处理
             return await self._finalize_result()
 
         await self._run_react_loop()
