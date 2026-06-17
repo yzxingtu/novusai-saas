@@ -719,6 +719,8 @@
     "approvalTarget": "Target",
     "approvalDetail": "Detail",
     "approvalTechnicalDetails": "Technical details",
+    "expandDetails": "Show details",
+    "collapseDetails": "Hide details",
     "args": "Input:",
     "noAgentAvailable": "No AI agents available. Please contact admin to configure.",
     "routeFailedHint": "Please select an agent and try again, or send again later.",

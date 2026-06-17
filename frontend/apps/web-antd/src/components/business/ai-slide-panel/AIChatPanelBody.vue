@@ -9,8 +9,11 @@ import type {
   ChatMessage,
 } from '#/types/ai-chat';
 
-import { ref, watch } from 'vue';
+import type { KernelPendingActionState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
+import { computed, ref, watch } from 'vue';
+
+import ActionConsentGate from '#/components/business/ai-chat-kernel/ActionConsentGate.vue';
 import AIChatComposer from './AIChatComposer.vue';
 import AIChatConversationFooter from './AIChatConversationFooter.vue';
 import AIChatHistoryPane from './AIChatHistoryPane.vue';
@@ -203,6 +206,63 @@ const emit = defineEmits<{
 
 const panelBodyRoot = ref<HTMLDivElement | null>(null);
 
+/** Find the first unresolved pending action across messages */
+const activePendingAction = computed<{ action: KernelPendingActionState; index: number } | null>(() => {
+  for (let i = props.chatMessages.length - 1; i >= 0; i--) {
+    const msg = props.chatMessages[i];
+    if (!msg) continue;
+    if (msg.pendingConfirmation && !msg.pendingConfirmation.resolved) {
+      return {
+        action: {
+          action: msg.pendingConfirmation.action,
+          approvalPresentation: msg.pendingConfirmation.approvalPresentation,
+          kind: 'confirmation',
+          preview: msg.pendingConfirmation.preview,
+          resolved: false,
+          table: msg.pendingConfirmation.table,
+          toolName: msg.pendingConfirmation.toolName,
+        },
+        index: i,
+      };
+    }
+    if (msg.pendingConsent && !msg.pendingConsent.resolved) {
+      return {
+        action: {
+          arguments: msg.pendingConsent.arguments,
+          autoApproved: msg.pendingConsent.autoApproved,
+          kind: 'consent',
+          rejected: msg.pendingConsent.rejected,
+          resolved: false,
+          skillName: msg.pendingConsent.skillName,
+          toolName: msg.pendingConsent.toolName,
+        },
+        index: i,
+      };
+    }
+  }
+  return null;
+});
+
+function handleFloatingApprove() {
+  const pending = activePendingAction.value;
+  if (!pending) return;
+  if (pending.action.kind === 'confirmation') {
+    emit('confirm', pending.index);
+  } else {
+    emit('consentConfirm', pending.index);
+  }
+}
+
+function handleFloatingReject() {
+  const pending = activePendingAction.value;
+  if (!pending) return;
+  if (pending.action.kind === 'confirmation') {
+    emit('reject', pending.index);
+  } else {
+    emit('consentReject', pending.index);
+  }
+}
+
 function emitComposerKeydown(event: KeyboardEvent) {
   if (props.welcomeLoading) {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -296,6 +356,18 @@ watch(
         :streaming="streaming"
         :export-menu-items="exportMenuItems"
       />
+
+      <!-- Floating confirmation/consent card above input -->
+      <Transition name="ai-consent-slide">
+        <ActionConsentGate
+          v-if="activePendingAction"
+          :action="activePendingAction.action"
+          :compact="true"
+          :floating="true"
+          @approve="handleFloatingApprove"
+          @reject="handleFloatingReject"
+        />
+      </Transition>
 
       <AIChatComposer
         :model-value="inputMessage"
@@ -407,5 +479,16 @@ watch(
 .ai-chat-history-overlay-leave-to .ai-chat-history-overlay-pane {
   opacity: 0;
   transform: translateY(8px) scale(0.985);
+}
+
+.ai-consent-slide-enter-active,
+.ai-consent-slide-leave-active {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-consent-slide-enter-from,
+.ai-consent-slide-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 </style>

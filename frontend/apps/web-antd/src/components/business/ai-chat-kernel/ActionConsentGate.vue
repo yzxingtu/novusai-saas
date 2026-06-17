@@ -7,7 +7,7 @@ import type {
   ToolApprovalPresentationTarget,
 } from '#/types/ai-chat';
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -17,12 +17,16 @@ const props = withDefaults(
   defineProps<{
     action?: KernelPendingActionState | null;
     compact?: boolean;
+    floating?: boolean;
   }>(),
   {
     action: null,
     compact: false,
+    floating: false,
   },
 );
+
+const floatingDetailsExpanded = ref(false);
 
 const emit = defineEmits<{
   approve: [];
@@ -318,11 +322,151 @@ const resolvedLabel = computed(() => {
   }
   return $t('common.globalAiChat.consentApproved');
 });
+
+const hasExpandableContent = computed(() => {
+  return (
+    presentationMetaItems.value.length > 0 ||
+    presentationDetails.value.length > 0 ||
+    fallbackPreviewEntries.value.length > 0 ||
+    !!technicalPayload.value ||
+    !!consentArguments.value
+  );
+});
 </script>
 
 <template>
+  <!-- Floating mode: compact card anchored to bottom input area -->
   <div
-    v-if="action"
+    v-if="action && floating"
+    data-testid="chat-message-kernel-consent-floating"
+    class="ai-consent-floating overflow-hidden rounded-xl border border-warning/40 bg-background shadow-lg"
+  >
+    <!-- Compact header: icon + operation title -->
+    <div class="flex min-w-0 items-center gap-2 px-3 py-2">
+      <IconifyIcon
+        :icon="
+          action.kind === 'confirmation'
+            ? 'lucide:shield-question'
+            : 'lucide:shield-alert'
+        "
+        class="size-3.5 shrink-0 text-warning"
+      />
+      <span class="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+        {{ actionLabel || $t(titleKey) }}
+      </span>
+      <button
+        v-if="hasExpandableContent"
+        class="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        @click="floatingDetailsExpanded = !floatingDetailsExpanded"
+      >
+        <IconifyIcon
+          :icon="floatingDetailsExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+          class="size-3"
+        />
+        {{ floatingDetailsExpanded ? $t('common.globalAiChat.collapseDetails') : $t('common.globalAiChat.expandDetails') }}
+      </button>
+    </div>
+
+    <!-- Expandable details section -->
+    <Transition name="ai-consent-details">
+      <div
+        v-if="floatingDetailsExpanded"
+        class="max-h-48 overflow-y-auto border-t border-border/20 px-3 py-2"
+      >
+        <div class="space-y-2">
+          <div
+            v-if="presentationMetaItems.length > 0"
+            data-testid="approval-presentation-meta"
+            class="flex min-w-0 flex-wrap gap-1"
+          >
+            <span
+              v-for="item in presentationMetaItems"
+              :key="item.key"
+              class="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px]"
+              :class="[
+                item.key === 'risk'
+                  ? riskToneClass(item.tone)
+                  : 'border-border/40 bg-accent/40 text-muted-foreground',
+              ]"
+            >
+              <span class="shrink-0 text-muted-foreground/70">{{ item.label }}</span>
+              <span class="min-w-0 break-words font-medium text-foreground/80">{{ item.value }}</span>
+            </span>
+          </div>
+
+          <dl
+            v-if="presentationDetails.length > 0"
+            data-testid="approval-presentation-details"
+            class="min-w-0 divide-y divide-border/30 overflow-hidden rounded-md border border-border/40 bg-accent/30 text-[10px]"
+          >
+            <div
+              v-for="item in presentationDetails"
+              :key="item.key"
+              class="grid min-w-0 grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] gap-2 px-2 py-1"
+            >
+              <dt class="min-w-0 break-words font-medium text-foreground/70">{{ item.label }}</dt>
+              <dd class="min-w-0 break-words text-muted-foreground">{{ item.value }}</dd>
+            </div>
+          </dl>
+
+          <div
+            v-if="fallbackPreviewEntries.length > 0"
+            data-testid="approval-fallback-preview"
+            class="max-h-24 overflow-y-auto rounded-md bg-accent/50 px-2 py-1.5 text-[10px]"
+          >
+            <table class="w-full table-fixed text-left">
+              <tr
+                v-for="[key, value] in fallbackPreviewEntries"
+                :key="String(key)"
+                class="border-b border-border/30 last:border-0"
+              >
+                <td class="w-[38%] break-words py-0.5 pr-3 align-top font-medium text-foreground/70">
+                  {{ key }}
+                </td>
+                <td class="break-words py-0.5 text-muted-foreground">
+                  {{ typeof value === 'object' ? JSON.stringify(value) : value }}
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <details
+            v-if="technicalPayload"
+            data-testid="approval-technical-details"
+            class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
+          >
+            <summary class="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-muted-foreground">
+              <IconifyIcon icon="lucide:code" class="size-3" />
+              {{ $t('common.globalAiChat.approvalTechnicalDetails') }}
+            </summary>
+            <pre class="mt-1 max-h-20 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(technicalPayload, null, 2) }}</pre>
+          </details>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Action buttons -->
+    <div class="flex items-center gap-2 border-t border-border/20 px-3 py-2">
+      <button
+        class="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        @click="emit('approve')"
+      >
+        <IconifyIcon icon="lucide:check" class="size-3" />
+        {{ $t(approveKey) }}
+      </button>
+      <button
+        class="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border/60 px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+        @click="emit('reject')"
+      >
+        <IconifyIcon icon="lucide:x" class="size-3" />
+        {{ $t(rejectKey) }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Inline mode: original card (for resolved state or non-floating) -->
+  <div
+    v-else-if="action"
     data-testid="chat-message-kernel-consent"
     class="overflow-hidden rounded-lg border"
     :class="[
@@ -402,12 +546,8 @@ const resolvedLabel = computed(() => {
               : 'border-border/40 bg-accent/40 text-muted-foreground',
           ]"
         >
-          <span class="shrink-0 text-muted-foreground/70">
-            {{ item.label }}
-          </span>
-          <span class="min-w-0 break-words font-medium text-foreground/80">
-            {{ item.value }}
-          </span>
+          <span class="shrink-0 text-muted-foreground/70">{{ item.label }}</span>
+          <span class="min-w-0 break-words font-medium text-foreground/80">{{ item.value }}</span>
         </span>
       </div>
 
@@ -436,12 +576,8 @@ const resolvedLabel = computed(() => {
           :key="item.key"
           class="grid min-w-0 grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] gap-2 px-2 py-1.5"
         >
-          <dt class="min-w-0 break-words font-medium text-foreground/70">
-            {{ item.label }}
-          </dt>
-          <dd class="min-w-0 break-words text-muted-foreground">
-            {{ item.value }}
-          </dd>
+          <dt class="min-w-0 break-words font-medium text-foreground/70">{{ item.label }}</dt>
+          <dd class="min-w-0 break-words text-muted-foreground">{{ item.value }}</dd>
         </div>
       </dl>
 
@@ -461,9 +597,7 @@ const resolvedLabel = computed(() => {
             :key="String(key)"
             class="border-b border-border/30 last:border-0"
           >
-            <td
-              class="w-[38%] break-words py-0.5 pr-3 align-top font-medium text-foreground/70"
-            >
+            <td class="w-[38%] break-words py-0.5 pr-3 align-top font-medium text-foreground/70">
               {{ key }}
             </td>
             <td class="break-words py-0.5 text-muted-foreground">
@@ -485,10 +619,7 @@ const resolvedLabel = computed(() => {
           <IconifyIcon icon="lucide:code" class="size-3" />
           {{ $t('common.globalAiChat.approvalTechnicalDetails') }}
         </summary>
-        <pre
-          class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground"
-          >{{ JSON.stringify(technicalPayload, null, 2) }}</pre
-        >
+        <pre class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(technicalPayload, null, 2) }}</pre>
       </details>
 
       <details
@@ -502,10 +633,7 @@ const resolvedLabel = computed(() => {
           <IconifyIcon icon="lucide:code" class="size-3" />
           {{ $t('common.globalAiChat.consentShowArgs') }}
         </summary>
-        <pre
-          class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground"
-          >{{ JSON.stringify(consentArguments, null, 2) }}</pre
-        >
+        <pre class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(consentArguments, null, 2) }}</pre>
       </details>
 
       <div v-if="!action.resolved" class="flex items-center gap-2">
@@ -527,3 +655,23 @@ const resolvedLabel = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.ai-consent-details-enter-active,
+.ai-consent-details-leave-active {
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.ai-consent-details-enter-from,
+.ai-consent-details-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.ai-consent-details-enter-to,
+.ai-consent-details-leave-from {
+  opacity: 1;
+  max-height: 200px;
+}
+</style>
