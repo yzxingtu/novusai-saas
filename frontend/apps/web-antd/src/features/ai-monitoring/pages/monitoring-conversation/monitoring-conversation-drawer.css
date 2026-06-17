@@ -152,7 +152,6 @@
 
 .monitoring-diagnostics-summary__item,
 .monitoring-diagnostics-panel,
-.monitoring-diagnostics-intent,
 .monitoring-diagnostics-event {
   padding: 12px;
   background: hsl(var(--background) / 88%);
@@ -167,11 +166,6 @@
   align-items: center;
 }
 
-.monitoring-diagnostics-line {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 
 .monitoring-tag-list {
   display: flex;

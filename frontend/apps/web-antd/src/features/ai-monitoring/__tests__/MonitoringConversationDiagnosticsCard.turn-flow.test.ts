@@ -30,15 +30,6 @@ describe('monitoringConversationDiagnosticsCard turn-flow parity', () => {
             candidate_tool_names: ['query_records', 'web_search'],
             execution_path: 'stream',
             failure_kind: 'provider_timeout',
-            intent_plan: [
-              {
-                allowed_tools: ['query_records', 'fetch_url'],
-                intent_id: 'intent-1',
-                kind: 'direct_reply',
-                selected_tools: ['query_records', 'web_search'],
-                status: 'completed',
-              },
-            ],
             partial_exit_reason: 'stale_partial_exit_reason',
             provider_events: [
               { kind: 'connection_recovered' },

@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type {
   MonitoringConversationDetail,
-  MonitoringIntentPlanItem,
   MonitoringProviderEvent,
   MonitoringRetryEvent,
   MonitoringRuntimeDiagnostics,
@@ -142,12 +141,6 @@ const runtimeDiagnostics = computed<MonitoringRuntimeDiagnostics | null>(() => {
   return hasEntries(merged) ? merged : null;
 });
 
-const intentPlanItems = computed<MonitoringIntentPlanItem[]>(() =>
-  asRecordArray<MonitoringIntentPlanItem>(
-    runtimeDiagnostics.value?.intent_plan,
-  ),
-);
-
 const providerEvents = computed<MonitoringProviderEvent[]>(() =>
   asRecordArray<MonitoringProviderEvent>(
     runtimeDiagnostics.value?.provider_events,
@@ -161,15 +154,6 @@ const retryEvents = computed<MonitoringRetryEvent[]>(() =>
 const candidateToolNames = computed(() =>
   visibleDiagnosticTokens(runtimeDiagnostics.value?.candidate_tool_names),
 );
-
-function hasVisibleIntentToolDiagnostics(intent: MonitoringIntentPlanItem) {
-  return (
-    visibleDiagnosticTokens(intent.required_capabilities).length > 0 ||
-    visibleDiagnosticTokens(intent.allowed_tools).length > 0 ||
-    visibleDiagnosticTokens(intent.selected_tools).length > 0 ||
-    visibleDiagnosticTokens(intent.completed_tools).length > 0
-  );
-}
 
 const diagnosticsSummary = computed(() => {
   const diagnostics = runtimeDiagnostics.value;
@@ -276,148 +260,7 @@ const diagnosticsDetailRows = computed(() => {
         </div>
       </div>
 
-      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <section class="monitoring-diagnostics-panel">
-          <div class="monitoring-card__subtitle">
-            {{ $t(`${i18nPrefix}.intentPlan`) }}
-          </div>
-          <Empty
-            v-if="intentPlanItems.length === 0"
-            :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
-          />
-          <div v-else class="mt-3 space-y-3">
-            <article
-              v-for="(intent, index) in intentPlanItems"
-              :key="intent.id || intent.intent_id || `${index}`"
-              class="monitoring-diagnostics-intent"
-            >
-              <div class="monitoring-diagnostics-intent__head">
-                <Tag
-                  v-if="formatVisibleTagValue(intent.kind, intent.label)"
-                  color="blue"
-                >
-                  {{ formatVisibleTagValue(intent.kind, intent.label) }}
-                </Tag>
-                <Tag
-                  v-if="intent.status"
-                  :color="
-                    intent.status === 'completed'
-                      ? 'success'
-                      : intent.status === 'failed'
-                        ? 'error'
-                        : 'processing'
-                  "
-                >
-                  {{ formatTagValue(intent.status) }}
-                </Tag>
-                <span
-                  v-if="intent.intent_id"
-                  class="text-xs text-muted-foreground"
-                >
-                  {{ intent.intent_id }}
-                </span>
-              </div>
-              <div
-                v-if="hasVisibleIntentToolDiagnostics(intent)"
-                class="mt-3 space-y-2"
-              >
-                <div
-                  v-if="
-                    visibleDiagnosticTokens(intent.required_capabilities)
-                      .length > 0
-                  "
-                  class="monitoring-diagnostics-line"
-                >
-                  <span class="monitoring-overview-label">
-                    {{ $t(`${i18nPrefix}.requiredCapabilities`) }}
-                  </span>
-                  <div class="monitoring-tag-list">
-                    <Tag
-                      v-for="capability in visibleDiagnosticTokens(
-                        intent.required_capabilities,
-                      )"
-                      :key="capability"
-                      color="cyan"
-                    >
-                      {{ capability }}
-                    </Tag>
-                  </div>
-                </div>
-                <div
-                  v-if="
-                    visibleDiagnosticTokens(intent.allowed_tools).length > 0
-                  "
-                  class="monitoring-diagnostics-line"
-                >
-                  <span class="monitoring-overview-label">
-                    {{ $t(`${i18nPrefix}.allowedTools`) }}
-                  </span>
-                  <div class="monitoring-tag-list">
-                    <Tag
-                      v-for="tool in visibleDiagnosticTokens(
-                        intent.allowed_tools,
-                      )"
-                      :key="tool"
-                      color="geekblue"
-                    >
-                      {{ tool }}
-                    </Tag>
-                  </div>
-                </div>
-                <div
-                  v-if="
-                    visibleDiagnosticTokens(intent.selected_tools).length > 0
-                  "
-                  class="monitoring-diagnostics-line"
-                >
-                  <span class="monitoring-overview-label">
-                    {{ $t(`${i18nPrefix}.selectedTools`) }}
-                  </span>
-                  <div class="monitoring-tag-list">
-                    <Tag
-                      v-for="tool in visibleDiagnosticTokens(
-                        intent.selected_tools,
-                      )"
-                      :key="tool"
-                      color="processing"
-                    >
-                      {{ tool }}
-                    </Tag>
-                  </div>
-                </div>
-                <div
-                  v-if="
-                    visibleDiagnosticTokens(intent.completed_tools).length > 0
-                  "
-                  class="monitoring-diagnostics-line"
-                >
-                  <span class="monitoring-overview-label">
-                    {{ $t(`${i18nPrefix}.completedTools`) }}
-                  </span>
-                  <div class="monitoring-tag-list">
-                    <Tag
-                      v-for="tool in visibleDiagnosticTokens(
-                        intent.completed_tools,
-                      )"
-                      :key="tool"
-                      color="success"
-                    >
-                      {{ tool }}
-                    </Tag>
-                  </div>
-                </div>
-              </div>
-              <div
-                v-if="visibleDiagnosticText(intent.unfinished_reason)"
-                class="mt-3 text-xs text-muted-foreground"
-              >
-                {{ $t(`${i18nPrefix}.unfinishedReason`) }}:
-                {{ visibleDiagnosticText(intent.unfinished_reason) }}
-              </div>
-            </article>
-          </div>
-        </section>
-
+      <div class="mt-4">
         <section class="monitoring-diagnostics-panel">
           <div class="monitoring-card__subtitle">
             {{ $t(`${i18nPrefix}.candidateTools`) }}
