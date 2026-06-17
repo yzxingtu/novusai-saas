@@ -93,26 +93,11 @@ export interface MonitoringConversationMessageMetadata extends Record<
   turnFlow?: MonitoringTurnFlowPayload;
 }
 
-export interface MonitoringIntentPlanItem {
-  id?: null | string;
-  intent_id?: null | string;
-  kind?: null | string;
-  label?: null | string;
-  status?: null | string;
-  required_capabilities?: string[];
-  selected_tools?: string[];
-  allowed_tools?: string[];
-  completed_tools?: string[];
-  unfinished_reason?: null | string;
-  [key: string]: unknown;
-}
-
 export interface MonitoringRetryEvent {
   attempt?: null | number;
   kind?: null | string;
   message?: null | string;
   reason?: null | string;
-  unresolved_intents?: string[];
   [key: string]: unknown;
 }
 
@@ -128,7 +113,6 @@ export interface MonitoringProviderEvent {
 
 export interface MonitoringRuntimeDiagnostics {
   execution_path?: null | string;
-  intent_plan?: MonitoringIntentPlanItem[];
   budget?: null | Record<string, unknown>;
   budget_status?: null | string;
   budget_exit_reason?: null | string;
