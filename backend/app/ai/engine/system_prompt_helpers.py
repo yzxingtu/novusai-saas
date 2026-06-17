@@ -28,16 +28,16 @@ from .system_prompt_capability_hints import (
 from .system_prompt_capability_hints import (
     build_time_tools_hint as build_time_tools_hint,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     deserialize_intent_plan as deserialize_intent_plan,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     intent_completion_signals as intent_completion_signals,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     intent_plan_gating_flags as intent_plan_gating_flags,
 )
-from .system_prompt_intent_helpers import (
+from .intent_completion_helpers import (
     is_capability_reporting_query as is_capability_reporting_query,
 )
 from .system_prompt_rendering import build_system_message as build_system_message

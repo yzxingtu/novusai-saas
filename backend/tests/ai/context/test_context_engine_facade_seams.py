@@ -147,7 +147,6 @@ async def test_context_engine_uses_local_kb_binding_loader_seam() -> None:
             "app.ai.context.engine.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
         ) as kb_loader,
-        patch("app.ai.engine.intent_planner.IntentPlanner.plan_turn", return_value=[]),
     ):
         engine = _build_context_engine()
         engine.rag_contributor.contribute = AsyncMock(

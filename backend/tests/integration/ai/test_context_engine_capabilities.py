@@ -164,10 +164,6 @@ async def _assemble_context(
             "app.services.ai.agent_kb_binding_service.AgentKBBindingService.get_agent_kb_bindings_with_metadata",
             new=AsyncMock(return_value=kb_bindings or []),
         ),
-        patch(
-            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=list(intent_plan or []),
-        ),
     ):
         return await context_engine.assemble(
             _build_agent(),
@@ -281,9 +277,6 @@ async def test_context_engine_leaves_long_term_memory_recall_to_context_tools() 
         if source.active
     }
     assert "long_term_memory" not in active_source_kinds
-    assert assembly.diagnostics["intent_flags"]["long_term_memory_runtime_enabled"] is (
-        True
-    )
 
 
 @pytest.mark.asyncio
@@ -500,7 +493,6 @@ async def test_context_engine_injects_self_report_capabilities_despite_shortcirc
         intent_plan=_build_shortcircuit_intent_plan(),
     )
 
-    assert assembly.diagnostics["intent_plan"][0]["shortcircuit"] is True
     assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
     assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
     assert "产品文档库" in assembly.messages[0].content
@@ -588,8 +580,6 @@ async def test_context_engine_reports_tool_managed_bound_kb_for_generic_turns() 
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert assembly.diagnostics["intent_flags"]["has_bound_kb"] is True
-    assert assembly.diagnostics["intent_flags"]["has_knowledge_intent"] is False
     assert assembly.diagnostics["rag_attempted"] is False
     assert assembly.diagnostics["rag_retrieval_status"] == "skipped_tool_managed"
     assert "[RUNTIME KNOWLEDGE CONTEXT METADATA]" in assembly.messages[0].content

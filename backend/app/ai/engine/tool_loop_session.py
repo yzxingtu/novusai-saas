@@ -12,7 +12,6 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
-from .intent_plan_accessors import resolve_intent_plan_from_input_variables
 from .types import ExecutionBudget, ResearchContinuationContext, ToolUsePolicy
 
 logger = LogManager.get_logger("ai.engine")
@@ -51,12 +50,9 @@ def build_tool_loop_session(
     tools_full = list(tools)
     resolved_all_tools = list(all_tools or tools_full)
     effective_policy = tool_use_policy or request.tool_use_policy or ToolUsePolicy()
-    runtime_intent_plan = resolve_intent_plan_from_input_variables(
-        getattr(request, "input_variables", None)
-    )
+    runtime_intent_plan: list[Any] = []
     ordered_requested_families = ordered_requested_families_from_intents(
-        intents=runtime_intent_plan
-        or list(getattr(request, "intent_plan", None) or []),
+        intents=list(getattr(request, "intent_plan", None) or []),
     )
     return ToolLoopSession(
         current_response=response,

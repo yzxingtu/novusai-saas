@@ -19,7 +19,6 @@ class ContextDiagnosticsInputs:
     estimated_tokens_after_prune: int
     context_compacted: bool
     memory_recalled: bool
-    intent_plan: list[Any] = field(default_factory=list)
     intent_flags: dict[str, bool] = field(default_factory=dict)
     dynamic_capability_awareness_enabled: bool = False
     dynamic_capability_awareness_injected: bool = False
@@ -91,10 +90,6 @@ def build_context_diagnostics(
         "estimated_tokens_after_prune": inputs.estimated_tokens_after_prune,
         "context_compacted": inputs.context_compacted,
         "memory_recalled": inputs.memory_recalled,
-        "intent_plan": [
-            intent.to_dict() if hasattr(intent, "to_dict") else intent
-            for intent in (inputs.intent_plan or [])
-        ],
         "intent_flags": dict(inputs.intent_flags or {}),
         "allow_memory_even_if_shortcircuit": bool(
             (inputs.intent_flags or {}).get("allow_memory_even_if_shortcircuit", False)

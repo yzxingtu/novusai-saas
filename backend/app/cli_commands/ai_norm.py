@@ -218,42 +218,6 @@ def _pick_first_cli_dict_list(*values: object) -> list[dict] | None:
     return None
 
 
-def _normalize_cli_intent_plan(raw_value: object) -> list[dict]:
-    if not isinstance(raw_value, list):
-        return []
-    normalized: list[dict] = []
-    for item in raw_value:
-        payload = _normalize_cli_dict(item)
-        if not payload:
-            continue
-        kind = _normalize_cli_optional_string(payload.get("kind"))
-        family = _normalize_cli_optional_string(payload.get("family"))
-        if is_invalid_runtime_diagnostics_reference(
-            kind
-        ) or is_invalid_runtime_diagnostics_reference(family):
-            continue
-        normalized.append(
-            {
-                "intent_id": _normalize_cli_optional_string(payload.get("intent_id")),
-                "kind": kind,
-                "family": family,
-                "order": int(payload.get("order") or 0) or None,
-                "user_visible_label": _normalize_cli_optional_string(
-                    payload.get("user_visible_label")
-                ),
-                "status": _normalize_cli_optional_string(payload.get("status")),
-                "allowed_tool_names": _normalize_cli_string_list(
-                    payload.get("allowed_tool_names")
-                ),
-                "completed_by_tool_names": _normalize_cli_string_list(
-                    payload.get("completed_by_tool_names")
-                ),
-                "failure_reason": _normalize_cli_optional_string(
-                    payload.get("failure_reason")
-                ),
-            }
-        )
-    return normalized
 
 
 def _normalize_cli_retry_events(raw_value: object) -> list[dict]:
@@ -357,7 +321,6 @@ def _normalize_cli_call_log_row(raw_value: object) -> dict:
     payload["final_output_source"] = _normalize_cli_optional_string(
         payload.get("final_output_source")
     )
-    payload["intent_plan"] = _normalize_cli_intent_plan(payload.get("intent_plan"))
     payload["retry_events"] = _normalize_cli_retry_events(payload.get("retry_events"))
     payload["partial_exit_reason"] = _normalize_cli_optional_string(
         payload.get("partial_exit_reason")
@@ -554,9 +517,6 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
         "capability_injection": capability_injection,
         "tool_filtering": tool_filtering,
         "recovery_chain": recovery_chain,
-        "intent_plan": _normalize_cli_intent_plan(
-            diagnostics.get("intent_plan") or turn_record_diagnostics.get("intent_plan")
-        ),
         "budget": budget,
         "budget_status": _normalize_cli_optional_string(
             budget_projection.get("budget_status")

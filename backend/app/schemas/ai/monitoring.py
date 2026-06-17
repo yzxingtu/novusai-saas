@@ -80,7 +80,6 @@ class MonitoringCallTraceItem(BaseSchema):
     selected_tool_names: list[str] = Field(default_factory=list)
     selected_skill_names: list[str] = Field(default_factory=list)
     execution_path: str | None = None
-    intent_plan: list[dict[str, Any]] = Field(default_factory=list)
     budget: dict[str, Any] | None = None
     budget_status: str | None = None
     budget_exit_reason: str | None = None

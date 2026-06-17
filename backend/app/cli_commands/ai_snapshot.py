@@ -12,7 +12,6 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_context_sources,
     _normalize_cli_dict,
     _normalize_cli_fallback_history,
-    _normalize_cli_intent_plan,
     _normalize_cli_optional_string,
     _normalize_cli_provider_events,
     _normalize_cli_retry_events,
@@ -734,32 +733,6 @@ async def _load_ai_conversation_snapshot(
             or detail_summary_tool_planner.get("execution_path")
             or latest_call_log_diagnostics.get("execution_path")
         )
-        intent_plan = (
-            _normalize_cli_intent_plan(turn_record.get("intent_plan"))
-            or _normalize_cli_intent_plan(assistant_metadata.get("intent_plan"))
-            or _normalize_cli_intent_plan(
-                assistant_context_diagnostics.get("intent_plan")
-            )
-            or _normalize_cli_intent_plan(assistant_last_run_summary.get("intent_plan"))
-            or _normalize_cli_intent_plan(assistant_tool_planner.get("intent_plan"))
-            or _normalize_cli_intent_plan(
-                assistant_context_tool_planner.get("intent_plan")
-            )
-            or _normalize_cli_intent_plan(
-                assistant_summary_tool_planner.get("intent_plan")
-            )
-            or _normalize_cli_intent_plan(detail_context_diagnostics.get("intent_plan"))
-            or _normalize_cli_intent_plan(detail_last_run_summary.get("intent_plan"))
-            or _normalize_cli_intent_plan(
-                detail_context_tool_planner.get("intent_plan")
-            )
-            or _normalize_cli_intent_plan(
-                detail_summary_tool_planner.get("intent_plan")
-            )
-            or _normalize_cli_intent_plan(
-                latest_call_log_diagnostics.get("intent_plan")
-            )
-        )
         budget = (
             _normalize_cli_dict(turn_record.get("budget"))
             or _normalize_cli_dict(assistant_metadata.get("budget"))
@@ -1057,7 +1030,6 @@ async def _load_ai_conversation_snapshot(
                         ),
                         "tool_filtering": row_diagnostics.get("tool_filtering"),
                         "recovery_chain": row_diagnostics.get("recovery_chain"),
-                        "intent_plan": row_diagnostics.get("intent_plan"),
                         "retry_events": row_diagnostics.get("retry_events"),
                         "partial_exit_reason": row_diagnostics.get(
                             "partial_exit_reason"
@@ -1110,7 +1082,6 @@ async def _load_ai_conversation_snapshot(
                 "unfinished_intents": unfinished_intents,
                 "recovered_via_retry": recovered_via_retry,
                 "execution_path": execution_path,
-                "intent_plan": intent_plan,
                 "budget": budget or None,
                 "budget_status": budget_status,
                 "budget_exit_reason": budget_exit_reason,
@@ -1387,16 +1358,6 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         turn_record_recovery.get("recovery_chain"),
         latest_call_log_diagnostics.get("recovery_chain"),
         latest_call_log_recovery.get("recovery_chain"),
-    )
-    diagnostics["intent_plan"] = (
-        _normalize_cli_intent_plan(diagnostics.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_metadata.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_context_diagnostics.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_last_run_summary.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_tool_planner.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_context_tool_planner.get("intent_plan"))
-        or _normalize_cli_intent_plan(assistant_summary_tool_planner.get("intent_plan"))
-        or _normalize_cli_intent_plan(latest_call_log_diagnostics.get("intent_plan"))
     )
     diagnostics["budget"] = (
         _normalize_cli_dict(diagnostics.get("budget"))

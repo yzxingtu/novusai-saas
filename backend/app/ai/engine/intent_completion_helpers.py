@@ -1,10 +1,11 @@
-"""Intent plan parsing and capability query helpers extracted from BaseEngine."""
+"""Intent completion signal helpers and capability query detection.
+
+Retained from system_prompt_intent_helpers.py after intent planner removal.
+"""
 
 from __future__ import annotations
 
 from typing import Any
-
-from app.ai.context.orchestrator import ContextPipelineOrchestrator
 
 from .types import IntentPlan
 
@@ -22,19 +23,6 @@ _CAPABILITY_REPORTING_QUERY_TERMS = (
     "what can you do this turn",
     "what can you do",
 )
-
-
-def _ordered_unique_tool_names(*groups: list[str]) -> list[str]:
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for group in groups:
-        for name in group:
-            normalized = str(name or "").strip()
-            if not normalized or normalized in seen:
-                continue
-            ordered.append(normalized)
-            seen.add(normalized)
-    return ordered
 
 
 def _ordered_matching_tool_names(
@@ -56,8 +44,6 @@ def intent_completion_contract(
 
     # Internal-ops meta-tools form a list -> describe -> invoke chain: only the
     # terminal invoke completes the intent; discovery calls are action steps.
-    # 内部操作元工具是 list -> describe -> invoke 链：仅终态 invoke 视为完成，
-    # 发现类调用属于过程动作。
     normalized_family = str(family or "").strip().lower()
     if normalized_family == "internal_ops":
         from app.ai.internal_ops.tools import TOOL_INVOKE_OPERATION
@@ -102,6 +88,8 @@ def intent_plan_gating_flags(
     intent_plan: list[IntentPlan],
     request: Any | None = None,
 ) -> dict[str, bool]:
+    from app.ai.context.orchestrator import ContextPipelineOrchestrator
+
     flags = ContextPipelineOrchestrator.compute_intent_flags(
         intent_plan,
         request=request,
@@ -217,3 +205,14 @@ def intent_completion_progress(
         "continuation_required": continuation_required,
         "status": status,
     }
+
+
+__all__ = [
+    "deserialize_intent_plan",
+    "intent_completion_contract",
+    "intent_completion_matches",
+    "intent_completion_progress",
+    "intent_completion_signals",
+    "intent_plan_gating_flags",
+    "is_capability_reporting_query",
+]

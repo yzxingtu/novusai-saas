@@ -11,7 +11,6 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.capabilities import (
     CapabilityContext,
@@ -95,7 +94,6 @@ class ContextAssembler:
         request: Any,
         skill_result: Any | None = None,
         state: ContextAssemblerState | None = None,
-        intent_plan: list[Any] | None = None,
     ) -> CapabilityBundle:
         assembly_state = state or ContextAssemblerState()
         if not assembly_state.runtime_model_capabilities:
@@ -111,17 +109,7 @@ class ContextAssembler:
             skill_result=skill_result,
             state=assembly_state.to_state_dict(),
         )
-        provider_names = self._provider_names_for_intent_plan(
-            intent_plan,
-            request=request,
-        )
-        if provider_names is None:
-            bundle = await self.registry.build_bundle(capability_context)
-        else:
-            bundle = await self._build_bundle_for_provider_names(
-                capability_context,
-                provider_names,
-            )
+        bundle = await self.registry.build_bundle(capability_context)
         self._apply_skill_result_selection_contract(
             bundle=bundle,
             skill_result=skill_result,
@@ -163,36 +151,6 @@ class ContextAssembler:
                 continue
             CapabilityRegistry._merge_fragment(bundle, raw_fragment)
         return bundle
-
-    @staticmethod
-    def _provider_names_for_intent_plan(
-        intent_plan: list[Any] | None,
-        *,
-        request: Any | None = None,
-    ) -> list[str] | None:
-        if intent_plan is None:
-            return None
-
-        flags = ContextPipelineOrchestrator.compute_intent_flags(
-            intent_plan,
-            request,
-        )
-        memory_policy = resolve_memory_runtime_policy(request)
-        has_session_memory_context = bool(
-            request is not None
-            and (
-                bool(memory_policy.session_memory_runtime_enabled)
-                or bool(getattr(request, "session_memory_injected", False))
-            )
-        )
-
-        provider_names = ["skills"]
-        if flags.has_bound_kb and not flags.should_skip_bound_kb_rag:
-            provider_names.append("knowledge_base")
-        if memory_policy.memory_context_enabled or has_session_memory_context:
-            provider_names.append("memory")
-        provider_names.append("runtime_model")
-        return provider_names
 
     @staticmethod
     def _stable_unique_names(values: list[Any]) -> list[str]:

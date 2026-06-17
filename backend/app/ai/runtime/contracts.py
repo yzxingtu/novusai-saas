@@ -427,7 +427,6 @@ class ContextCapabilityBridge(Protocol):
         agent: Any,
         request: Any,
         skill_result: Any | None,
-        intent_plan: list[Any],
         intent_flags: dict[str, bool],
         capability_inputs: ContextCapabilityInputs,
         capability_injection_decision: dict[str, Any],

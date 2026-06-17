@@ -1,11 +1,14 @@
 """
 Helpers for tool planning inside BaseEngine._prepare_execution().
+
+After ReAct loop adoption (#55), the LLM autonomously selects tools via
+function calling. This module retains only deterministic shortcircuits
+(confirmation replay / rejection) and capability diagnostics.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -16,18 +19,20 @@ from app.ai.runtime.context_assembler import (
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import project_capability_bundle_to_tools
-from app.ai.tools.semantic_defaults import (
-    normalize_semantic_family,
-    tool_semantic_family,
-    tool_semantic_tags,
-)
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
-from app.core.runtime_identity import get_runtime_identity_tag
 
 from .budget_guard import BudgetGuard
-from .path_selector import PathSelector
+from .intent_completion_helpers import (
+    deserialize_intent_plan as _deserialize_intent_plan_impl,
+)
+from .intent_completion_helpers import (
+    intent_plan_gating_flags as _intent_plan_gating_flags_impl,
+)
+from .intent_completion_helpers import (
+    is_capability_reporting_query as _is_capability_reporting_query_impl,
+)
 from .prepare_execution_runtime_helpers import (
     PreparedExecutionRuntimeState,
 )
@@ -41,19 +46,7 @@ from .prepare_execution_runtime_helpers import (
     resolve_runtime_execution_state as _resolve_runtime_execution_state_impl,
 )
 from .system_prompt_helpers import (
-    deserialize_intent_plan as _deserialize_intent_plan_impl,
-)
-from .system_prompt_helpers import (
     inject_runtime_summary as _inject_runtime_summary_impl,
-)
-from .system_prompt_helpers import (
-    intent_completion_signals as _intent_completion_signals_impl,
-)
-from .system_prompt_helpers import (
-    intent_plan_gating_flags as _intent_plan_gating_flags_impl,
-)
-from .system_prompt_helpers import (
-    is_capability_reporting_query as _is_capability_reporting_query_impl,
 )
 from .system_prompt_helpers import (
     resolve_capability_injection_decision as _resolve_capability_injection_decision_impl,
@@ -61,25 +54,6 @@ from .system_prompt_helpers import (
 from .system_prompt_helpers import (
     should_skip_capability_summary as _should_skip_capability_summary_impl,
 )
-from .tool_policy_helpers import (
-    allowed_tool_names_for_families as _allowed_tool_names_for_families_impl,
-)
-from .tool_policy_helpers import (
-    allowed_tool_names_for_family as _allowed_tool_names_for_family_impl,
-)
-from .tool_policy_helpers import (
-    ensure_explicit_family_coverage as _ensure_explicit_family_coverage_impl,
-)
-from .tool_policy_helpers import (
-    ordered_requested_families_from_intents as _ordered_requested_families_from_intents_impl,
-)
-from .tool_policy_helpers import (
-    restore_explicit_family_tools as _restore_explicit_family_tools_impl,
-)
-from .tool_policy_helpers import (
-    restrict_tools_to_names as _restrict_tools_to_names_impl,
-)
-from .tool_router import ToolRouter
 from .types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -98,270 +72,6 @@ def _extract_last_user_text(messages: list[ChatMessage]) -> str:
         if text:
             return text
     return ""
-
-
-_QUOTED_QUERY_SEGMENT_RE = re.compile(
-    r"'[^']*'|\"[^\"]*\"|“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|《[^》]*》"
-)
-_WORD_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_-]{2,}", re.IGNORECASE)
-_CJK_RUN_RE = re.compile(r"[\u4e00-\u9fff]{2,}")
-_DISCOVERABLE_STOP_TOKENS = {
-    "查询",
-    "获取",
-    "工具",
-    "技能",
-    "插件",
-    "调用",
-    "使用",
-    "当前",
-    "实时",
-    "未来",
-    "结果",
-    "数据",
-    "信息",
-    "the",
-    "and",
-    "for",
-    "with",
-    "tool",
-    "skill",
-    "plugin",
-    "query",
-    "search",
-    "get",
-}
-
-
-def _metadata_match_query_text(user_query: str) -> str:
-    return _QUOTED_QUERY_SEGMENT_RE.sub(" ", str(user_query or ""))
-
-
-def _discoverable_tool_metadata_values(tool: ToolDefinition) -> list[str]:
-    values = [
-        str(tool.name or ""),
-        str(tool.name or "").replace("_", " ").replace("-", " "),
-        str(tool.description or ""),
-        str(getattr(tool, "source_skill_name", "") or ""),
-        str(getattr(tool, "source_package_name", "") or ""),
-        str(getattr(tool, "semantic_family", "") or ""),
-        *tool_semantic_tags(tool),
-    ]
-    return [value for value in values if value.strip()]
-
-
-def _metadata_match_tokens(text: str) -> set[str]:
-    normalized = str(text or "").strip().lower()
-    tokens = {
-        match.group(0).replace("_", " ").replace("-", " ")
-        for match in _WORD_TOKEN_RE.finditer(normalized)
-    }
-    for run_match in _CJK_RUN_RE.finditer(normalized):
-        run = run_match.group(0)
-        if len(run) == 2:
-            tokens.add(run)
-            continue
-        for index in range(0, len(run) - 1):
-            tokens.add(run[index : index + 2])
-
-    return {
-        token for token in tokens if token and token not in _DISCOVERABLE_STOP_TOKENS
-    }
-
-
-def _tool_metadata_matches_query(
-    *,
-    tool: ToolDefinition,
-    normalized_query: str,
-    query_tokens: set[str],
-) -> bool:
-    if not normalized_query:
-        return False
-
-    for candidate in _discoverable_tool_metadata_values(tool):
-        lowered_candidate = candidate.lower()
-        if (
-            lowered_candidate
-            and len(lowered_candidate) >= 2
-            and lowered_candidate in normalized_query
-        ):
-            return True
-
-        candidate_tokens = _metadata_match_tokens(candidate)
-        if candidate_tokens and query_tokens.intersection(candidate_tokens):
-            return True
-
-    return False
-
-
-def _looks_like_explicit_tool_request(user_query: str) -> bool:
-    lowered = str(user_query or "").strip().lower()
-    if not lowered:
-        return False
-    if any(
-        term in lowered
-        for term in (
-            "不要使用",
-            "不用工具",
-            "别用工具",
-            "without tools",
-            "do not use tools",
-            "don't use tools",
-        )
-    ):
-        return False
-    return any(
-        term in lowered
-        for term in (
-            "使用",
-            "调用",
-            "用一下",
-            "用工具",
-            "用这个技能",
-            "use ",
-            "call ",
-            "invoke ",
-            "run tool",
-        )
-    )
-
-
-def _direct_reply_discoverable_tools(
-    *,
-    all_tools: list[ToolDefinition],
-    user_query: str,
-    limit: int,
-) -> list[ToolDefinition]:
-    normalized_query = _metadata_match_query_text(user_query).strip().lower()
-    if not normalized_query or limit <= 0:
-        return []
-
-    selected: list[ToolDefinition] = []
-    query_tokens = _metadata_match_tokens(normalized_query)
-    for tool in all_tools:
-        if _tool_metadata_matches_query(
-            tool=tool,
-            normalized_query=normalized_query,
-            query_tokens=query_tokens,
-        ):
-            selected.append(tool)
-        if len(selected) >= limit:
-            return selected
-    return selected
-
-
-def _default_context_tools_for_direct_reply(
-    *,
-    all_tools: list[ToolDefinition],
-    limit: int,
-) -> list[ToolDefinition]:
-    if limit <= 0:
-        return []
-    selected = [
-        tool
-        for tool in all_tools
-        if normalize_semantic_family(tool_semantic_family(tool)) == "context_tools"
-    ]
-    return selected[:limit]
-
-
-def _pending_confirmation_tools(
-    *,
-    all_tools: list[ToolDefinition],
-    messages: list[ChatMessage],
-    input_variables: dict[str, Any] | None,
-) -> list[ToolDefinition]:
-    """
-    When the history holds a pending tool confirmation, the follow-up user turn
-    (approve / reject / adjust) must keep the confirming tool's family
-    available, otherwise the model cannot resume the paused operation.
-    当历史中存在待确认的工具调用时，后续用户轮（同意/拒绝/调整）必须保留该
-    工具家族，否则模型无法继续被暂停的操作。
-    """
-    from .tool_processor_messages import find_pending_confirmation
-
-    pending = find_pending_confirmation(messages)
-    if not pending:
-        return []
-    pending_name = str(pending.get("name") or "").strip()
-    pending_tool = next(
-        (tool for tool in all_tools if tool.name == pending_name),
-        None,
-    )
-    if pending_tool is None:
-        return []
-    family = normalize_semantic_family(
-        tool_semantic_family(pending_tool, input_variables)
-    )
-    if family and family != "none":
-        return [
-            tool
-            for tool in all_tools
-            if normalize_semantic_family(tool_semantic_family(tool, input_variables))
-            == family
-        ]
-    return [pending_tool]
-
-
-def _single_metadata_family(
-    tools: list[ToolDefinition],
-    input_variables: dict[str, Any] | None,
-) -> str:
-    families: list[str] = []
-    for tool in tools:
-        family = tool_semantic_family(tool, input_variables)
-        normalized = normalize_semantic_family(family)
-        if not normalized or normalized == "none" or normalized in families:
-            continue
-        families.append(normalized)
-    return families[0] if len(families) == 1 else ""
-
-
-def _promote_direct_reply_metadata_intent(
-    *,
-    intent_plan: list[IntentPlan],
-    tool_candidates: list[ToolDefinition],
-    input_variables: dict[str, Any] | None,
-) -> IntentPlan | None:
-    if len(intent_plan) != 1 or not tool_candidates:
-        return None
-
-    intent = intent_plan[0]
-    if (
-        intent.kind != "direct_reply"
-        or intent.family != "none"
-        or intent.requires_tools
-        or not intent.shortcircuit
-    ):
-        return None
-
-    family = _single_metadata_family(tool_candidates, input_variables)
-    if not family:
-        return None
-
-    allowed_names = [tool.name for tool in tool_candidates]
-    intent.kind = f"{family}_query"
-    intent.family = family
-    intent.user_visible_label = family
-    intent.status = "pending"
-    intent.requires_tools = True
-    intent.shortcircuit = False
-    intent.allow_text_response = False
-    intent.allowed_tool_names = list(allowed_names)
-    intent.preferred_tool_names = list(allowed_names)
-    intent.completion_signals = _intent_completion_signals_impl(
-        family,
-        intent_kind=intent.kind,
-        allowed_tool_names=list(allowed_names),
-        preferred_tool_names=list(allowed_names),
-        intent_metadata=intent.metadata,
-    )
-    intent.metadata = {
-        **dict(intent.metadata or {}),
-        "original_kind": "direct_reply",
-        "routing_mode": "structured_semantic",
-        "routing_source": "tool_metadata",
-    }
-    return intent
 
 
 def _rebuild_runtime_capability_diagnostics(
@@ -477,8 +187,6 @@ def plan_execution_tools(
     # pending_confirmation (not rejected). We must NOT match historical resolved
     # confirmations from earlier turns – resolved=True is persisted in message
     # metadata forever, so we gate on the live interaction_updates signal.
-    # 只有当前轮 interaction_updates 带有批准的 pending_confirmation 时才短路；
-    # 历史消息里 resolved=True 是永久存储的，不能作为触发条件。
     _has_current_confirmation_approval = any(
         str(u.get("kind") or "") == "pending_confirmation"
         and not bool(u.get("rejected"))
@@ -541,11 +249,6 @@ def plan_execution_tools(
     # ── End Confirmation Replay Shortcircuit ──────────────────────────────────
 
     # ── Confirmation Rejection Shortcircuit ───────────────────────────────────
-    # When the user rejects a pending confirmation, force a direct-reply turn
-    # without tools so the LLM generates a cancellation acknowledgement
-    # instead of trying to re-invoke the same tool.
-    # 用户拒绝授权确认时，强制走 direct_reply（无工具），让 LLM 生成取消回复
-    # 而不是再次尝试调用同一工具。
     _has_current_confirmation_rejection = any(
         str(u.get("kind") or "") == "pending_confirmation"
         and bool(u.get("rejected"))
@@ -596,290 +299,39 @@ def plan_execution_tools(
         )
     # ── End Confirmation Rejection Shortcircuit ───────────────────────────────
 
-    raw_intent_plan = diagnostics.get("intent_plan")
-    intent_plan = _deserialize_intent_plan_impl(raw_intent_plan)
-    intent_flags = _intent_plan_gating_flags_impl(intent_plan, request=request)
-
-    explicit_requested_families = _ordered_requested_families_from_intents_impl(
-        intents=intent_plan
+    # ── Default: pass all tools to ReAct loop ────────────────────────────────
+    # The LLM autonomously selects tools via function calling.
+    # No intent planning or tool routing is performed.
+    candidate_tool_names = [tool.name for tool in tools]
+    all_tool_names = [t.name for t in all_tools]
+    default_policy = ToolUsePolicy(
+        family="auto",
+        mode="auto",
+        allowed_tool_names=all_tool_names,
+        retry_on_contract_breach=False,
+        reason="react_autonomous_tool_selection",
     )
-    execution_path = PathSelector.select(intent_plan)
+    execution_path = "fast"
     execution_budget = BudgetGuard.build_default(
         execution_path,
-        intent_count=len(intent_plan),
+        intent_count=0,
     )
-
-    tool_planner: dict[str, Any] | None = None
-    optimize_event: dict[str, Any] | None = None
-    tool_use_policy = ToolUsePolicy()
-    candidate_tool_names = [tool.name for tool in tools]
-    active_intent_id: str | None = None
-
-    if all_tools and intent_plan:
-        user_query = _extract_last_user_text(messages)
-        routing = ToolRouter.route(
-            intents=intent_plan,
-            tools=all_tools,
-            budget=execution_budget,
-            input_variables=request.input_variables,
-            user_text=user_query,
-        )
-        selected_tools = list(routing.candidate_tools)
-        selected_tools, _ = _ensure_explicit_family_coverage_impl(
-            selected_tools=selected_tools,
-            all_tools=all_tools,
-            explicit_requested_families=explicit_requested_families,
-            input_variables=request.input_variables,
-        )
-        tool_candidates = selected_tools
-        candidate_tool_names = [tool.name for tool in tool_candidates]
-        actionable_intents = [
-            intent
-            for intent in intent_plan
-            if intent.family != "none" and intent.requires_tools
-        ]
-        for intent in intent_plan:
-            intent.metadata = dict(intent.metadata or {})
-            allowed = list(routing.intent_allowed_tools.get(intent.intent_id, []))
-            preferred = list(
-                routing.intent_preferred_tools.get(intent.intent_id, allowed)
-            )
-            intent.allowed_tool_names = allowed
-            intent.preferred_tool_names = preferred
-            intent.completion_signals = _intent_completion_signals_impl(
-                intent.family,
-                intent_kind=intent.kind,
-                allowed_tool_names=allowed,
-                preferred_tool_names=preferred,
-                intent_metadata=intent.metadata,
-            )
-            if intent.family == "none" or not intent.requires_tools:
-                intent.status = "completed"
-        if not actionable_intents and all_tools:
-            limit = (
-                execution_budget.max_candidate_tools
-                if execution_budget is not None
-                else len(all_tools)
-            )
-            tool_candidates = _direct_reply_discoverable_tools(
-                all_tools=all_tools,
-                user_query=user_query,
-                limit=limit,
-            )
-            _from_default_context_fallback = False
-            if not tool_candidates:
-                tool_candidates = _pending_confirmation_tools(
-                    all_tools=all_tools,
-                    messages=messages,
-                    input_variables=request.input_variables,
-                )
-            if not tool_candidates:
-                tool_candidates = _default_context_tools_for_direct_reply(
-                    all_tools=all_tools,
-                    limit=limit,
-                )
-                if tool_candidates:
-                    _from_default_context_fallback = True
-            candidate_tool_names = [tool.name for tool in tool_candidates]
-            if tool_candidates:
-                # Default context-tools fallback must NOT be promoted to
-                # required; keep them as optional (mode="auto") so the model
-                # can freely choose plain text for greetings / chit-chat.
-                if _from_default_context_fallback:
-                    tool_use_policy = ToolUsePolicy(
-                        family="none",
-                        mode="auto",
-                        allowed_tool_names=list(candidate_tool_names),
-                        retry_on_contract_breach=False,
-                        reason="direct_reply_optional_context_tools",
-                    )
-                else:
-                    promoted_intent = _promote_direct_reply_metadata_intent(
-                        intent_plan=intent_plan,
-                        tool_candidates=tool_candidates,
-                        input_variables=request.input_variables,
-                    )
-                    if promoted_intent is not None:
-                        actionable_intents = [promoted_intent]
-                        explicit_requested_families = (
-                            _ordered_requested_families_from_intents_impl(
-                                intents=intent_plan
-                            )
-                        )
-                        execution_path = PathSelector.select(intent_plan)
-                        execution_budget = BudgetGuard.build_default(
-                            execution_path,
-                            intent_count=len(intent_plan),
-                        )
-                        intent_flags = _intent_plan_gating_flags_impl(
-                            intent_plan,
-                            request=request,
-                        )
-                    else:
-                        explicit_request = _looks_like_explicit_tool_request(user_query)
-                        tool_use_policy = ToolUsePolicy(
-                            family="none",
-                            mode="required" if explicit_request else "auto",
-                            allowed_tool_names=list(candidate_tool_names),
-                            retry_on_contract_breach=explicit_request,
-                            reason=(
-                                "direct_reply_explicit_tool_request"
-                                if explicit_request
-                                else "direct_reply_discoverable_tools"
-                            ),
-                        )
-        if not tool_candidates and actionable_intents:
-            fallback_allowed_names = _allowed_tool_names_for_families_impl(
-                explicit_requested_families,
-                all_tools,
-                request.input_variables,
-            ) or _allowed_tool_names_for_family_impl(
-                actionable_intents[0].family,
-                all_tools,
-                request.input_variables,
-            )
-            if execution_budget is not None:
-                fallback_allowed_names = fallback_allowed_names[
-                    : execution_budget.max_candidate_tools
-                ]
-            tool_candidates = _restrict_tools_to_names_impl(
-                all_tools,
-                fallback_allowed_names,
-            )
-            candidate_tool_names = [tool.name for tool in tool_candidates]
-            first_actionable = actionable_intents[0]
-            first_actionable.allowed_tool_names = list(candidate_tool_names)
-            first_actionable.preferred_tool_names = list(candidate_tool_names)
-            first_actionable.completion_signals = _intent_completion_signals_impl(
-                first_actionable.family,
-                intent_kind=first_actionable.kind,
-                allowed_tool_names=list(candidate_tool_names),
-                preferred_tool_names=list(candidate_tool_names),
-                intent_metadata=first_actionable.metadata,
-            )
-        active_intent = next(
-            (
-                intent
-                for intent in intent_plan
-                if intent.status != "completed" and intent.allowed_tool_names
-            ),
-            None,
-        )
-        if active_intent is not None:
-            allowed_tool_names = (
-                candidate_tool_names
-                if len(actionable_intents) > 1
-                else list(active_intent.allowed_tool_names)
-            )
-            tool_use_policy = ToolUsePolicy(
-                family=active_intent.family,
-                mode="required",
-                allowed_tool_names=allowed_tool_names,
-                retry_on_contract_breach=True,
-                reason=f"intent:{active_intent.kind}",
-            )
-            restored_tools, restored_explicit_family = (
-                _restore_explicit_family_tools_impl(
-                    selected_tools=tool_candidates,
-                    all_tools=all_tools,
-                    policy=tool_use_policy,
-                )
-            )
-            tool_candidates = restored_tools
-            if restored_explicit_family:
-                candidate_tool_names = [tool.name for tool in tool_candidates]
-                tool_use_policy.allowed_tool_names = (
-                    candidate_tool_names
-                    if len(actionable_intents) > 1
-                    else [
-                        name
-                        for name in tool_use_policy.allowed_tool_names
-                        if name in candidate_tool_names
-                    ]
-                )
-        tool_planner = {
-            "intent": (
-                active_intent.kind if active_intent is not None else "direct_reply"
-            ),
-            "family": active_intent.family if active_intent is not None else "none",
-            "allow_no_tool": not bool(tool_candidates),
-            "allow_family_continuation": bool(len(actionable_intents) > 1),
-            "reason": "structured_intent_plan",
-            "confidence_band": "high",
-            "execution_path": execution_path,
-            "intent_plan": [intent.to_dict() for intent in intent_plan],
-        }
-        optimize_event = {
-            "total": len(all_tools),
-            "selected": len(tool_candidates),
-            "execution_path": execution_path,
-        }
-        logger.info(
-            "Prepare execution intent plan: runtime={} agent_id={} conversation_id={} execution_path={} intent_plan={} candidate_tool_names={} active_intent_id={}",
-            get_runtime_identity_tag(),
-            agent_id,
-            conversation_id,
-            execution_path,
-            [intent.to_dict() for intent in intent_plan],
-            candidate_tool_names,
-            active_intent_id,
-        )
-        logger.info(
-            "Prepare execution tool policy: runtime={} agent_id={} conversation_id={} family={} mode={} allowed_tool_names={} all_tool_count={} selected_tool_count={}",
-            get_runtime_identity_tag(),
-            agent_id,
-            conversation_id,
-            tool_use_policy.family,
-            tool_use_policy.mode,
-            tool_use_policy.allowed_tool_names,
-            len(all_tools),
-            len(tool_candidates),
-        )
-        tools = tool_candidates
-        if active_intent is not None:
-            active_intent_id = active_intent.intent_id
-        else:
-            active_intent_id = None
-    elif intent_plan:
-        tool_planner = {
-            "intent": intent_plan[0].kind if intent_plan else "direct_reply",
-            "family": intent_plan[0].family if intent_plan else "none",
-            "allow_no_tool": not bool(tools),
-            "allow_family_continuation": bool(
-                len(
-                    [
-                        intent
-                        for intent in intent_plan
-                        if intent.family != "none" and intent.requires_tools
-                    ]
-                )
-                > 1
-            ),
-            "reason": "structured_intent_plan",
-            "confidence_band": "high",
-            "execution_path": execution_path,
-            "intent_plan": [intent.to_dict() for intent in intent_plan],
-        }
-
-    # Meta-tool chains need extra sequential rounds / 元工具链需要更多串行轮次
-    if any(
-        normalize_semantic_family(intent.family) == "internal_ops"
-        for intent in intent_plan
-    ):
-        execution_budget = BudgetGuard.relax_for_meta_tool_chain(execution_budget)
-
     return PreparedExecutionToolPlan(
         tools=tools,
         candidate_tool_names=candidate_tool_names,
-        tool_use_policy=tool_use_policy,
-        tool_planner=tool_planner,
-        optimize_event=optimize_event,
-        intent_plan=intent_plan,
-        intent_flags=intent_flags,
-        explicit_requested_families=explicit_requested_families,
+        tool_use_policy=default_policy,
+        tool_planner=None,
+        optimize_event={
+            "total": len(all_tools),
+            "selected": len(tools),
+            "execution_path": execution_path,
+        },
+        intent_plan=[],
+        intent_flags={},
+        explicit_requested_families=[],
         execution_path=execution_path,
         execution_budget=execution_budget,
-        active_intent_id=active_intent_id,
+        active_intent_id=None,
     )
 
 

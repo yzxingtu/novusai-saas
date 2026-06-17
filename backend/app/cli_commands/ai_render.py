@@ -13,7 +13,6 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_dict,
     _normalize_cli_dict_list,
     _normalize_cli_fallback_history,
-    _normalize_cli_intent_plan,
     _normalize_cli_optional_string,
     _normalize_cli_provider_events,
     _normalize_cli_retry_events,
@@ -35,7 +34,6 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
     snapshot = _hydrate_ai_conversation_snapshot(snapshot)
     conversation = snapshot.get("conversation") or {}
     diagnostics = snapshot.get("diagnostics") or {}
-    intent_plan = _normalize_cli_intent_plan(diagnostics.get("intent_plan"))
     retry_events = _normalize_cli_retry_events(diagnostics.get("retry_events"))
     provider_events = _normalize_cli_provider_events(diagnostics.get("provider_events"))
     budget = _normalize_cli_dict(diagnostics.get("budget"))
@@ -71,7 +69,6 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
             if isinstance(diagnostics.get("recovery_chain"), list)
             else None
         ),
-        "intent_plan": intent_plan,
         "unfinished_intents": _normalize_cli_string_list(
             diagnostics.get("unfinished_intents")
         ),
@@ -149,20 +146,6 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
     recovery_chain = compact.get("recovery_chain")
     if isinstance(recovery_chain, list):
         lines.append(f"recovery_chain={_compact_json_text(recovery_chain)}")
-    intent_plan = _normalize_cli_intent_plan(compact.get("intent_plan"))
-    if intent_plan:
-        lines.append(
-            "intent_plan={}".format(
-                " > ".join(
-                    "{}:{}[{}]".format(
-                        item.get("family") or "-",
-                        item.get("user_visible_label") or item.get("kind") or "-",
-                        item.get("status") or "-",
-                    )
-                    for item in intent_plan
-                )
-            )
-        )
     unfinished_intents = _normalize_cli_string_list(compact.get("unfinished_intents"))
     if unfinished_intents:
         lines.append("unfinished_intents={}".format(", ".join(unfinished_intents)))

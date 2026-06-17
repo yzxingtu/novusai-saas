@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ai.context.engine import ConversationContextEngine
-from app.ai.engine.types import ExecutionRequest, IntentPlan
+from app.ai.engine.types import ExecutionRequest
 from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
 from app.ai.types import ChatMessage
 from app.services.ai.capability_awareness_config import (
@@ -58,23 +58,6 @@ def _request() -> ExecutionRequest:
         memory_enabled=False,
         long_term_memory_enabled=False,
     )
-
-
-def _knowledge_intent() -> list[IntentPlan]:
-    return [
-        IntentPlan(
-            intent_id="conversation-2412-knowledge-query",
-            kind="knowledge_query",
-            family="knowledge",
-            order=1,
-            user_visible_label="knowledge_query",
-            source_text="看看绑定的知识库有什么内容",
-            requires_tools=False,
-            allow_text_response=True,
-            shortcircuit=False,
-            metadata={"conversation_id": 2412},
-        )
-    ]
 
 
 @pytest.mark.asyncio
@@ -124,10 +107,6 @@ async def test_conversation_2412_bound_kb_turn_gets_tool_managed_prompt_status()
                     }
                 ]
             ),
-        ),
-        patch(
-            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
-            return_value=_knowledge_intent(),
         ),
     ):
         assembly = await context_engine.assemble(
