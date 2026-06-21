@@ -1,10 +1,7 @@
 name: Build & Push Docker Images
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+  create:
 
 env:
   REGISTRY: ghcr.io
@@ -12,6 +9,7 @@ env:
 
 jobs:
   build-push:
+    if: ${{ github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,7 +81,7 @@ jobs:
 
   deploy-railway:
     needs: build-push
-    if: ${{ secrets.RAILWAY_API_TOKEN != '' }}
+    if: ${{ github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v') && secrets.RAILWAY_API_TOKEN != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -119,6 +117,7 @@ jobs:
 
   release:
     needs: build-push
+    if: ${{ github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
