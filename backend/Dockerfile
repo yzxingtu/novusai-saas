@@ -17,19 +17,24 @@ RUN set -eux; \
 
 WORKDIR /app
 
-COPY backend/pyproject.toml backend/README.md ./
+COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /uvx /usr/local/bin/
+
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 COPY VERSION /
 COPY VERSION ./
+RUN uv sync --frozen --no-dev --no-install-project
+
 COPY backend/app ./app
-# 中文: 元数据和源码都进入镜像后再执行一次正式安装，避免 fallback 掩盖构建问题。
-# EN: Install once after metadata and source are present so fallback paths cannot mask build issues.
-RUN pip install --prefix=/install --no-cache-dir .
+# 中文: 生产依赖必须由 uv.lock 决定，避免 pip 按宽松范围解析到未验证的新版本。
+# EN: Production dependencies must come from uv.lock to avoid unverified range resolution.
+RUN uv sync --frozen --no-dev
 
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    PATH="/app/.venv/bin:$PATH" \
     TZ=Asia/Shanghai
 
 RUN set -eux; \
@@ -46,7 +51,7 @@ RUN set -eux; \
 
 WORKDIR /app
 
-COPY --from=builder /install /usr/local
+COPY --from=builder --chown=novusai:novusai /app/.venv /app/.venv
 COPY --from=builder /VERSION /VERSION
 COPY --from=builder --chown=novusai:novusai /app/VERSION /app/VERSION
 COPY --chown=novusai:novusai backend/ .

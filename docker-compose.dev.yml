@@ -120,6 +120,8 @@ services:
         VITE_APP_TITLE: "NovusAI SaaS Dev"
         VITE_APP_NAMESPACE: novusai-web-saas
         VITE_APP_STORE_SECURE_KEY: novusai-dev-key-2024
+    environment:
+      VITE_GLOB_API_URL: http://localhost:8000
     depends_on:
       backend-api:
         condition: service_started
