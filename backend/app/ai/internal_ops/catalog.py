@@ -146,6 +146,14 @@ def _iter_routes(routes: Any, prefix: str = ""):
     runtime versions, so catalog building must not rely on a flat app.routes.
     """
     for route in routes or []:
+        effective_route_contexts = getattr(route, "effective_route_contexts", None)
+        if callable(effective_route_contexts):
+            for context in effective_route_contexts():
+                context_path = str(getattr(context, "path", "") or "")
+                if context_path:
+                    yield context, _join_paths(prefix, context_path)
+            continue
+
         route_path = str(getattr(route, "path", "") or "")
         route_prefix = str(getattr(route, "prefix", "") or "")
         nested_routes = getattr(route, "routes", None)
