@@ -81,6 +81,42 @@ jobs:
             VITE_PLATFORM_DOMAINS=${{ secrets.VITE_PLATFORM_DOMAINS || 'novusai.example.com' }}
             VITE_APP_STORE_SECURE_KEY=${{ secrets.VITE_APP_STORE_SECURE_KEY || 'ci-placeholder-replace-in-secrets' }}
 
+  deploy-railway:
+    needs: build-push
+    if: ${{ secrets.RAILWAY_API_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend-api
+            secret: RAILWAY_SERVICE_BACKEND_API
+          - name: backend-worker
+            secret: RAILWAY_SERVICE_BACKEND_WORKER
+          - name: backend-beat
+            secret: RAILWAY_SERVICE_BACKEND_BEAT
+          - name: frontend
+            secret: RAILWAY_SERVICE_FRONTEND
+    steps:
+      - name: Deploy ${{ matrix.name }} to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          SERVICE_ID: ${{ secrets[matrix.secret] }}
+        run: |
+          if [ -z "$SERVICE_ID" ]; then
+            echo "⚠️  ${{ matrix.name }}: SERVICE_ID secret not set, skipping"
+            exit 0
+          fi
+          echo "🚀 Triggering Railway redeployment for ${{ matrix.name }} ($SERVICE_ID)"
+          RESPONSE=$(curl -sf -X POST https://api.railway.app/graphql \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"query\": \"mutation { deploymentCreate(input: {serviceId: \\\"$SERVICE_ID\\\"}) { deployment { id status } } }\"
+            }")
+          echo "Response: $RESPONSE"
+          echo "✅ ${{ matrix.name }} deployment triggered"
+
   release:
     needs: build-push
     runs-on: ubuntu-latest
