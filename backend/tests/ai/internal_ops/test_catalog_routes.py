@@ -94,3 +94,35 @@ def test_catalog_expands_runtime_included_router_nodes() -> None:
     assert operations[0].path == "/admin/runtime/settings"
     assert operations[0].scope == "admin"
     assert operations[0].permission_code == "runtime_ops:view"
+
+
+def test_catalog_expands_fastapi_effective_route_context_nodes() -> None:
+    async def endpoint() -> dict[str, bool]:
+        return {"ok": True}
+
+    _mark_permission(endpoint, "effective_ops", "view")
+
+    context = SimpleNamespace(
+        path="/admin/effective/settings",
+        methods={"GET"},
+        endpoint=endpoint,
+        dependant=None,
+        body_field=None,
+        summary="Effective settings",
+        name="effective_settings",
+    )
+
+    class IncludedRouterNode:
+        def effective_route_contexts(self):
+            return [context]
+
+    app = SimpleNamespace(routes=[IncludedRouterNode()])
+
+    operations = _build_catalog_from_app(app)
+
+    assert [operation.operation_id for operation in operations] == [
+        "GET:/admin/effective/settings"
+    ]
+    assert operations[0].path == "/admin/effective/settings"
+    assert operations[0].scope == "admin"
+    assert operations[0].permission_code == "effective_ops:view"
