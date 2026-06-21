@@ -15,6 +15,7 @@ import socketio
 
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.core.socketio_redis import get_socketio_redis_publisher_options
 
 logger = LogManager.get_logger("app")
 
@@ -29,6 +30,7 @@ def _get_sync_manager() -> socketio.RedisManager:
         _sync_mgr = socketio.RedisManager(
             settings.REDIS_URL,
             write_only=True,
+            redis_options=get_socketio_redis_publisher_options(),
         )
     return _sync_mgr
 

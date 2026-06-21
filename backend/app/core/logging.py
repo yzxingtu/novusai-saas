@@ -53,6 +53,17 @@ _CONSOLE_LOGGING_SUPPRESSED: ContextVar[int] = ContextVar(
     default=0,
 )
 _FALSEY_ENV_VALUES = frozenset({"0", "false", "no", "off"})
+_LOG_RECORD_RESERVED_ATTRS = frozenset(
+    logging.LogRecord(
+        name="",
+        level=0,
+        pathname="",
+        lineno=0,
+        msg="",
+        args=(),
+        exc_info=None,
+    ).__dict__
+)
 
 
 @contextlib.contextmanager
@@ -82,6 +93,17 @@ class InterceptHandler(logging.Handler):
         super().__init__()
         self._category = category
 
+    @staticmethod
+    def _format_extra(record: logging.LogRecord) -> str:
+        extras = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _LOG_RECORD_RESERVED_ATTRS and not key.startswith("_")
+        }
+        if not extras:
+            return ""
+        return " ".join(f"{key}={value!r}" for key, value in sorted(extras.items()))
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
             level = logger.level(record.levelname).name
@@ -94,8 +116,12 @@ class InterceptHandler(logging.Handler):
         bind_kw: dict[str, str] = {"log_logger": record.name}
         if self._category:
             bind_kw["category"] = self._category
+        message = record.getMessage()
+        extra_message = self._format_extra(record)
+        if extra_message:
+            message = f"{message} | {extra_message}"
         logger.bind(**bind_kw).opt(exception=record.exc_info).log(
-            level, record.getMessage()
+            level, message
         )
 
 
@@ -281,9 +307,20 @@ class LogManager:
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("httpcore").setLevel(logging.WARNING)
-        # python-socketio / engineio 连接过程 INFO 较吵，开发时默认压低 / Quieter Socket.IO handshake logs
-        logging.getLogger("engineio").setLevel(logging.WARNING)
-        logging.getLogger("socketio").setLevel(logging.WARNING)
+        # python-socketio / engineio 连接过程 INFO 较吵，开发时默认压低；同时显式接管
+        # 子 logger，确保 redis_exception 等 extra 字段能进入统一日志。
+        # Quieter Socket.IO handshake logs; explicitly intercept child loggers so
+        # extra fields such as redis_exception are preserved in unified logs.
+        for _name in (
+            "engineio",
+            "engineio.server",
+            "socketio",
+            "socketio.server",
+        ):
+            _lg = logging.getLogger(_name)
+            _lg.setLevel(logging.WARNING)
+            _lg.handlers = [InterceptHandler()]
+            _lg.propagate = False
 
         # SQLAlchemy engine 重定向到 db 分类 / SQLAlchemy -> db category
         sa_logger = logging.getLogger("sqlalchemy.engine")
