@@ -18,27 +18,33 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
+          set +e
           SHORT_SHA=$(echo "$SHA" | cut -c1-7)
           COMMENT_BODY="⚠️ \`main\` 分支有新提交（${SHORT_SHA}），请检查你的分支是否需要更新（rebase / merge main）以避免合并冲突。"
 
-          # 获取所有 open 状态的 PR（排除已关闭/已合并）
-          PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --json number,author,headRefName --jq '.[] | "\(.number)|\(.author.login)|\(.headRefName)"' || true)
-
-          if [ -z "$PR_NUMBERS" ]; then
-            echo "当前没有待处理的 PR，跳过通知。"
+          # 获取所有 open 状态的 PR
+          PR_JSON=$(gh pr list --repo "$REPO" --state open --json number,author,headRefName 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$PR_JSON" ] || [ "$PR_JSON" = "[]" ]; then
+            echo "当前没有待处理的 PR 或获取失败，跳过通知。"
             exit 0
           fi
 
-          echo "$PR_NUMBERS" | while IFS='|' read -r PR_NUM AUTHOR BRANCH; do
-            # 跳过由自动化工具创建的 PR（如 release PR）
-            if [ "$AUTHOR" = "app/dependabot" ] || [ "$AUTHOR" = "github-actions[bot]" ]; then
-              echo "跳过自动化 PR #${PR_NUM} (author: ${AUTHOR})"
-              continue
-            fi
+          echo "$PR_JSON" | jq -c '.[]' | while IFS= read -r PR; do
+            PR_NUM=$(echo "$PR" | jq -r '.number')
+            AUTHOR=$(echo "$PR" | jq -r '.author.login')
+            BRANCH=$(echo "$PR" | jq -r '.headRefName')
+
+            # 跳过自动化工具创建的 PR
+            case "$AUTHOR" in
+              app/dependabot|github-actions*) 
+                echo "跳过自动化 PR #${PR_NUM} (author: ${AUTHOR})"
+                continue
+                ;;
+            esac
 
             # 检查是否已经发过相同通知（避免重复评论）
-            EXISTING=$(gh pr view "$PR_NUM" --repo "$REPO" --json comments --jq ".comments[] | select(.body | contains(\"main\\\` 分支有新提交\"))" 2>/dev/null)
-            if [ -n "$EXISTING" ]; then
+            EXISTING=$(gh pr view "$PR_NUM" --repo "$REPO" --json comments --jq '[.comments[] | select(.body | contains("分支有新提交"))] | length' 2>/dev/null)
+            if [ "$EXISTING" != "0" ] && [ -n "$EXISTING" ]; then
               echo "PR #${PR_NUM} 已有通知评论，跳过。"
               continue
             fi

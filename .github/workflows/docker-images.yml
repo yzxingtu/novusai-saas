@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      tag:
-        description: '构建标签版本（如 v0.1.10）'
-        required: true
-        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -17,8 +12,6 @@ env:
 
 jobs:
   build-push:
-    env:
-      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -67,7 +60,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}
           tags: |
-            type=raw,value=${{ env.TAG_NAME }}
+            type=ref,event=tag
             type=raw,value=latest
             type=sha
 
@@ -91,8 +84,6 @@ jobs:
   deploy-railway:
     needs: build-push
     if: ${{ secrets.RAILWAY_API_TOKEN != '' }}
-    env:
-      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -128,8 +119,6 @@ jobs:
 
   release:
     needs: build-push
-    env:
-      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,7 +144,7 @@ jobs:
           AI_MODEL: ${{ secrets.AI_MODEL || 'gpt-4o-mini' }}
         run: |
           python scripts/generate_release_notes.py \
-            --tag "${{ env.TAG_NAME }}" \
+            --tag "${{ github.ref_name }}" \
             --output /tmp/release_notes.md
           echo "notes_file=/tmp/release_notes.md" >> "$GITHUB_OUTPUT"
 
@@ -166,8 +155,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: "${{ env.TAG_NAME }}"
+          tag_name: ${{ github.ref_name }}
+          name: "v${{ steps.ver.outputs.version }}"
           body_path: ${{ steps.notes.outputs.notes_file }}
           draft: false
           prerelease: ${{ contains(steps.ver.outputs.version, '-') }}
