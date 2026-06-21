@@ -121,6 +121,44 @@ def _is_excluded_path(path: str) -> bool:
     return any(path.endswith(suffix) for suffix in _EXCLUDED_PATH_SUFFIXES)
 
 
+def _join_paths(prefix: str, path: str) -> str:
+    """Join route path fragments without losing the leading slash."""
+    prefix = str(prefix or "").strip()
+    path = str(path or "").strip()
+    if not prefix and not path:
+        return ""
+    if not prefix:
+        joined = path
+    elif not path:
+        joined = prefix
+    else:
+        joined = f"{prefix.rstrip('/')}/{path.lstrip('/')}"
+    if not joined.startswith("/"):
+        joined = f"/{joined}"
+    return joined
+
+
+def _iter_routes(routes: Any, prefix: str = ""):
+    """
+    Recursively yield concrete routes with their effective path.
+
+    FastAPI/Starlette may keep included routers as nested routing nodes in some
+    runtime versions, so catalog building must not rely on a flat app.routes.
+    """
+    for route in routes or []:
+        route_path = str(getattr(route, "path", "") or "")
+        route_prefix = str(getattr(route, "prefix", "") or "")
+        nested_routes = getattr(route, "routes", None)
+
+        if nested_routes:
+            nested_prefix = _join_paths(prefix, route_path or route_prefix)
+            yield from _iter_routes(nested_routes, nested_prefix)
+            continue
+
+        if route_path:
+            yield route, _join_paths(prefix, route_path)
+
+
 def _annotation_name(annotation: Any) -> str:
     """Best-effort readable type name / 尽力而为的可读类型名"""
     if annotation is None:
@@ -223,8 +261,7 @@ def _build_catalog_from_app(app: Any) -> list[InternalOperation]:
     operations: list[InternalOperation] = []
     seen_ids: set[str] = set()
 
-    for route in getattr(app, "routes", []):
-        path = str(getattr(route, "path", "") or "")
+    for route, path in _iter_routes(getattr(app, "routes", [])):
         methods = getattr(route, "methods", None)
         endpoint = getattr(route, "endpoint", None)
         if not path or not methods or endpoint is None:
