@@ -111,13 +111,24 @@ jobs:
             exit 0
           fi
           echo "🚀 Triggering Railway redeployment for ${{ matrix.name }} ($SERVICE_ID)"
-          RESPONSE=$(curl -sf -X POST https://api.railway.app/graphql \
+          RAW=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://api.railway.app/graphql \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
               \"query\": \"mutation { deploymentCreate(input: {serviceId: \\\"$SERVICE_ID\\\"}) { deployment { id status } } }\"
             }")
+          HTTP_STATUS=$(echo "$RAW" | grep "HTTP_STATUS:" | sed 's/.*HTTP_STATUS://')
+          RESPONSE=$(echo "$RAW" | sed '/HTTP_STATUS:/d')
           echo "Response: $RESPONSE"
+          echo "HTTP Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "❌ ${{ matrix.name }}: Railway API returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+          if echo "$RESPONSE" | grep -q '"errors"'; then
+            echo "❌ ${{ matrix.name }}: Railway API returned GraphQL errors"
+            exit 1
+          fi
           echo "✅ ${{ matrix.name }} deployment triggered"
 
   release:
