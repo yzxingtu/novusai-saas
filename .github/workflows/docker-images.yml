@@ -83,7 +83,6 @@ jobs:
 
   deploy-railway:
     needs: build-push
-    if: ${{ secrets.RAILWAY_API_TOKEN != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -103,6 +102,10 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           SERVICE_ID: ${{ secrets[matrix.secret] }}
         run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "⚠️  RAILWAY_API_TOKEN not set, skipping Railway deployment"
+            exit 0
+          fi
           if [ -z "$SERVICE_ID" ]; then
             echo "⚠️  ${{ matrix.name }}: SERVICE_ID secret not set, skipping"
             exit 0
