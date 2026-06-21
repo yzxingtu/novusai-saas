@@ -42,15 +42,21 @@ import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import { checkPermission } from '#/utils/access';
 import { downloadBlob } from '#/utils/download';
+import {
+  buildPluginApiBase,
+  getPluginHostEndpoint,
+} from '#/utils/plugin-runtime-context';
 import { requestClient } from '#/utils/request';
 
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared' / 开发态供插件复用
 export {
   $t,
+  buildPluginApiBase,
   downloadBlob,
   getAccessCodes,
   getAuthToken,
   getCurrentUser,
+  getPluginHostEndpoint,
   hasAccessByCodes,
   IconifyIcon,
   mountRichTextEditor,
@@ -164,6 +170,10 @@ type PluginExtensionsStoreAccessor = typeof usePluginExtensionsStore;
 export interface NovusPluginSharedAPI {
   /** HTTP request client / HTTP 请求客户端 */
   requestClient: typeof requestClient;
+  /** Current authenticated plugin host endpoint / 当前认证插件宿主端别 */
+  getPluginHostEndpoint: typeof getPluginHostEndpoint;
+  /** Build current-host plugin API base / 构建当前宿主端插件 API 前缀 */
+  buildPluginApiBase: typeof buildPluginApiBase;
   /** i18n translation function / i18n 翻译函数 */
   $t: typeof $t;
   /** Icon component / 图标组件 */
@@ -229,6 +239,8 @@ export function exposePluginShared(): void {
   // NovusAI 插件共享 API / plugin bridge namespace
   w.NovusPluginShared = {
     requestClient,
+    getPluginHostEndpoint,
+    buildPluginApiBase,
     $t,
     IconifyIcon,
     RichTextEditor,

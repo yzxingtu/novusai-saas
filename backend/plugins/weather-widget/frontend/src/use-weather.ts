@@ -5,7 +5,7 @@
  * data loading, refresh cadence, stale state, and city selection stay in sync.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { requestClient } from '@novus/plugin-shared';
+import { buildPluginApiBase, requestClient } from '@novus/plugin-shared';
 
 export type TemperatureUnit = 'celsius' | 'fahrenheit';
 
@@ -127,6 +127,12 @@ const STORAGE_KEY = 'novusai_weather_config';
 const WEATHER_DATA_KEY = 'novusai_weather_data';
 const MAX_RECENT_CITIES = 6;
 const DEFAULT_CACHE_TTL_SECONDS = 600;
+const WEATHER_PLUGIN_NAME = 'weather-widget';
+const WEATHER_PLUGIN_REQUEST_OPTIONS = {
+  showCodeMessage: false,
+  showErrorMessage: false,
+  skipAuthRecovery: true,
+};
 
 const DEFAULT_LOCAL: WeatherLocalConfig = {
   city: 'Shanghai',
@@ -143,10 +149,32 @@ function clamp(num: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, num));
 }
 
-function resolveApiBase(): string {
+function resolveLegacyPathApiBase(): string | null {
   const path = window.location.pathname;
-  const prefix = path.startsWith('/admin') ? '/admin' : '/tenant';
-  return `${prefix}/plugins/weather-widget/api`;
+  if (path.startsWith('/admin')) {
+    return `/admin/plugins/${WEATHER_PLUGIN_NAME}/api`;
+  }
+  if (path.startsWith('/tenant')) {
+    return `/tenant/plugins/${WEATHER_PLUGIN_NAME}/api`;
+  }
+  return null;
+}
+
+export function resolveWeatherApiBase(): string {
+  if (typeof buildPluginApiBase === 'function') {
+    try {
+      return buildPluginApiBase(WEATHER_PLUGIN_NAME);
+    } catch {
+      // Fall through to the legacy explicit-path fallback below.
+    }
+  }
+
+  const legacyApiBase = resolveLegacyPathApiBase();
+  if (legacyApiBase) {
+    return legacyApiBase;
+  }
+
+  throw new Error('Weather plugin host endpoint is unavailable');
 }
 
 function normalizeTemperatureUnit(unit: unknown): TemperatureUnit {
@@ -263,7 +291,10 @@ function createStore(): WeatherStore {
 
   async function fetchPluginConfig(): Promise<void> {
     try {
-      const resp = await requestClient.get<{ config: PluginConfig }>(`${resolveApiBase()}/config`);
+      const resp = await requestClient.get<{ config: PluginConfig }>(
+        `${resolveWeatherApiBase()}/config`,
+        WEATHER_PLUGIN_REQUEST_OPTIONS,
+      );
       if (resp?.config) {
         pluginConfigRef.value = resp.config;
       }
@@ -305,27 +336,43 @@ function createStore(): WeatherStore {
 
     try {
       const [weatherResp, forecastResp, hourlyResp, aqiResp] = await Promise.all([
-        requestClient.get<{ weather: WeatherCurrent }>(`${resolveApiBase()}/current`, {
-          params: { lat: latitude, lon: longitude },
-          signal: abortController.signal,
-        }),
-        requestClient
-          .get<{ forecast: WeatherForecastDay[] }>(`${resolveApiBase()}/forecast`, {
-            params: { lat: latitude, lon: longitude, days },
-            signal: abortController.signal,
-          })
-          .catch(() => null),
-        requestClient
-          .get<{ hourly: WeatherHourly[] }>(`${resolveApiBase()}/hourly`, {
+        requestClient.get<{ weather: WeatherCurrent }>(
+          `${resolveWeatherApiBase()}/current`,
+          {
+            ...WEATHER_PLUGIN_REQUEST_OPTIONS,
             params: { lat: latitude, lon: longitude },
             signal: abortController.signal,
-          })
+          },
+        ),
+        requestClient
+          .get<{ forecast: WeatherForecastDay[] }>(
+            `${resolveWeatherApiBase()}/forecast`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude, days },
+              signal: abortController.signal,
+            },
+          )
           .catch(() => null),
         requestClient
-          .get<{ air_quality: AirQuality }>(`${resolveApiBase()}/air-quality`, {
-            params: { lat: latitude, lon: longitude },
-            signal: abortController.signal,
-          })
+          .get<{ hourly: WeatherHourly[] }>(
+            `${resolveWeatherApiBase()}/hourly`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+              signal: abortController.signal,
+            },
+          )
+          .catch(() => null),
+        requestClient
+          .get<{ air_quality: AirQuality }>(
+            `${resolveWeatherApiBase()}/air-quality`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+              signal: abortController.signal,
+            },
+          )
           .catch(() => null),
       ]);
 
@@ -380,8 +427,11 @@ function createStore(): WeatherStore {
     }
     try {
       const resp = await requestClient.get<{ cities: CityInfo[] }>(
-        `${resolveApiBase()}/geocoding`,
-        { params: { name: query, count: 8 } },
+        `${resolveWeatherApiBase()}/geocoding`,
+        {
+          ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+          params: { name: query, count: 8 },
+        },
       );
       return resp?.cities ?? [];
     } catch {
@@ -427,8 +477,11 @@ function createStore(): WeatherStore {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const resp = await requestClient.get<{ cities: CityInfo[] }>(
-            `${resolveApiBase()}/geocoding`,
-            { params: { lat: latitude, lon: longitude } },
+            `${resolveWeatherApiBase()}/geocoding`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+            },
           );
           if (resp?.cities?.length && resp.cities[0]?.name) {
             resolvedCity = resp.cities[0];

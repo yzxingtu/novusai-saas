@@ -23,6 +23,7 @@ import {
   buildPluginAssetUrl,
   getPluginAssetAuthHeaders,
 } from '#/utils/plugin-asset';
+import { setActivePluginHostEndpoint } from '#/utils/plugin-runtime-context';
 
 type PluginModule = Record<string, unknown>;
 type PluginCacheKey = string;
@@ -130,6 +131,11 @@ function resolveEndpointScope(loadOptions: PluginAssetLoadOptions): string {
     return `public:${normalizedLoadOptions.publicEndpoint}`;
   }
   return `auth:${normalizedLoadOptions.endpoint}`;
+}
+
+function syncPluginHostEndpoint(loadOptions: PluginAssetLoadOptions): void {
+  const normalizedLoadOptions = normalizePluginLoadOptions(loadOptions);
+  setActivePluginHostEndpoint(normalizedLoadOptions.endpoint);
 }
 
 function toPluginScopeKey(
@@ -335,6 +341,7 @@ async function loadPluginReleaseModule(
   loadOptions: PluginAssetLoadOptions,
 ): Promise<PluginModule> {
   const normalizedLoadOptions = normalizePluginLoadOptions(loadOptions);
+  syncPluginHostEndpoint(normalizedLoadOptions);
   const cacheKey = toPluginCacheKey(
     pluginName,
     runtimeContract,
@@ -499,6 +506,7 @@ export async function loadPluginComponents(
   }
 
   const normalizedLoadOptions = normalizePluginLoadOptions(loadOptions);
+  syncPluginHostEndpoint(normalizedLoadOptions);
   const cacheKey = toPluginCacheKey(
     pluginName,
     runtimeContract,

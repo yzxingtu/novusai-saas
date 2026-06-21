@@ -70,6 +70,7 @@ const DEFAULT_OPTIONS: Required<RequestOptions> = {
   showCodeMessage: true,
   showSuccessMessage: false,
   successMessage: '',
+  skipAuthRecovery: false,
   paramsSerializer: 'brackets',
 };
 

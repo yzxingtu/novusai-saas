@@ -75,6 +75,13 @@ export interface RequestOptions {
   showCodeMessage?: boolean;
 
   /**
+   * Whether to bypass auth refresh / re-auth handling for this request.
+   * 用于插件等附属接口，跳过 Token 刷新/重新登录处理。
+   * @default false
+   */
+  skipAuthRecovery?: boolean;
+
+  /**
    * Whether to show success messages (when code === 0)
    * 是否显示成功消息（code === 0 时）
    * @default false
@@ -141,6 +148,13 @@ export interface ApiRequestOptions {
    * @default true
    */
   showErrorMessage?: boolean;
+
+  /**
+   * Whether to bypass auth refresh / re-auth handling for this request.
+   * 用于插件等附属接口，跳过 Token 刷新/重新登录处理。
+   * @default false
+   */
+  skipAuthRecovery?: boolean;
 
   /**
    * AbortSignal for request cancellation
