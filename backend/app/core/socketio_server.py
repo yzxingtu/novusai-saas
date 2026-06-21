@@ -12,6 +12,7 @@ import socketio
 from app.core.config import settings
 from app.core.cors import is_origin_allowed_sync
 from app.core.logging import LogManager
+from app.core.socketio_redis import get_socketio_redis_listener_options
 
 logger = LogManager.get_logger("app")
 
@@ -22,6 +23,7 @@ logger = LogManager.get_logger("app")
 _redis_manager = socketio.AsyncRedisManager(
     settings.REDIS_URL,
     write_only=False,
+    redis_options=get_socketio_redis_listener_options(),
 )
 
 # ========================================
