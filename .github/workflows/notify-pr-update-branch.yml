@@ -1,0 +1,50 @@
+name: 通知 PR 更新分支
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notify-stale-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 通知待处理 PR 更新分支
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo "$SHA" | cut -c1-7)
+          COMMENT_BODY="⚠️ \`main\` 分支有新提交（${SHORT_SHA}），请检查你的分支是否需要更新（rebase / merge main）以避免合并冲突。"
+
+          # 获取所有 open 状态的 PR（排除已关闭/已合并）
+          PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --json number,author,headRefName --jq '.[] | "\(.number)|\(.author.login)|\(.headRefName)"')
+
+          if [ -z "$PR_NUMBERS" ]; then
+            echo "当前没有待处理的 PR，跳过通知。"
+            exit 0
+          fi
+
+          echo "$PR_NUMBERS" | while IFS='|' read -r PR_NUM AUTHOR BRANCH; do
+            # 跳过由自动化工具创建的 PR（如 release PR）
+            if [ "$AUTHOR" = "app/dependabot" ] || [ "$AUTHOR" = "github-actions[bot]" ]; then
+              echo "跳过自动化 PR #${PR_NUM} (author: ${AUTHOR})"
+              continue
+            fi
+
+            # 检查是否已经发过相同通知（避免重复评论）
+            EXISTING=$(gh pr view "$PR_NUM" --repo "$REPO" --json comments --jq ".comments[] | select(.body | contains(\"main\\\` 分支有新提交\"))" 2>/dev/null)
+            if [ -n "$EXISTING" ]; then
+              echo "PR #${PR_NUM} 已有通知评论，跳过。"
+              continue
+            fi
+
+            echo "通知 PR #${PR_NUM} (author: @${AUTHOR}, branch: ${BRANCH})"
+            gh pr comment "$PR_NUM" --repo "$REPO" --body "$COMMENT_BODY" || echo "评论 PR #${PR_NUM} 失败，继续处理下一个。"
+          done
+
+          echo "✅ 通知完成。"

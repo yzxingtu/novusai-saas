@@ -1,7 +1,9 @@
 name: Build & Push Docker Images
 
 on:
-  create:
+  push:
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
