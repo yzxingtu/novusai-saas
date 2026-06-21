@@ -14,10 +14,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
-  TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   build-push:
+    env:
+      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,6 +91,8 @@ jobs:
   deploy-railway:
     needs: build-push
     if: ${{ secrets.RAILWAY_API_TOKEN != '' }}
+    env:
+      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -125,6 +128,8 @@ jobs:
 
   release:
     needs: build-push
+    env:
+      TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

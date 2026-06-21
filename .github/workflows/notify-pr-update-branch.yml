@@ -22,7 +22,7 @@ jobs:
           COMMENT_BODY="⚠️ \`main\` 分支有新提交（${SHORT_SHA}），请检查你的分支是否需要更新（rebase / merge main）以避免合并冲突。"
 
           # 获取所有 open 状态的 PR（排除已关闭/已合并）
-          PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --json number,author,headRefName --jq '.[] | "\(.number)|\(.author.login)|\(.headRefName)"')
+          PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --json number,author,headRefName --jq '.[] | "\(.number)|\(.author.login)|\(.headRefName)"' || true)
 
           if [ -z "$PR_NUMBERS" ]; then
             echo "当前没有待处理的 PR，跳过通知。"
