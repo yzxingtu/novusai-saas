@@ -100,10 +100,15 @@ jobs:
       - name: Deploy ${{ matrix.name }} to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
           SERVICE_ID: ${{ secrets[matrix.secret] }}
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "⚠️  RAILWAY_API_TOKEN not set, skipping Railway deployment"
+            exit 0
+          fi
+          if [ -z "$RAILWAY_ENVIRONMENT_ID" ]; then
+            echo "⚠️  RAILWAY_ENVIRONMENT_ID not set, skipping Railway deployment"
             exit 0
           fi
           if [ -z "$SERVICE_ID" ]; then
@@ -111,12 +116,20 @@ jobs:
             exit 0
           fi
           echo "🚀 Triggering Railway redeployment for ${{ matrix.name }} ($SERVICE_ID)"
-          RAW=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://api.railway.app/graphql \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+          PAYLOAD=$(cat <<EOF
+          {
+            "query": "mutation DeployService(\$environmentId: String!, \$serviceId: String!) { serviceInstanceDeployV2(environmentId: \$environmentId, serviceId: \$serviceId) }",
+            "variables": {
+              "environmentId": "$RAILWAY_ENVIRONMENT_ID",
+              "serviceId": "$SERVICE_ID"
+            }
+          }
+          EOF
+          )
+          RAW=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://backboard.railway.com/graphql/v2 \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"query\": \"mutation { deploymentCreate(input: {serviceId: \\\"$SERVICE_ID\\\"}) { deployment { id status } } }\"
-            }")
+            -d "$PAYLOAD")
           HTTP_STATUS=$(echo "$RAW" | grep "HTTP_STATUS:" | sed 's/.*HTTP_STATUS://')
           RESPONSE=$(echo "$RAW" | sed '/HTTP_STATUS:/d')
           echo "Response: $RESPONSE"
