@@ -74,6 +74,10 @@ interface WeatherLocalConfig {
   recentCities: CityInfo[];
 }
 
+interface PersistedWeatherLocalConfig {
+  city?: string;
+}
+
 interface CachedWeatherData {
   current: WeatherCurrent | null;
   forecast: WeatherForecastDay[];
@@ -149,6 +153,33 @@ function clamp(num: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, num));
 }
 
+function findPopularCity(name: string): CityInfo | null {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return (
+    POPULAR_CITIES.find((city) => city.name.toLowerCase() === normalized) ?? null
+  );
+}
+
+function createLocalConfigForCity(cityName: string): WeatherLocalConfig {
+  const popularCity = findPopularCity(cityName);
+  if (popularCity) {
+    return {
+      city: popularCity.name,
+      latitude: popularCity.latitude,
+      longitude: popularCity.longitude,
+      recentCities: [popularCity],
+    };
+  }
+  return {
+    ...DEFAULT_LOCAL,
+    city: cityName,
+    recentCities: [...DEFAULT_LOCAL.recentCities],
+  };
+}
+
 function resolveLegacyPathApiBase(): string | null {
   const path = window.location.pathname;
   if (path.startsWith('/admin')) {
@@ -184,28 +215,26 @@ function normalizeTemperatureUnit(unit: unknown): TemperatureUnit {
 function loadLocalConfig(): WeatherLocalConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    localConfigExistsRef.value = Boolean(raw);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<WeatherLocalConfig>;
-      return {
-        city: parsed.city || DEFAULT_LOCAL.city,
-        latitude: parsed.latitude ?? DEFAULT_LOCAL.latitude,
-        longitude: parsed.longitude ?? DEFAULT_LOCAL.longitude,
-        recentCities:
-          Array.isArray(parsed.recentCities) && parsed.recentCities.length > 0
-            ? parsed.recentCities
-            : DEFAULT_LOCAL.recentCities,
-      };
+      const parsed = JSON.parse(raw) as PersistedWeatherLocalConfig;
+      const city = typeof parsed.city === 'string' ? parsed.city.trim() : '';
+      if (city) {
+        localConfigExistsRef.value = true;
+        saveLocalConfig(city);
+        return createLocalConfigForCity(city);
+      }
     }
   } catch {
-    localConfigExistsRef.value = false;
+    /* noop */
   }
+  localConfigExistsRef.value = false;
   return { ...DEFAULT_LOCAL, recentCities: [...DEFAULT_LOCAL.recentCities] };
 }
 
-function saveLocalConfig(cfg: WeatherLocalConfig): void {
+function saveLocalConfig(city: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    const persisted: PersistedWeatherLocalConfig = { city };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
     localConfigExistsRef.value = true;
   } catch {
     /* noop */
@@ -315,11 +344,30 @@ function createStore(): WeatherStore {
       localConfigRef.value.latitude = primary.latitude;
       localConfigRef.value.longitude = primary.longitude;
       localConfigRef.value.recentCities = [primary];
-      saveLocalConfig(localConfigRef.value);
+      saveLocalConfig(localConfigRef.value.city);
       return;
     }
     localConfigRef.value.city = defaultCityName;
-    saveLocalConfig(localConfigRef.value);
+    saveLocalConfig(localConfigRef.value.city);
+  }
+
+  async function resolveStoredCityCoordinates(): Promise<void> {
+    const storedCity = localConfigRef.value.city.trim();
+    if (!localConfigExistsRef.value || !storedCity) {
+      return;
+    }
+    if (findPopularCity(storedCity)) {
+      return;
+    }
+    const cities = await searchCity(storedCity);
+    if (cities.length > 0) {
+      const primary = cities[0]!;
+      localConfigRef.value.city = primary.name;
+      localConfigRef.value.latitude = primary.latitude;
+      localConfigRef.value.longitude = primary.longitude;
+      localConfigRef.value.recentCities = [primary];
+      saveLocalConfig(localConfigRef.value.city);
+    }
   }
 
   async function fetchAll(): Promise<void> {
@@ -452,7 +500,7 @@ function createStore(): WeatherStore {
     );
     nextRecent.unshift(city);
     localConfigRef.value.recentCities = nextRecent.slice(0, MAX_RECENT_CITIES);
-    saveLocalConfig(localConfigRef.value);
+    saveLocalConfig(localConfigRef.value.city);
     showCitySelectorRef.value = false;
     await fetchAll();
   }
@@ -533,6 +581,7 @@ function createStore(): WeatherStore {
         initialLoadingRef.value = false;
       }
       await fetchPluginConfig();
+      await resolveStoredCityCoordinates();
       await resolveDefaultCityFromConfig();
       await fetchAll();
     }
