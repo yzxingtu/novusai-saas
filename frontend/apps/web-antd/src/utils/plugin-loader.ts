@@ -135,6 +135,9 @@ function resolveEndpointScope(loadOptions: PluginAssetLoadOptions): string {
 
 function syncPluginHostEndpoint(loadOptions: PluginAssetLoadOptions): void {
   const normalizedLoadOptions = normalizePluginLoadOptions(loadOptions);
+  if (!normalizedLoadOptions.endpoint) {
+    return;
+  }
   setActivePluginHostEndpoint(normalizedLoadOptions.endpoint);
 }
 

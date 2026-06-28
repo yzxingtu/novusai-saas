@@ -457,6 +457,14 @@ function createStore(): WeatherStore {
     await fetchAll();
   }
 
+  async function useTransientCoordinates(city: CityInfo): Promise<void> {
+    localConfigRef.value.city = city.name;
+    localConfigRef.value.latitude = city.latitude;
+    localConfigRef.value.longitude = city.longitude;
+    showCitySelectorRef.value = false;
+    await fetchAll();
+  }
+
   async function geolocate(): Promise<void> {
     if (!navigator.geolocation) {
       locateErrorRef.value = 'locate_failed';
@@ -495,9 +503,9 @@ function createStore(): WeatherStore {
         }
       }
       if (resolvedCity) {
-        await selectCity(resolvedCity);
+        await useTransientCoordinates(resolvedCity);
       } else {
-        await selectCity({
+        await useTransientCoordinates({
           name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
           latitude,
           longitude,

@@ -51,4 +51,15 @@ describe('plugin-runtime-context', () => {
       /Cannot resolve host endpoint/,
     );
   });
+
+  it('keeps the active endpoint while resolving public plugin asset paths', () => {
+    setActivePluginHostEndpoint('admin');
+
+    expect(getPluginHostEndpoint('/plugin-assets/captcha/index.js')).toBe(
+      'admin',
+    );
+    expect(buildPluginApiBase('weather-widget')).toBe(
+      '/admin/plugins/weather-widget/api',
+    );
+  });
 });
