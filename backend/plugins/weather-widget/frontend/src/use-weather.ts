@@ -5,7 +5,7 @@
  * data loading, refresh cadence, stale state, and city selection stay in sync.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { requestClient } from '@novus/plugin-shared';
+import { buildPluginApiBase, requestClient } from '@novus/plugin-shared';
 
 export type TemperatureUnit = 'celsius' | 'fahrenheit';
 
@@ -74,6 +74,10 @@ interface WeatherLocalConfig {
   recentCities: CityInfo[];
 }
 
+interface PersistedWeatherLocalConfig {
+  city?: string;
+}
+
 interface CachedWeatherData {
   current: WeatherCurrent | null;
   forecast: WeatherForecastDay[];
@@ -127,6 +131,12 @@ const STORAGE_KEY = 'novusai_weather_config';
 const WEATHER_DATA_KEY = 'novusai_weather_data';
 const MAX_RECENT_CITIES = 6;
 const DEFAULT_CACHE_TTL_SECONDS = 600;
+const WEATHER_PLUGIN_NAME = 'weather-widget';
+const WEATHER_PLUGIN_REQUEST_OPTIONS = {
+  showCodeMessage: false,
+  showErrorMessage: false,
+  skipAuthRecovery: true,
+};
 
 const DEFAULT_LOCAL: WeatherLocalConfig = {
   city: 'Shanghai',
@@ -143,10 +153,59 @@ function clamp(num: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, num));
 }
 
-function resolveApiBase(): string {
+function findPopularCity(name: string): CityInfo | null {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return (
+    POPULAR_CITIES.find((city) => city.name.toLowerCase() === normalized) ?? null
+  );
+}
+
+function createLocalConfigForCity(cityName: string): WeatherLocalConfig {
+  const popularCity = findPopularCity(cityName);
+  if (popularCity) {
+    return {
+      city: popularCity.name,
+      latitude: popularCity.latitude,
+      longitude: popularCity.longitude,
+      recentCities: [popularCity],
+    };
+  }
+  return {
+    ...DEFAULT_LOCAL,
+    city: cityName,
+    recentCities: [...DEFAULT_LOCAL.recentCities],
+  };
+}
+
+function resolveLegacyPathApiBase(): string | null {
   const path = window.location.pathname;
-  const prefix = path.startsWith('/admin') ? '/admin' : '/tenant';
-  return `${prefix}/plugins/weather-widget/api`;
+  if (path.startsWith('/admin')) {
+    return `/admin/plugins/${WEATHER_PLUGIN_NAME}/api`;
+  }
+  if (path.startsWith('/tenant')) {
+    return `/tenant/plugins/${WEATHER_PLUGIN_NAME}/api`;
+  }
+  return null;
+}
+
+export function resolveWeatherApiBase(): string {
+  if (typeof buildPluginApiBase === 'function') {
+    try {
+      return buildPluginApiBase(WEATHER_PLUGIN_NAME);
+    } catch {
+      // Fall through to the legacy explicit-path fallback below.
+    }
+  }
+
+  const legacyApiBase = resolveLegacyPathApiBase();
+  if (legacyApiBase) {
+    return legacyApiBase;
+  }
+
+  throw new Error('Weather plugin host endpoint is unavailable');
 }
 
 function normalizeTemperatureUnit(unit: unknown): TemperatureUnit {
@@ -156,28 +215,26 @@ function normalizeTemperatureUnit(unit: unknown): TemperatureUnit {
 function loadLocalConfig(): WeatherLocalConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    localConfigExistsRef.value = Boolean(raw);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<WeatherLocalConfig>;
-      return {
-        city: parsed.city || DEFAULT_LOCAL.city,
-        latitude: parsed.latitude ?? DEFAULT_LOCAL.latitude,
-        longitude: parsed.longitude ?? DEFAULT_LOCAL.longitude,
-        recentCities:
-          Array.isArray(parsed.recentCities) && parsed.recentCities.length > 0
-            ? parsed.recentCities
-            : DEFAULT_LOCAL.recentCities,
-      };
+      const parsed = JSON.parse(raw) as PersistedWeatherLocalConfig;
+      const city = typeof parsed.city === 'string' ? parsed.city.trim() : '';
+      if (city) {
+        localConfigExistsRef.value = true;
+        saveLocalConfig(city);
+        return createLocalConfigForCity(city);
+      }
     }
   } catch {
-    localConfigExistsRef.value = false;
+    /* noop */
   }
+  localConfigExistsRef.value = false;
   return { ...DEFAULT_LOCAL, recentCities: [...DEFAULT_LOCAL.recentCities] };
 }
 
-function saveLocalConfig(cfg: WeatherLocalConfig): void {
+function saveLocalConfig(city: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    const persisted: PersistedWeatherLocalConfig = { city };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
     localConfigExistsRef.value = true;
   } catch {
     /* noop */
@@ -263,7 +320,10 @@ function createStore(): WeatherStore {
 
   async function fetchPluginConfig(): Promise<void> {
     try {
-      const resp = await requestClient.get<{ config: PluginConfig }>(`${resolveApiBase()}/config`);
+      const resp = await requestClient.get<{ config: PluginConfig }>(
+        `${resolveWeatherApiBase()}/config`,
+        WEATHER_PLUGIN_REQUEST_OPTIONS,
+      );
       if (resp?.config) {
         pluginConfigRef.value = resp.config;
       }
@@ -284,11 +344,30 @@ function createStore(): WeatherStore {
       localConfigRef.value.latitude = primary.latitude;
       localConfigRef.value.longitude = primary.longitude;
       localConfigRef.value.recentCities = [primary];
-      saveLocalConfig(localConfigRef.value);
+      saveLocalConfig(localConfigRef.value.city);
       return;
     }
     localConfigRef.value.city = defaultCityName;
-    saveLocalConfig(localConfigRef.value);
+    saveLocalConfig(localConfigRef.value.city);
+  }
+
+  async function resolveStoredCityCoordinates(): Promise<void> {
+    const storedCity = localConfigRef.value.city.trim();
+    if (!localConfigExistsRef.value || !storedCity) {
+      return;
+    }
+    if (findPopularCity(storedCity)) {
+      return;
+    }
+    const cities = await searchCity(storedCity);
+    if (cities.length > 0) {
+      const primary = cities[0]!;
+      localConfigRef.value.city = primary.name;
+      localConfigRef.value.latitude = primary.latitude;
+      localConfigRef.value.longitude = primary.longitude;
+      localConfigRef.value.recentCities = [primary];
+      saveLocalConfig(localConfigRef.value.city);
+    }
   }
 
   async function fetchAll(): Promise<void> {
@@ -305,27 +384,43 @@ function createStore(): WeatherStore {
 
     try {
       const [weatherResp, forecastResp, hourlyResp, aqiResp] = await Promise.all([
-        requestClient.get<{ weather: WeatherCurrent }>(`${resolveApiBase()}/current`, {
-          params: { lat: latitude, lon: longitude },
-          signal: abortController.signal,
-        }),
-        requestClient
-          .get<{ forecast: WeatherForecastDay[] }>(`${resolveApiBase()}/forecast`, {
-            params: { lat: latitude, lon: longitude, days },
-            signal: abortController.signal,
-          })
-          .catch(() => null),
-        requestClient
-          .get<{ hourly: WeatherHourly[] }>(`${resolveApiBase()}/hourly`, {
+        requestClient.get<{ weather: WeatherCurrent }>(
+          `${resolveWeatherApiBase()}/current`,
+          {
+            ...WEATHER_PLUGIN_REQUEST_OPTIONS,
             params: { lat: latitude, lon: longitude },
             signal: abortController.signal,
-          })
+          },
+        ),
+        requestClient
+          .get<{ forecast: WeatherForecastDay[] }>(
+            `${resolveWeatherApiBase()}/forecast`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude, days },
+              signal: abortController.signal,
+            },
+          )
           .catch(() => null),
         requestClient
-          .get<{ air_quality: AirQuality }>(`${resolveApiBase()}/air-quality`, {
-            params: { lat: latitude, lon: longitude },
-            signal: abortController.signal,
-          })
+          .get<{ hourly: WeatherHourly[] }>(
+            `${resolveWeatherApiBase()}/hourly`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+              signal: abortController.signal,
+            },
+          )
+          .catch(() => null),
+        requestClient
+          .get<{ air_quality: AirQuality }>(
+            `${resolveWeatherApiBase()}/air-quality`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+              signal: abortController.signal,
+            },
+          )
           .catch(() => null),
       ]);
 
@@ -380,8 +475,11 @@ function createStore(): WeatherStore {
     }
     try {
       const resp = await requestClient.get<{ cities: CityInfo[] }>(
-        `${resolveApiBase()}/geocoding`,
-        { params: { name: query, count: 8 } },
+        `${resolveWeatherApiBase()}/geocoding`,
+        {
+          ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+          params: { name: query, count: 8 },
+        },
       );
       return resp?.cities ?? [];
     } catch {
@@ -402,7 +500,15 @@ function createStore(): WeatherStore {
     );
     nextRecent.unshift(city);
     localConfigRef.value.recentCities = nextRecent.slice(0, MAX_RECENT_CITIES);
-    saveLocalConfig(localConfigRef.value);
+    saveLocalConfig(localConfigRef.value.city);
+    showCitySelectorRef.value = false;
+    await fetchAll();
+  }
+
+  async function useTransientCoordinates(city: CityInfo): Promise<void> {
+    localConfigRef.value.city = city.name;
+    localConfigRef.value.latitude = city.latitude;
+    localConfigRef.value.longitude = city.longitude;
     showCitySelectorRef.value = false;
     await fetchAll();
   }
@@ -427,8 +533,11 @@ function createStore(): WeatherStore {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const resp = await requestClient.get<{ cities: CityInfo[] }>(
-            `${resolveApiBase()}/geocoding`,
-            { params: { lat: latitude, lon: longitude } },
+            `${resolveWeatherApiBase()}/geocoding`,
+            {
+              ...WEATHER_PLUGIN_REQUEST_OPTIONS,
+              params: { lat: latitude, lon: longitude },
+            },
           );
           if (resp?.cities?.length && resp.cities[0]?.name) {
             resolvedCity = resp.cities[0];
@@ -442,9 +551,9 @@ function createStore(): WeatherStore {
         }
       }
       if (resolvedCity) {
-        await selectCity(resolvedCity);
+        await useTransientCoordinates(resolvedCity);
       } else {
-        await selectCity({
+        await useTransientCoordinates({
           name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
           latitude,
           longitude,
@@ -472,6 +581,7 @@ function createStore(): WeatherStore {
         initialLoadingRef.value = false;
       }
       await fetchPluginConfig();
+      await resolveStoredCityCoordinates();
       await resolveDefaultCityFromConfig();
       await fetchAll();
     }

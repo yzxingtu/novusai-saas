@@ -344,9 +344,16 @@ export function createAuthInterceptor(
       }
 
       const { config, response } = error;
+      const options = (config as ExtendedConfig | undefined)?.__options || {};
 
       // 非 401 HTTP 状态码，继续传递 / pass through non-401
       if (response?.status !== 401) {
+        throw error;
+      }
+
+      // 附属接口可选择只按普通请求失败处理，不污染宿主登录态。
+      // Plugin-side APIs can opt out of host-level auth recovery.
+      if (options.skipAuthRecovery) {
         throw error;
       }
 
