@@ -79,7 +79,7 @@ dependencies = [
     "jsonschema>=4.21.0",
 
     # Real-time
-    "python-socketio>=5.11.0",
+    "python-socketio>=5.16.2",
 
     # Logging
     "loguru>=0.7.2",
