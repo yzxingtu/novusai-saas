@@ -1,6 +1,6 @@
 ## 仓库信息
 
-- **GitHub 仓库**：https://github.com/yzxingtu/novusai-saas.git
+- **GitHub 仓库**：https://github.com/yzxingtu2026/novusai-saas.git
 - **默认分支**：`main`（受保护，仅接受 PR 合入）
 - **Issue/PR 规范/开发规范**：参见 .qoder/rules/*
 
