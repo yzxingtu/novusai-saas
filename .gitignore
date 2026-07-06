@@ -65,7 +65,9 @@ backend/ruff_full_report.txt
 /.qoder/*
 !/.qoder/repowiki/
 !/.qoder/repowiki/**
-!/.qoder/rules/
+!/.agent/
+!/.agent/rules/
+!/.agent/rules/**
 /AGENTS.md
 
 # The website is developed as a separate repository checked out locally here.
@@ -356,4 +358,3 @@ log/
 
 # Vben upstream snapshots (generated locally/CI only)
 frontend/.vendor/
-
