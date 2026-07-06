@@ -165,9 +165,23 @@ class InternalApiExecutor(BaseToolExecutor):
             "operations": [op.to_brief() for op in page],
         }
         if total == 0:
+            payload["empty_result"] = True
+            payload["should_stop_searching"] = True
+            payload["recommended_next_action"] = (
+                "Stop calling list_internal_operations after one retry; "
+                "tell the user no matching operation is available in the "
+                "current permission scope."
+            )
+            payload["possible_reasons"] = [
+                "permission_scope_has_no_matching_operation",
+                "feature_not_enabled",
+                "endpoint_not_registered",
+            ]
             payload["hint"] = (
-                "No operations matched. Try fewer or different keywords; "
-                "keywords match path, module, summary and permission code."
+                "No operations matched in the current permission scope. "
+                "Retry at most once with a broader keyword, then stop "
+                "searching and explain that no matching operation is "
+                "available."
             )
         elif total > len(page):
             payload["hint"] = (

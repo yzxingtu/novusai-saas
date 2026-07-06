@@ -686,6 +686,112 @@ async def test_react_no_progress_break_on_repeated_tool_call() -> None:
 
 
 @pytest.mark.asyncio
+async def test_react_internal_ops_empty_search_prompts_stop_after_retry() -> None:
+    """Issue #66: internal_ops 连续空搜索后应提示模型停止换词并直接答复。"""
+    tools = [
+        ToolDefinition(
+            name="list_internal_operations",
+            description="Search internal operations",
+        )
+    ]
+    intent = _build_intent(
+        intent_id="intent-internal-ops",
+        kind="internal_ops",
+        family="internal_ops",
+        allowed_tool_names=["list_internal_operations"],
+    )
+    prep = _build_prep(
+        tools=tools,
+        intents=[intent],
+        tool_use_policy=ToolUsePolicy(
+            family="internal_ops",
+            mode="required",
+            allowed_tool_names=["list_internal_operations"],
+            retry_on_contract_breach=False,
+            reason="internal_ops",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    _tool_call(
+                        "list_internal_operations",
+                        call_id="ops_1",
+                        arguments='{"keyword":"agents"}',
+                    )
+                ],
+            ),
+            _assistant_response(
+                "",
+                tool_calls=[
+                    _tool_call(
+                        "list_internal_operations",
+                        call_id="ops_2",
+                        arguments='{"keyword":"智能体"}',
+                    )
+                ],
+            ),
+            _assistant_response(
+                "当前权限范围内未找到相关后台操作，可能是权限不足、功能未开通或端点未注册。"
+            ),
+        ],
+        tool_batches=[
+            ToolBatchResult(
+                response=None,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="ops_1",
+                        name="list_internal_operations",
+                        success=True,
+                        output='{"total":0,"returned":0,"operations":[]}',
+                    )
+                ],
+                total_tokens=4,
+                completion_tokens_used=4,
+            ),
+            ToolBatchResult(
+                response=None,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="ops_2",
+                        name="list_internal_operations",
+                        success=True,
+                        output='{"total":0,"returned":0,"operations":[]}',
+                    )
+                ],
+                total_tokens=4,
+                completion_tokens_used=4,
+            ),
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(input_variables={}, conversation_id=66),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output.startswith("当前权限范围内未找到相关后台操作")
+    assert (
+        state.preparation_diagnostics.get("internal_ops_empty_search_stop_prompted")
+        is True
+    )
+    assert len(io.tool_call_history) == 2
+    assert len(io.call_history) == 3
+    third_round_messages = io.call_history[2]["messages"]
+    assert any(
+        msg.metadata
+        and msg.metadata.get("internal_ops_empty_search_stop_prompt") is True
+        for msg in third_round_messages
+    )
+
+
+@pytest.mark.asyncio
 async def test_react_empty_action_nudge_retries_once() -> None:
     """P0-2: required 策略下模型口头完成（无工具调用）应被纠偏并重试一次。"""
     prep = _crm_prep()
