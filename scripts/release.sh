@@ -144,7 +144,7 @@ if [[ "$CONFIRM" =~ ^[Yy] ]]; then
       --head "$RELEASE_BRANCH" \
       --label "release" 2>&1) || {
       red "⚠ gh pr create 失败，请手动创建 PR:"
-      echo "  https://github.com/yzxingtu/novusai-saas/compare/main...$RELEASE_BRANCH"
+      echo "  https://github.com/yzxingtu2026/novusai-saas/compare/main...$RELEASE_BRANCH"
     }
 
     if [[ "$PR_URL" == http* ]]; then
@@ -152,14 +152,14 @@ if [[ "$CONFIRM" =~ ^[Yy] ]]; then
     fi
   else
     cyan "未安装 GitHub CLI，请手动创建 PR:"
-    echo "  https://github.com/yzxingtu/novusai-saas/compare/main...$RELEASE_BRANCH"
+    echo "  https://github.com/yzxingtu2026/novusai-saas/compare/main...$RELEASE_BRANCH"
   fi
 
   echo ""
   green "后续流程（PR 合并后自动执行）："
   green "  1. auto-tag-release.yml 检测 VERSION 变更 → 打标签 v${NEW_VERSION}"
   green "  2. docker-images.yml 触发 → 构建镜像 + GitHub Release"
-  green "查看进度: https://github.com/yzxingtu/novusai-saas/actions"
+  green "查看进度: https://github.com/yzxingtu2026/novusai-saas/actions"
 else
   cyan "跳过推送。分支已创建在本地，稍后可手动推送:"
   echo "  git push -u $REMOTE $RELEASE_BRANCH"
