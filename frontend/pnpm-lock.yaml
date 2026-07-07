@@ -746,8 +746,8 @@ importers:
         specifier: 'catalog:'
         version: 1.11.19
       dompurify:
-        specifier: ^3.4.0
-        version: 3.4.2
+        specifier: ^3.4.11
+        version: 3.4.11
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -1451,8 +1451,8 @@ importers:
         specifier: 'catalog:'
         version: 14.2.0(async-validator@4.2.5)(axios@1.16.0)(change-case@5.4.4)(nprogress@0.2.0)(qrcode@1.5.4)(sortablejs@1.15.6)(vue@3.5.27(typescript@5.9.3))
       dompurify:
-        specifier: ^3.4.0
-        version: 3.4.2
+        specifier: ^3.4.11
+        version: 3.4.11
       json-bigint:
         specifier: 'catalog:'
         version: 1.0.0
@@ -1566,8 +1566,8 @@ importers:
         specifier: 'catalog:'
         version: 14.2.0(vue@3.5.27(typescript@5.9.3))
       dompurify:
-        specifier: ^3.4.0
-        version: 3.4.2
+        specifier: ^3.4.11
+        version: 3.4.11
       vue:
         specifier: ^3.5.27
         version: 3.5.27(typescript@5.9.3)
@@ -6140,9 +6140,6 @@ packages:
 
   dompurify@3.4.11:
     resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
-
-  dompurify@3.4.2:
-    resolution: {integrity: sha512-lHeS9SA/IKeIFFyYciHBr2n0v1VMPlSj843HdLOwjb2OxNwdq9Xykxqhk+FE42MzAdHvInbAolSE4mhahPpjXA==}
 
   domutils@2.8.0:
     resolution: {integrity: sha512-w96Cjofp72M5IIhpjgobBimYEfoPjx1Vx0BSX9P30WBdZW2WIKU0T1Bd0kz2eNZ9ikjKgHbEyKx8BB6H1L3h3A==}
@@ -13427,7 +13424,7 @@ snapshots:
 
   '@types/dompurify@3.2.0':
     dependencies:
-      dompurify: 3.4.2
+      dompurify: 3.4.11
 
   '@types/eslint@9.6.1':
     dependencies:
@@ -15331,10 +15328,6 @@ snapshots:
       domelementtype: 2.3.0
 
   dompurify@3.4.11:
-    optionalDependencies:
-      '@types/trusted-types': 2.0.7
-
-  dompurify@3.4.2:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
