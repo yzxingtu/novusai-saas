@@ -9,6 +9,8 @@
   <a href="https://qm.qq.com/q/lyeGthTbm8">QQ 交流群</a>
 </p>
 
+> 使用 AI 全栈开发前，先复制 `AGENTS.example.md` 为本地 `AGENTS.md`，补全个人 GitHub 身份与协作信息，再让 AI agent 开始执行任务。
+
 # NovusAI SaaS
 
 **语言：** 简体中文 · [English](README.en-US.md)
