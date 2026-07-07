@@ -79,7 +79,7 @@
     "highlight.js": "^11.11.1",
     "js-yaml": "^4.2.0",
     "lowlight": "^3.3.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "pinia": "catalog:",
     "qs": "catalog:",
     "socket.io-client": "^4.8.3",
