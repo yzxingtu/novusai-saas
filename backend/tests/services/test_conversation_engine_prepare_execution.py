@@ -1122,6 +1122,50 @@ async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -
 
 
 @pytest.mark.asyncio
+async def test_sync_io_adapter_consumes_react_round_index_before_llm_call() -> None:
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    engine._call_llm = AsyncMock(
+        return_value=ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            total_tokens=3,
+        )
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        user_role="tenant_admin",
+        billing_context={},
+        messages=[ChatMessage(role="user", content="你好")],
+    )
+    sync_adapter = _SyncIOAdapter(
+        engine=engine,
+        agent=_build_agent(),
+        request=request,
+        prep=SimpleNamespace(
+            all_tools=[],
+            route_result=None,
+            execution_path="normal",
+        ),
+        selected_skill_names=[],
+        context_sources=[],
+        runtime_contract=build_stream_runtime_contract(engine),
+    )
+
+    await sync_adapter.call_llm(
+        messages=[ChatMessage(role="user", content="你好")],
+        tools=[],
+        tool_use_policy=ToolUsePolicy(),
+        react_round_index=0,
+    )
+
+    assert engine._call_llm.await_count == 1
+    assert "react_round_index" not in engine._call_llm.await_args.kwargs
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_exposes_plugin_weather_tools_by_metadata_only() -> (
     None
 ):

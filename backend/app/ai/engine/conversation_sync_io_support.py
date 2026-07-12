@@ -43,6 +43,9 @@ async def call_sync_llm(
     context_sources: list[Any],
     **kwargs: Any,
 ) -> ModelRoundResult:
+    # Runtime-only metadata consumed by stream adapters must not leak into the
+    # non-streaming ConversationEngine._call_llm signature.
+    kwargs.pop("react_round_index", None)
     runtime_call_overrides = build_model_request_overrides(
         execution_path=getattr(prep, "execution_path", None),
         tools=tools,

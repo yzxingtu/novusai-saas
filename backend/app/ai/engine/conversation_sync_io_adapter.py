@@ -35,6 +35,9 @@ class _SyncIOAdapter:
         tool_use_policy: ToolUsePolicy,
         **kwargs: Any,
     ) -> ModelRoundResult:
+        # Streaming adapters use this for turn-flow projection; the sync engine
+        # call does not accept it.
+        kwargs.pop("react_round_index", None)
         runtime_call_overrides = build_model_request_overrides(
             execution_path=getattr(self.prep, "execution_path", None),
             tools=tools,
