@@ -1,5 +1,5 @@
 """Test type: behavioral
-Scope: Skill resolver startup prefiltering, turn activation, and live selected-skill projection
+Scope: Skill resolver inventory, autonomous turn activation, and live projection
 Real dependencies: SkillResolveResult, activation helpers, runtime capability models
 Mocked dependencies: SQLAlchemy execute stubs and resolver monkeypatches for grant-filter seams only
 """
@@ -13,6 +13,11 @@ import pytest
 
 from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
+from app.ai.skills.activation import (
+    apply_turn_skill_activation,
+    execution_capability_descriptors_for_turn,
+    execution_tools_for_turn,
+)
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
@@ -20,6 +25,41 @@ from app.ai.skills.resolver import (
     resolve_for_agent,
 )
 from app.ai.tools.types import ToolDefinition
+
+
+def test_turn_activation_does_not_parse_user_text() -> None:
+    tool = ToolDefinition(
+        name="report_summary",
+        source_skill_name="Reporting Skill",
+    )
+    descriptor = CapabilityDescriptor(
+        name="Reporting Skill",
+        kind="capability_pack",
+        source="skill_package:reporting.tools",
+    )
+    result = SkillResolveResult(
+        tools=[tool],
+        capability_descriptors=[descriptor],
+    )
+
+    apply_turn_skill_activation(
+        skill_result=result,
+        request=SimpleNamespace(
+            messages=[
+                SimpleNamespace(
+                    role="user",
+                    content="请调用 report_summary 工具",
+                )
+            ]
+        ),
+        intent_flags={},
+    )
+
+    assert result.turn_activation is not None
+    assert result.turn_activation.applied is False
+    assert result.turn_activation.reason == "react_autonomous"
+    assert execution_tools_for_turn(result) == [tool]
+    assert execution_capability_descriptors_for_turn(result) == [descriptor]
 
 
 @pytest.mark.asyncio
@@ -508,7 +548,7 @@ def _make_grant(skill: SimpleNamespace) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resolve(
+async def test_resolve_for_agent_does_not_prefilter_explicit_skill_mentions(
     monkeypatch,
 ) -> None:
     plugin_workflow_skill = _make_runtime_skill(
@@ -552,11 +592,14 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Plugin Workflow Skill"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Plugin Workflow Skill",
+        "Reporting Skill",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolve(
+async def test_resolve_for_agent_does_not_prefilter_explicit_tool_mentions(
     monkeypatch,
 ) -> None:
     reporting_skill = _make_runtime_skill(
@@ -600,11 +643,14 @@ async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolv
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Reporting Skill"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Reporting Skill",
+        "Time Skill",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_query(
+async def test_resolve_for_agent_keeps_full_inventory_without_keyword_activation(
     monkeypatch,
 ) -> None:
     reporting_skill = _make_runtime_skill(
@@ -630,7 +676,7 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
     db.execute = AsyncMock(return_value=result)
     agent = SimpleNamespace(id=1, owner_tenant_id=9)
     request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="what can you do this turn")]
+        messages=[SimpleNamespace(role="user", content="请介绍一下当前方案")]
     )
     captured: dict[str, object] = {}
 
@@ -796,7 +842,7 @@ async def test_resolve_skips_status_disabled_skill_even_when_active_flag_true() 
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_preview(
+async def test_resolve_for_agent_keeps_inventory_for_plugin_tool_mentions(
     monkeypatch,
 ) -> None:
     neutral_plugin_skill = _make_runtime_skill(
@@ -856,7 +902,10 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Assistant Extension",
+        "Time Skill",
+    ]
 
 
 @pytest.mark.asyncio

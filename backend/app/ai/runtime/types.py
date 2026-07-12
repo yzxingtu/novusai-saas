@@ -101,8 +101,6 @@ class CapabilityBundle:
                 continue
 
             reason = str(metadata.get("turn_skill_activation_reason") or "").strip()
-            if reason == "capability_reporting_query":
-                return []
             if "selected_skill_names" in metadata and (
                 metadata.get("tool_count") or metadata.get("skill_count")
             ):

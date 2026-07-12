@@ -25,16 +25,6 @@ def build_time_tools_hint(
     return ""
 
 
-def build_capability_reporting_hint(
-    *,
-    tools: list[ToolDefinition],
-    input_variables: dict[str, Any] | None = None,
-    render_contract: Callable[..., str] = render_prompt_contract,
-) -> str:
-    del tools, input_variables, render_contract
-    return ""
-
-
 def build_runtime_capability_hint(
     *,
     runtime_capability_summary: dict[str, Any] | None,
@@ -43,13 +33,47 @@ def build_runtime_capability_hint(
     selected_skill_names = resolve_live_turn_selected_skill_names(
         runtime_capability_summary=runtime_capability_summary,
     )
-    if not selected_skill_names:
+    summary = (
+        dict(runtime_capability_summary)
+        if isinstance(runtime_capability_summary, dict)
+        else {}
+    )
+    inventory_tool_names = _stable_unique_texts(
+        list(summary.get("inventory_tool_names") or [])
+    )
+    inventory_skill_names = _stable_unique_texts(
+        list(summary.get("inventory_skill_names") or [])
+    )
+    knowledge_base_names = _stable_unique_texts(
+        list(summary.get("knowledge_base_names") or [])
+    )
+    memory_available = bool(summary.get("memory_available"))
+    if not (
+        selected_skill_names
+        or inventory_tool_names
+        or inventory_skill_names
+        or knowledge_base_names
+        or memory_available
+    ):
         return ""
 
     return "\n\n" + render_contract(
         "turn_capabilities",
         selected_skill_names=selected_skill_names,
+        inventory_tool_names=inventory_tool_names,
+        inventory_skill_names=inventory_skill_names,
+        knowledge_base_names=knowledge_base_names,
+        memory_available=memory_available,
     )
+
+
+def _stable_unique_texts(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
 
 
 def resolve_live_turn_selected_skill_names(

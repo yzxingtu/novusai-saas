@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ai.capabilities import CapabilityDescriptionBuilder
-from app.ai.engine.intent_completion_helpers import is_capability_reporting_query
 from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
@@ -63,17 +62,6 @@ def _to_context_assembler_state(
 ) -> ContextAssemblerState:
     state_payload = capability_inputs.to_state_dict()
     return ContextAssemblerState(**state_payload)
-
-
-def _last_user_text(request: Any) -> str:
-    messages = list(getattr(request, "messages", None) or [])
-    for message in reversed(messages):
-        if str(getattr(message, "role", "") or "").strip() != "user":
-            continue
-        text = str(getattr(message, "content", "") or "").strip()
-        if text:
-            return text
-    return ""
 
 
 def _binding_kb_id(binding: dict[str, Any]) -> int:
@@ -222,15 +210,8 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             awareness = ContextCapabilityAwareness(
                 enabled=bool(settings.enable_dynamic_capability_awareness),
             )
-            capability_reporting_query = is_capability_reporting_query(
-                _last_user_text(request),
-            )
-            has_bound_kb = bool(
-                intent_flags.get("has_bound_kb") or knowledge_base_ids
-            )
-            include_kb_context = bool(
-                (has_bound_kb or capability_reporting_query) and knowledge_base_ids
-            )
+            has_bound_kb = bool(intent_flags.get("has_bound_kb") or knowledge_base_ids)
+            include_kb_context = bool(has_bound_kb and knowledge_base_ids)
             kb_bindings: list[dict[str, Any]] = []
             if include_kb_context:
                 from app.services.ai.agent_kb_binding_service import (
@@ -256,9 +237,8 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     rag_no_hit_reason=rag_no_hit_reason,
                     rag_matched_chunk_count=rag_matched_chunk_count,
                 )
-            if not awareness.enabled or (
-                intent_flags.get("should_skip_bound_kb_rag", False)
-                and not capability_reporting_query
+            if not awareness.enabled or intent_flags.get(
+                "should_skip_bound_kb_rag", False
             ):
                 return awareness
 
@@ -273,9 +253,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     capability_builder.build_skill_descriptions(skill_result)
                 )
 
-            include_kb_awareness = bool(
-                (has_bound_kb or capability_reporting_query) and knowledge_base_ids
-            )
+            include_kb_awareness = bool(has_bound_kb and knowledge_base_ids)
             if include_kb_awareness:
                 kb_description = capability_builder.build_knowledge_base_descriptions(
                     kb_bindings
@@ -284,16 +262,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     capability_descriptions.append(kb_description)
 
             memory_policy = resolve_memory_runtime_policy(request)
-            include_memory_awareness = bool(
-                intent_flags.get("memory_context_enabled")
-                or (
-                    capability_reporting_query
-                    and (
-                        memory_policy.session_memory_runtime_enabled
-                        or memory_policy.long_term_memory_runtime_enabled
-                    )
-                )
-            )
+            include_memory_awareness = bool(intent_flags.get("memory_context_enabled"))
             if include_memory_awareness:
                 memory_description = capability_builder.build_memory_description(
                     memory_enabled=request.memory_enabled,

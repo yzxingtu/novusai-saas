@@ -11,9 +11,6 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 from .system_prompt_helpers import (
-    build_capability_reporting_hint as _build_capability_reporting_hint_impl,
-)
-from .system_prompt_helpers import (
     build_ordered_capability_hint_default as _build_ordered_capability_hint_default_impl,
 )
 from .system_prompt_helpers import (
@@ -27,9 +24,6 @@ from .system_prompt_helpers import (
 )
 from .system_prompt_helpers import (
     inject_runtime_summary as _inject_runtime_summary_impl,
-)
-from .system_prompt_helpers import (
-    is_capability_reporting_query as _is_capability_reporting_query_impl,
 )
 from .types import IntentPlan
 
@@ -60,11 +54,7 @@ class BasePromptSystemSupportMixin:
             render_contract=render_prompt_contract,
         )
 
-    _is_capability_reporting_query = staticmethod(_is_capability_reporting_query_impl)
     _build_time_tools_hint = staticmethod(_build_time_tools_hint_impl)
-    _build_capability_reporting_hint = staticmethod(
-        _build_capability_reporting_hint_impl
-    )
 
     _build_runtime_capability_hint = staticmethod(_build_runtime_capability_hint_impl)
     _build_ordered_capability_hint = staticmethod(

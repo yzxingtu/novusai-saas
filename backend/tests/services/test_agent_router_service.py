@@ -20,11 +20,9 @@ from app.services.ai.agent_router_capability_support import (
     agent_supports_families,
     executable_skill_names_for_router,
 )
-from app.services.ai.agent_router_policy import requested_tool_families
 from app.services.ai.agent_router_service import (
     ROUTED_BY_CONVERSATION,
     ROUTED_BY_DEFAULT,
-    ROUTED_BY_PREFERRED_FALLBACK,
     AgentRouterService,
     RouteResult,
 )
@@ -249,50 +247,6 @@ async def test_agent_supports_executable_families_uses_resolved_tool_semantics(
         ["weather"],
         tenant_id=1,
     )
-
-
-def test_requested_tool_families_does_not_hardcode_weather_plugin() -> None:
-    families = requested_tool_families("帮我查一下北京天气")
-
-    assert families == []
-
-
-def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> None:
-    families = requested_tool_families("这里都有啥？")
-
-    assert families == []
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "翻到第3页",
-        "翻回上一页",
-        "每页显示50条",
-    ],
-)
-def test_requested_tool_families_ignores_local_pagination_messages(
-    message: str,
-) -> None:
-    families = requested_tool_families(message)
-
-    assert families == []
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "帮我看看第一条记录的详细信息",
-        "帮我打开一条新建记录表单，然后告诉我这个表单现在填了什么，有哪些选项可以选？",
-        "帮我编辑第一条记录，把名称改成 E2E-Edit-Test",
-    ],
-)
-def test_requested_tool_families_ignores_local_detail_and_form_messages(
-    message: str,
-) -> None:
-    families = requested_tool_families(message)
-
-    assert families == []
 
 
 @pytest.mark.asyncio
@@ -532,9 +486,6 @@ async def test_route_does_not_directly_select_data_agent_for_local_action(mock_d
     assert result.agent_name == "General Agent"
     service._get_router_agent.assert_awaited_once()
     service._fallback_to_default.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -577,9 +528,6 @@ async def test_route_ignores_admin_cross_navigation_intent(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -621,9 +569,6 @@ async def test_route_ignores_tenant_cross_navigation_intent(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -666,9 +611,6 @@ async def test_route_ignores_semantic_agent_navigation_phrase(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -711,9 +653,6 @@ async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -928,12 +867,10 @@ async def test_route_does_not_use_data_candidate_pool_for_fallback(mock_db):
 
     assert result.agent_id == 15
     service._fallback_to_default.assert_awaited_once()
-    fallback_kwargs = service._fallback_to_default.await_args.kwargs
-    assert fallback_kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_pool():
+async def test_fallback_to_default_uses_bound_default_agent():
     service = AgentRouterService.__new__(AgentRouterService)
     assignment = MagicMock()
     assignment.agent_id = 59
@@ -957,22 +894,6 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
         UserRoleEnum.PLATFORM_ADMIN.value,
         user_id=1,
         user_role_id=1,
-        preferred_candidates=[
-            _make_agent(
-                agent_id=59,
-                name="Default Data Agent",
-                supports_vision=True,
-                owner_tenant_id=None,
-                skill_names=["crm_lookup", "crm_update_record"],
-            ),
-            _make_agent(
-                agent_id=60,
-                name="Backup Data Agent",
-                supports_vision=True,
-                owner_tenant_id=None,
-                skill_names=["crm_lookup", "crm_update_record"],
-            ),
-        ],
     )
 
     assert result.agent_id == 59
@@ -980,7 +901,7 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
 
 
 @pytest.mark.asyncio
-async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_outside_it():
+async def test_fallback_to_default_does_not_apply_semantic_candidate_pool():
     service = AgentRouterService.__new__(AgentRouterService)
     assignment = MagicMock()
     assignment.agent_id = 15
@@ -1003,26 +924,10 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
         UserRoleEnum.PLATFORM_ADMIN.value,
         user_id=1,
         user_role_id=1,
-        preferred_candidates=[
-            _make_agent(
-                agent_id=59,
-                name="Data Agent A",
-                supports_vision=True,
-                owner_tenant_id=None,
-                skill_names=["crm_lookup", "crm_update_record"],
-            ),
-            _make_agent(
-                agent_id=60,
-                name="Data Agent B",
-                supports_vision=True,
-                owner_tenant_id=None,
-                skill_names=["crm_lookup", "crm_update_record"],
-            ),
-        ],
     )
 
-    assert result.agent_id == 59
-    assert result.routed_by == ROUTED_BY_PREFERRED_FALLBACK
+    assert result.agent_id == 15
+    assert result.routed_by == ROUTED_BY_DEFAULT
 
 
 @pytest.mark.asyncio
@@ -1068,9 +973,6 @@ async def test_route_does_not_prefer_vision_data_agent_for_screenshot_request(mo
     assert result.agent_id == 59
     service._get_router_agent.assert_awaited_once()
     service._fallback_to_default.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )
 
 
 @pytest.mark.asyncio
@@ -1105,6 +1007,3 @@ async def test_route_does_not_treat_screenshot_request_as_vision_gate(mock_db):
 
     assert result.agent_id == 59
     service._fallback_to_default.assert_awaited_once()
-    assert (
-        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-    )

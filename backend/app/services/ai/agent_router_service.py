@@ -26,7 +26,6 @@ from app.models.system.agent_assignment import SystemAgentAssignment
 from app.services.ai.agent_router_candidate_support import filter_router_candidates
 from app.services.ai.agent_router_capability_support import (
     agent_can_handle_images,
-    agent_supports_executable_families,
 )
 from app.services.ai.agent_router_query_service import AgentRouterQueryService
 from app.services.ai.agent_router_runtime_support import (
@@ -40,7 +39,6 @@ logger = LogManager.get_logger("ai")
 ROUTED_BY_PINNED = "pinned"
 ROUTED_BY_ROUTER = "router"
 ROUTED_BY_DEFAULT = "default"
-ROUTED_BY_PREFERRED_FALLBACK = "preferred_fallback"
 ROUTED_BY_CONVERSATION = "conversation"
 
 # Minimum confidence threshold / 最低置信度阈值
@@ -208,41 +206,13 @@ class AgentRouterService:
                 has_image_attachments=has_image_attachments,
             )
 
-        filter_result = await filter_router_candidates(
-            message=message,
+        candidates = await filter_router_candidates(
             candidates=candidates,
             has_image_attachments=has_image_attachments,
             agent_can_handle_images=self._agent_can_handle_images,
-            agent_supports_families_fn=lambda agent, families: (
-                self._agent_supports_families(
-                    agent,
-                    families,
-                    tenant_id=(
-                        PLATFORM_TENANT_ID
-                        if user_role == UserRoleEnum.PLATFORM_ADMIN.value
-                        else tenant_id
-                    ),
-                )
-            ),
         )
-        candidates = filter_result.candidates
-
-        if filter_result.direct_selected_agent:
-            agent = filter_result.direct_selected_agent
-            logger.info(
-                "Agent router: directly selected preferred agent {} ({})",
-                agent.id,
-                agent.name,
-            )
-            return RouteResult(
-                agent_id=agent.id,
-                agent_name=agent.name,
-                confidence=1.0,
-                routed_by=ROUTED_BY_ROUTER,
-            )
 
         valid_ids = {a.id for a in candidates}
-        preferred_fallback_candidates = filter_result.preferred_fallback_candidates
 
         # P3: Resolve router agent / 获取 Router 智能体
         router_agent = await self._get_router_agent()
@@ -254,7 +224,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         if not router_agent.model_id:
@@ -265,7 +234,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         # P3.5: Call router agent in TASK mode / 调用 Router 智能体（TASK 模式）
@@ -295,7 +263,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         if not route_result:
@@ -305,7 +272,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         # P4: Validate routed result / 二次校验
@@ -323,7 +289,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         if confidence < MIN_CONFIDENCE_THRESHOLD:
@@ -337,7 +302,6 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
                 has_image_attachments=has_image_attachments,
-                preferred_candidates=preferred_fallback_candidates,
             )
 
         # Resolve agent name from current candidates / 从当前候选集中解析名称
@@ -417,20 +381,6 @@ class AgentRouterService:
             timeout_seconds=ROUTER_TIMEOUT_SECONDS,
         )
 
-    async def _agent_supports_families(
-        self,
-        agent: Agent,
-        families: list[str],
-        *,
-        tenant_id: int | None,
-    ) -> bool:
-        return await agent_supports_executable_families(
-            self.db,
-            agent,
-            families,
-            tenant_id=tenant_id,
-        )
-
     # ========================================
     # Fallback handling / 降级逻辑
     # ========================================
@@ -443,13 +393,10 @@ class AgentRouterService:
         user_id: int | None,
         user_role_id: int | None,
         has_image_attachments: bool = False,
-        preferred_candidates: list[Agent] | None = None,
     ) -> RouteResult:
         """
-        Fallback to the default_chat agent first, then to a preferred
-        filtered pool when the default agent cannot satisfy the narrowed
-        routing contract.
-        优先降级到 default_chat 绑定智能体；若其不满足收窄后的路由约束，再降级到 preferred 候选池。
+        Fall back to the default_chat agent.
+        降级到 default_chat 绑定智能体。
 
         Query SystemAgentAssignment with feature_code='default_chat'.
         查询 SystemAgentAssignment，feature_code='default_chat'。
@@ -457,8 +404,6 @@ class AgentRouterService:
         企业端优先检查企业覆盖，再回退到全局默认。
         """
         feature_code = "default_chat"
-        preferred_candidate_ids = {agent.id for agent in (preferred_candidates or [])}
-
         assignment: (
             SystemAgentAssignment | None
         ) = await self.query_service.resolve_default_assignment(
@@ -476,23 +421,17 @@ class AgentRouterService:
                 user_id=user_id,
                 user_role_id=user_role_id,
             ):
-                if preferred_candidate_ids and agent.id not in preferred_candidate_ids:
-                    logger.warning(
-                        "Default agent {} is outside preferred fallback pool; using preferred fallback instead",
-                        agent.id,
+                if has_image_attachments:
+                    await self._ensure_agent_supports_images(
+                        agent,
+                        error_key="agent_chat.error.default_agent_not_vision",
                     )
-                else:
-                    if has_image_attachments:
-                        await self._ensure_agent_supports_images(
-                            agent,
-                            error_key="agent_chat.error.default_agent_not_vision",
-                        )
-                    return RouteResult(
-                        agent_id=agent.id,
-                        agent_name=agent.name,
-                        confidence=1.0,
-                        routed_by=ROUTED_BY_DEFAULT,
-                    )
+                return RouteResult(
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    confidence=1.0,
+                    routed_by=ROUTED_BY_DEFAULT,
+                )
             elif agent:
                 logger.warning(
                     "Default agent {} not visible for tenant={} user_role={}",
@@ -500,12 +439,6 @@ class AgentRouterService:
                     tenant_id,
                     user_role,
                 )
-
-        if preferred_candidates:
-            return await self._build_preferred_fallback_result(
-                preferred_candidates,
-                has_image_attachments=has_image_attachments,
-            )
 
         if assignment and assignment.agent_id:
             raise BusinessException(
@@ -519,30 +452,6 @@ class AgentRouterService:
     # ========================================
     # Helpers / 辅助方法
     # ========================================
-
-    async def _build_preferred_fallback_result(
-        self,
-        preferred_candidates: list[Agent],
-        *,
-        has_image_attachments: bool,
-    ) -> RouteResult:
-        preferred_agent = preferred_candidates[0]
-        if has_image_attachments:
-            await self._ensure_agent_supports_images(
-                preferred_agent,
-                error_key="agent_chat.error.default_agent_not_vision",
-            )
-        logger.info(
-            "Router fallback: using preferred candidate {} ({}) from filtered candidate pool",
-            preferred_agent.id,
-            preferred_agent.name,
-        )
-        return RouteResult(
-            agent_id=preferred_agent.id,
-            agent_name=preferred_agent.name,
-            confidence=1.0,
-            routed_by=ROUTED_BY_PREFERRED_FALLBACK,
-        )
 
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
         return await self.query_service.get_published_agent(agent_id)
