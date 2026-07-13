@@ -82,7 +82,6 @@ class PromptContractName(StrEnum):
     TIME_TOOLS = "time_tools"
 
     # --- Turn capability & research state / 轮次能力与调研状态 ---
-    CAPABILITY_REPORTING = "capability_reporting"
     TURN_CAPABILITIES = "turn_capabilities"
 
     # --- RAG helper prompts (rewrite / HyDE / rerank) / RAG 辅助提示（改写、HyDE、重排）---
@@ -152,11 +151,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         description="Time tool guidance block.",
     ),
     # --- Turn capability & research state / 轮次能力与调研状态 ---
-    PromptContractName.CAPABILITY_REPORTING.value: PromptContractSpec(
-        name=PromptContractName.CAPABILITY_REPORTING,
-        template_name="capability_reporting.md",
-        description="Capability reporting block.",
-    ),
     PromptContractName.TURN_CAPABILITIES.value: PromptContractSpec(
         name=PromptContractName.TURN_CAPABILITIES,
         template_name="turn_capabilities.md",

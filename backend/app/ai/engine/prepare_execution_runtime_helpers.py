@@ -57,28 +57,20 @@ def apply_runtime_capability_injection(
     *,
     diagnostics: dict[str, Any],
     intent_flags: dict[str, bool],
-    force_capability_summary: bool,
     context_sources: list[dict[str, Any]] | None,
     tools: list[Any],
     runtime_capability_summary: dict[str, Any] | None,
     ordered_requested_families: list[str],
     intent_plan: list[Any],
     execution_path: str,
-    should_skip_capability_summary: Callable[..., bool],
     inject_runtime_summary: Callable[..., bool],
     resolve_capability_injection_decision: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
-    skip_capability_summary = should_skip_capability_summary(
-        diagnostics=diagnostics,
-        intent_flags=intent_flags,
-        force_capability_summary=force_capability_summary,
-    )
-    diagnostics["capability_reporting_query"] = force_capability_summary
     capability_summary_injected = inject_runtime_summary(
         tools=tools,
         runtime_capability_summary=runtime_capability_summary,
         ordered_requested_families=ordered_requested_families,
-        skip_capability_summary=skip_capability_summary,
+        skip_capability_summary=False,
         intent_plan=intent_plan,
         execution_path=execution_path,
     )

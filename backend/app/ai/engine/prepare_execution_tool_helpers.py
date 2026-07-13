@@ -24,15 +24,6 @@ from app.ai.types import ChatMessage
 from app.core.logging import LogManager
 
 from .budget_guard import BudgetGuard
-from .intent_completion_helpers import (
-    deserialize_intent_plan as _deserialize_intent_plan_impl,
-)
-from .intent_completion_helpers import (
-    intent_plan_gating_flags as _intent_plan_gating_flags_impl,
-)
-from .intent_completion_helpers import (
-    is_capability_reporting_query as _is_capability_reporting_query_impl,
-)
 from .prepare_execution_runtime_helpers import (
     PreparedExecutionRuntimeState,
 )
@@ -51,9 +42,6 @@ from .system_prompt_helpers import (
 from .system_prompt_helpers import (
     resolve_capability_injection_decision as _resolve_capability_injection_decision_impl,
 )
-from .system_prompt_helpers import (
-    should_skip_capability_summary as _should_skip_capability_summary_impl,
-)
 from .types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -62,16 +50,6 @@ from .types import (
 )
 
 logger = LogManager.get_logger("ai.engine")
-
-
-def _extract_last_user_text(messages: list[ChatMessage]) -> str:
-    for message in reversed(messages):
-        if str(getattr(message, "role", "") or "") != "user":
-            continue
-        text = str(getattr(message, "content", "") or "").strip()
-        if text:
-            return text
-    return ""
 
 
 def _rebuild_runtime_capability_diagnostics(
@@ -221,7 +199,9 @@ def plan_execution_tools(
                     "routing_mode": "deterministic_shortcircuit",
                     "confirmation_replay": {
                         "name": resolved_replay["name"],
-                        "arguments": json.dumps(resolved_replay["arguments"], ensure_ascii=False),
+                        "arguments": json.dumps(
+                            resolved_replay["arguments"], ensure_ascii=False
+                        ),
                         "tool_call_id": resolved_replay["tool_call_id"],
                     },
                 },
@@ -237,8 +217,16 @@ def plan_execution_tools(
                 tools=[replay_tool],
                 candidate_tool_names=[replay_tool_name],
                 tool_use_policy=shortcircuit_policy,
-                tool_planner={"intent": "confirmation_replay", "family": "internal_ops", "reason": "deterministic_shortcircuit"},
-                optimize_event={"total": len(all_tools), "selected": 1, "execution_path": "fast"},
+                tool_planner={
+                    "intent": "confirmation_replay",
+                    "family": "internal_ops",
+                    "reason": "deterministic_shortcircuit",
+                },
+                optimize_event={
+                    "total": len(all_tools),
+                    "selected": 1,
+                    "execution_path": "fast",
+                },
                 intent_plan=[replay_intent],
                 intent_flags={"all_shortcircuit": True},
                 explicit_requested_families=["internal_ops"],
@@ -250,8 +238,7 @@ def plan_execution_tools(
 
     # ── Confirmation Rejection Shortcircuit ───────────────────────────────────
     _has_current_confirmation_rejection = any(
-        str(u.get("kind") or "") == "pending_confirmation"
-        and bool(u.get("rejected"))
+        str(u.get("kind") or "") == "pending_confirmation" and bool(u.get("rejected"))
         for u in (getattr(request, "interaction_updates", None) or [])
         if isinstance(u, dict)
     )
@@ -358,9 +345,6 @@ async def finalize_prepared_execution_runtime(
     Finish runtime-tail work for `_prepare_execution`:
     capability injection + routing + diagnostics projection.
     """
-    force_capability_summary = _is_capability_reporting_query_impl(
-        _extract_last_user_text(messages)
-    )
     if tools:
         context_assembly.capability_bundle = project_capability_bundle_to_tools(
             getattr(context_assembly, "capability_bundle", None),
@@ -388,14 +372,12 @@ async def finalize_prepared_execution_runtime(
     _apply_runtime_capability_injection_impl(
         diagnostics=context_assembly.diagnostics,
         intent_flags=intent_flags,
-        force_capability_summary=force_capability_summary,
         context_sources=context_sources,
         tools=tools,
         runtime_capability_summary=runtime_capability_summary,
         ordered_requested_families=explicit_requested_families,
         intent_plan=intent_plan,
         execution_path=execution_path,
-        should_skip_capability_summary=_should_skip_capability_summary_impl,
         inject_runtime_summary=lambda **kwargs: _inject_runtime_summary_impl(
             messages=messages,
             render_contract=render_contract,

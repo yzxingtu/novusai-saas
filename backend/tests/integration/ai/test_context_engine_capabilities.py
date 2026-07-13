@@ -248,9 +248,7 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
 
 
 @pytest.mark.asyncio
-async def test_context_engine_leaves_long_term_memory_recall_to_context_tools() -> (
-    None
-):
+async def test_context_engine_leaves_long_term_memory_recall_to_context_tools() -> None:
     with patch(
         "app.ai.context.contributors.memory.MemoryContributor.contribute",
         new=AsyncMock(return_value=MemoryContextContribution()),
@@ -370,12 +368,12 @@ async def test_context_engine_ignores_request_selected_skill_names_capability_de
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_skill_descriptions_after_authorized_metadata_mention() -> (
+async def test_context_engine_does_not_activate_skill_descriptions_from_text_mention() -> (
     None
 ):
     """
-    中文: 测试类型 behavioral；用户提到已授权技能元数据时，真实 activation 驱动能力块注入。
-    EN: Test type behavioral; mentioning authorized skill metadata lets real activation drive capability injection.
+    中文: 测试类型 behavioral；用户提到技能名称不会驱动能力块注入。
+    EN: Test type behavioral; mentioning a skill name does not drive capability injection.
     中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 intent fixture；builder 与 activation 走真实逻辑。
     EN: Config, KB, RAG, model-capability IO, and intent fixture are mocked; builder and activation are real.
     """
@@ -410,11 +408,13 @@ async def test_context_engine_injects_skill_descriptions_after_authorized_metada
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
-    assert "General Skills" in assembly.messages[0].content
-    assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" not in assembly.messages[0].content
+    assert "General Skills" not in assembly.messages[0].content
+    assert (
+        "intent_mapper: Map intents to capabilities" not in assembly.messages[0].content
+    )
     assert "catalog_only" not in assembly.messages[0].content
-    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == []
 
 
 @pytest.mark.asyncio
@@ -454,12 +454,12 @@ async def test_context_engine_does_not_inject_unactivated_skill_inventory() -> N
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_self_report_capabilities_despite_shortcircuit() -> (
+async def test_context_engine_does_not_activate_skills_from_capability_keywords() -> (
     None
 ):
     """
-    中文: 测试类型 behavioral；能力自报短路回合仍注入可描述的技能、知识库和记忆能力。
-    EN: Test type behavioral; capability self-report shortcircuit turns still inject describable skill, KB, and memory capabilities.
+    中文: 测试类型 behavioral；用户措辞不再激活短路回合的完整技能库存。
+    EN: Test type behavioral; user wording no longer activates the full skill inventory on shortcircuit turns.
     中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 direct-reply intent fixture；builder 与 activation 走真实逻辑。
     EN: Config, KB, RAG, model-capability IO, and direct-reply intent fixture are mocked; builder and activation are real.
     """
@@ -494,15 +494,15 @@ async def test_context_engine_injects_self_report_capabilities_despite_shortcirc
     )
 
     assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
-    assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
+    assert (
+        "intent_mapper: Map intents to capabilities" not in assembly.messages[0].content
+    )
     assert "产品文档库" in assembly.messages[0].content
-    assert "Session memory: Degraded" in assembly.messages[0].content
-    assert "Long-term memory: Available" in assembly.messages[0].content
+    assert "Session memory: Degraded" not in assembly.messages[0].content
+    assert "Long-term memory: Available" not in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
-        "skills",
         "knowledge_bases",
-        "memory",
     ]
 
 

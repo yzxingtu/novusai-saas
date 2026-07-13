@@ -120,6 +120,8 @@ def _turn_request() -> SimpleNamespace:
     return SimpleNamespace(
         tenant_id=9,
         input_variables={},
+        memory_enabled=True,
+        long_term_memory_enabled=True,
     )
 
 
@@ -159,6 +161,7 @@ def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -
         state=_turn_state(),
         capability_injection_decision={},
     )
+    compact_summary = AIRuntimeInventoryService.build_compact_summary(manifest)
     skill_result = SkillResolveResult(
         tools=list(inventory_bundle.tools),
         capability_descriptors=list(inventory_bundle.capability_descriptors),
@@ -182,6 +185,17 @@ def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
     assert [item["name"] for item in payload["skills"]] == ["CRM Skill"]
+    assert [item.name for item in manifest.inventory_skills] == ["CRM Skill"]
+    assert [item.name for item in manifest.inventory_tools] == [
+        "crm_lookup",
+        "query_records",
+    ]
+    assert compact_summary["inventory_skill_names"] == ["CRM Skill"]
+    assert compact_summary["inventory_tool_names"] == [
+        "crm_lookup",
+        "query_records",
+    ]
+    assert compact_summary["memory_available"] is True
     assert (
         resolve_live_turn_selected_skill_names(
             runtime_capability_summary=payload["summary"]

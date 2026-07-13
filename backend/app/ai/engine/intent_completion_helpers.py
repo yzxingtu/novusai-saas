@@ -1,4 +1,4 @@
-"""Intent completion signal helpers and capability query detection.
+"""Intent completion signal helpers.
 
 Retained from system_prompt_intent_helpers.py after intent planner removal.
 """
@@ -8,21 +8,6 @@ from __future__ import annotations
 from typing import Any
 
 from .types import IntentPlan
-
-_CAPABILITY_REPORTING_QUERY_TERMS = (
-    "这轮有哪些能力",
-    "当前能力",
-    "本轮能力",
-    "你有哪些能力",
-    "你能做什么",
-    "可以做什么",
-    "能力有哪些",
-    "available capabilities",
-    "current capabilities",
-    "capabilities this turn",
-    "what can you do this turn",
-    "what can you do",
-)
 
 
 def _ordered_matching_tool_names(
@@ -106,13 +91,6 @@ def intent_plan_gating_flags(
             flags.long_term_memory_runtime_enabled
         ),
     }
-
-
-def is_capability_reporting_query(user_text: str | None) -> bool:
-    normalized = " ".join(str(user_text or "").strip().lower().split())
-    if not normalized:
-        return False
-    return any(term in normalized for term in _CAPABILITY_REPORTING_QUERY_TERMS)
 
 
 def intent_completion_signals(
@@ -214,5 +192,4 @@ __all__ = [
     "intent_completion_progress",
     "intent_completion_signals",
     "intent_plan_gating_flags",
-    "is_capability_reporting_query",
 ]

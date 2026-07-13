@@ -52,6 +52,8 @@ class RuntimeCapabilityManifest:
     runtime_model_capabilities: dict[str, Any] = field(default_factory=dict)
     tools: list[RuntimeCapabilityItem] = field(default_factory=list)
     skills: list[RuntimeCapabilityItem] = field(default_factory=list)
+    inventory_tools: list[RuntimeCapabilityItem] = field(default_factory=list)
+    inventory_skills: list[RuntimeCapabilityItem] = field(default_factory=list)
     knowledge_bases: list[RuntimeCapabilityItem] = field(default_factory=list)
     memory: list[RuntimeCapabilityItem] = field(default_factory=list)
     extensions: list[RuntimeCapabilityItem] = field(default_factory=list)
@@ -70,6 +72,8 @@ class RuntimeCapabilityManifest:
             "runtime_model_capabilities": dict(self.runtime_model_capabilities or {}),
             "tools": [item.to_dict() for item in self.tools],
             "skills": [item.to_dict() for item in self.skills],
+            "inventory_tools": [item.to_dict() for item in self.inventory_tools],
+            "inventory_skills": [item.to_dict() for item in self.inventory_skills],
             "knowledge_bases": [item.to_dict() for item in self.knowledge_bases],
             "memory": [item.to_dict() for item in self.memory],
             "extensions": [item.to_dict() for item in self.extensions],
@@ -143,12 +147,7 @@ class AIRuntimeInventoryService:
     def _selection_contract_from_activation_reason(
         reason: str | None,
     ) -> dict[str, Any]:
-        if reason == "capability_reporting_query":
-            return {
-                "selection_semantics": "capability_reporting_inventory",
-                "selection_live": False,
-                "live_turn_bound": False,
-            }
+        del reason
         return {
             "selection_semantics": "turn_selected_subset",
             "selection_live": True,
@@ -249,6 +248,16 @@ class AIRuntimeInventoryService:
                 list(bundle.selected_skill_names or [])
             )
         )
+        inventory_tools = cls._stable_unique(
+            filter_invalid_ai_runtime_references(
+                list(bundle.inventory_selected_tool_names or [])
+            )
+        )
+        inventory_skills = cls._stable_unique(
+            filter_invalid_ai_runtime_references(
+                list(bundle.inventory_selected_skill_names or [])
+            )
+        )
         tool_family_map = cls._tool_family_map(bundle, request)
 
         tool_items = [
@@ -275,6 +284,24 @@ class AIRuntimeInventoryService:
                 source="skill_resolver",
             )
             for skill_name in selected_skills
+        ]
+        inventory_tool_items = [
+            RuntimeCapabilityItem(
+                name=tool_name,
+                kind="execution_tool",
+                status="available",
+                source="skill_resolver_inventory",
+            )
+            for tool_name in inventory_tools
+        ]
+        inventory_skill_items = [
+            RuntimeCapabilityItem(
+                name=skill_name,
+                kind="capability_pack",
+                status="available",
+                source="skill_resolver_inventory",
+            )
+            for skill_name in inventory_skills
         ]
 
         kb_ids = list(state.knowledge_base_ids or [])
@@ -430,6 +457,8 @@ class AIRuntimeInventoryService:
             runtime_model_capabilities=dict(state.runtime_model_capabilities or {}),
             tools=tool_items,
             skills=skill_items,
+            inventory_tools=inventory_tool_items,
+            inventory_skills=inventory_skill_items,
             knowledge_bases=knowledge_items,
             memory=memory_items,
             extensions=[],
@@ -445,6 +474,20 @@ class AIRuntimeInventoryService:
     ) -> dict[str, Any]:
         selected_skill_names = cls._stable_unique(
             [item.name for item in manifest.skills if item.status == "available"]
+        )
+        inventory_tool_names = cls._stable_unique(
+            [
+                item.name
+                for item in manifest.inventory_tools
+                if item.status == "available"
+            ]
+        )
+        inventory_skill_names = cls._stable_unique(
+            [
+                item.name
+                for item in manifest.inventory_skills
+                if item.status == "available"
+            ]
         )
         active_context_sources = [
             source
@@ -477,6 +520,8 @@ class AIRuntimeInventoryService:
         )
         return {
             "selected_skill_names": selected_skill_names,
+            "inventory_tool_names": inventory_tool_names,
+            "inventory_skill_names": inventory_skill_names,
             **turn_skill_activation,
             "selection_semantics": selection_contract["selection_semantics"],
             "selection_live": selection_contract["selection_live"],
@@ -484,6 +529,9 @@ class AIRuntimeInventoryService:
             "context_line": context_line,
             "context_source_kinds": context_source_kinds,
             "knowledge_base_names": knowledge_base_names,
+            "memory_available": any(
+                item.status in {"available", "degraded"} for item in manifest.memory
+            ),
             "tool_families": cls._stable_unique(
                 [
                     item.metadata.get("family")

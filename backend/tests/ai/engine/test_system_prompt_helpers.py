@@ -13,7 +13,6 @@ from app.ai.engine.system_prompt_capability_hints import (
 from app.ai.engine.system_prompt_helpers import (
     build_system_message,
     resolve_capability_injection_decision,
-    should_skip_capability_summary,
 )
 
 
@@ -45,17 +44,25 @@ def test_base_engine_build_system_message_keeps_positional_facade() -> None:
     assert "Locale=en-US" in message.content
 
 
-def test_build_runtime_capability_hint_ignores_inventory_shaped_summary() -> None:
+def test_build_runtime_capability_hint_renders_discoverable_inventory() -> None:
     hint = build_runtime_capability_hint(
         runtime_capability_summary={
-            "selected_skill_names": ["browser", "researcher"],
-            "selection_semantics": "capability_reporting_inventory",
-            "selection_live": False,
-            "live_turn_bound": False,
+            "selected_skill_names": [],
+            "inventory_skill_names": ["browser", "researcher"],
+            "inventory_tool_names": ["browser_search"],
+            "knowledge_base_names": ["产品文档库"],
+            "memory_available": True,
+            "selection_semantics": "turn_selected_subset",
+            "selection_live": True,
+            "live_turn_bound": True,
         }
     )
 
-    assert hint == ""
+    assert '["browser","researcher"]' in hint
+    assert '["browser_search"]' in hint
+    assert '["产品文档库"]' in hint
+    assert "memory_available=true" in hint
+    assert "Only tools listed in runtime.tools are callable" in hint
 
 
 def test_build_runtime_capability_hint_renders_live_selected_skills() -> None:
@@ -77,77 +84,6 @@ def test_build_runtime_capability_hint_renders_live_selected_skills() -> None:
     assert "[RUNTIME CAPABILITIES METADATA]" in hint
     assert '"browser","researcher"' in hint
     assert "runtime.selected_skills=" not in hint
-
-
-def test_skip_capability_summary_requires_injected_skill_awareness() -> None:
-    """
-    中文: 测试类型 behavioral；空的动态能力感知不会压掉选中技能摘要。
-    EN: Test type behavioral; empty dynamic awareness does not suppress skills.
-    中文: 无 mock。
-    EN: No mocks.
-    """
-    intent_flags = {"all_shortcircuit": False}
-
-    assert (
-        should_skip_capability_summary(
-            diagnostics={
-                "dynamic_capability_awareness_enabled": True,
-                "dynamic_capability_awareness_injected": False,
-                "dynamic_capability_awareness_categories": ["skills"],
-            },
-            intent_flags=intent_flags,
-            force_capability_summary=False,
-        )
-        is False
-    )
-    assert (
-        should_skip_capability_summary(
-            diagnostics={
-                "dynamic_capability_awareness_enabled": True,
-                "dynamic_capability_awareness_injected": True,
-                "dynamic_capability_awareness_categories": ["knowledge_bases"],
-            },
-            intent_flags=intent_flags,
-            force_capability_summary=False,
-        )
-        is False
-    )
-    assert (
-        should_skip_capability_summary(
-            diagnostics={
-                "dynamic_capability_awareness_enabled": True,
-                "dynamic_capability_awareness_injected": True,
-                "dynamic_capability_awareness_categories": ["skills"],
-            },
-            intent_flags=intent_flags,
-            force_capability_summary=False,
-        )
-        is True
-    )
-
-
-def test_trimmed_skill_awareness_does_not_suppress_selected_skill_summary() -> None:
-    """
-    中文: 测试类型 behavioral；被预算裁剪的动态技能块不能压掉旧技能摘要。
-    EN: Test type behavioral; a trimmed dynamic skill block must keep skill summary fallback.
-    中文: 无 mock。
-    EN: No mocks.
-    """
-    assert (
-        should_skip_capability_summary(
-            diagnostics={
-                "dynamic_capability_awareness_enabled": True,
-                "dynamic_capability_awareness_injected": True,
-                "dynamic_capability_awareness_categories": ["skills"],
-                "context_budget": {
-                    "trimmed_sections": ["dynamic_capability_awareness"],
-                },
-            },
-            intent_flags={"all_shortcircuit": False},
-            force_capability_summary=False,
-        )
-        is False
-    )
 
 
 def test_resolve_capability_injection_decision_does_not_advertise_page_context() -> (

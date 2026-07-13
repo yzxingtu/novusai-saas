@@ -318,9 +318,7 @@ def _preview_tool_names_for_skill(
                 tool_name = str(raw_tool_name or "").strip()
                 if tool_name and tool_name not in _RUNTIME_BUILTIN_TOOL_NAMES:
                     tool_names.append(tool_name)
-            return _live_runtime_references(
-                tool_names
-            )
+            return _live_runtime_references(tool_names)
         tool_name = str(getattr(skill, "name", "") or "").strip()
         if tool_name in _RUNTIME_BUILTIN_TOOL_NAMES:
             return []
@@ -466,55 +464,6 @@ def _build_skill_grant_previews(
     return previews
 
 
-def _build_startup_preview_result(
-    grant_previews: list[SkillGrantPreview],
-) -> SkillResolveResult:
-    preview_tools: list[ToolDefinition] = []
-    for preview in grant_previews:
-        for tool_name in preview.preview_tool_names:
-            preview_tools.append(
-                ToolDefinition(
-                    name=tool_name,
-                    source_skill_id=getattr(preview.skill, "id", None),
-                    source_skill_name=str(
-                        getattr(preview.skill, "name", "") or ""
-                    ).strip()
-                    or None,
-                    source_skill_type=getattr(preview.skill, "type", None),
-                    source_package_name=preview.package_name or None,
-                    source_plugin=preview.source_plugin or None,
-                )
-            )
-    preview_descriptors = build_skill_capability_descriptors(
-        [preview.skill for preview in grant_previews]
-    )
-    enrich_skill_capability_descriptors_with_tools(
-        descriptors=preview_descriptors,
-        tools=preview_tools,
-    )
-    preview_families_by_skill_id = {
-        getattr(preview.skill, "id", None): list(
-            preview.preview_semantic_families or []
-        )
-        for preview in grant_previews
-    }
-    for descriptor in preview_descriptors:
-        metadata = dict(getattr(descriptor, "metadata", {}) or {})
-        preview_families = preview_families_by_skill_id.get(
-            metadata.get("skill_id"), []
-        )
-        if not preview_families:
-            continue
-        descriptor.metadata = {
-            **metadata,
-            "preview_semantic_families": list(preview_families),
-        }
-    return SkillResolveResult(
-        tools=preview_tools,
-        capability_descriptors=preview_descriptors,
-    )
-
-
 def _apply_catalog_preview_metadata(
     *,
     descriptors: list[CapabilityDescriptor],
@@ -543,56 +492,6 @@ def _apply_catalog_preview_metadata(
             "startup_preview_tool_names": preview_tool_names,
             "startup_preview_semantic_families": preview_semantic_families,
         }
-
-
-def _filter_grant_previews_for_turn_startup(
-    grant_previews: list[SkillGrantPreview],
-    *,
-    request: Any | None,
-) -> list[SkillGrantPreview]:
-    if request is None or not grant_previews:
-        return grant_previews
-
-    from app.ai.skills.activation import (
-        apply_turn_skill_activation,
-        resolve_startup_intent_flags,
-    )
-
-    preview_result = _build_startup_preview_result(grant_previews)
-    startup_intent_flags = resolve_startup_intent_flags(request)
-    apply_turn_skill_activation(
-        skill_result=preview_result,
-        request=request,
-        intent_flags=startup_intent_flags,
-        allow_catalog_skill_activation=True,
-    )
-    activation = getattr(preview_result, "turn_activation", None)
-    if activation is None or not activation.applied:
-        return grant_previews
-    if activation.reason in {"capability_reporting_query", "no_turn_skill_activation"}:
-        return grant_previews
-
-    activated_skill_names = {
-        str(name or "").strip()
-        for name in activation.activated_skill_names or []
-        if str(name or "").strip()
-    }
-    activated_tool_names = {
-        str(name or "").strip()
-        for name in activation.activated_tool_names or []
-        if str(name or "").strip()
-    }
-    if not activated_skill_names and not activated_tool_names:
-        return grant_previews
-
-    filtered = [
-        preview
-        for preview in grant_previews
-        if str(getattr(preview.skill, "name", "") or "").strip()
-        in activated_skill_names
-        or bool(activated_tool_names & set(preview.preview_tool_names or []))
-    ]
-    return filtered or grant_previews
 
 
 class SkillResolver:
@@ -988,17 +887,7 @@ async def resolve_for_agent(
         grants,
         plugin_skill_previews_by_plugin=plugin_skill_previews_by_plugin,
     )
-    startup_grant_previews = _filter_grant_previews_for_turn_startup(
-        grant_previews,
-        request=request,
-    )
-    if startup_grant_previews is not grant_previews:
-        logger.info(
-            "Startup skill prefilter applied for agent={}: grants={} -> {}",
-            getattr(agent, "id", None),
-            len(grant_previews),
-            len(startup_grant_previews),
-        )
+    startup_grant_previews = grant_previews
 
     if source_plugins:
         from app.plugins.runtime_registration import (

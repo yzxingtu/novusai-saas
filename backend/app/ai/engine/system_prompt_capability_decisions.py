@@ -5,33 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def should_skip_capability_summary(
-    *,
-    diagnostics: dict[str, Any],
-    intent_flags: dict[str, bool],
-    force_capability_summary: bool,
-) -> bool:
-    awareness_categories = {
-        str(category or "").strip()
-        for category in diagnostics.get("dynamic_capability_awareness_categories") or []
-    }
-    raw_context_budget = diagnostics.get("context_budget") or {}
-    context_budget = raw_context_budget if isinstance(raw_context_budget, dict) else {}
-    trimmed_sections = {
-        str(section or "").strip()
-        for section in context_budget.get("trimmed_sections") or []
-    }
-    dynamic_skill_awareness_injected = bool(
-        diagnostics.get("dynamic_capability_awareness_injected")
-    ) and (
-        "skills" in awareness_categories
-        and "dynamic_capability_awareness" not in trimmed_sections
-    )
-    return dynamic_skill_awareness_injected or (
-        bool(intent_flags.get("all_shortcircuit")) and not force_capability_summary
-    )
-
-
 def resolve_capability_injection_decision(
     *,
     diagnostics: dict[str, Any],
