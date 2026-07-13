@@ -501,6 +501,8 @@ class _TurnRunLoop:
     ran_post_tool_follow_up: bool = field(init=False, default=False)
     empty_action_nudged: bool = field(init=False, default=False)
     previous_tool_call_signature: str | None = field(init=False, default=None)
+    internal_ops_empty_search_count: int = field(init=False, default=0)
+    internal_ops_empty_search_notice_count: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
         self.messages = self.prep.messages
@@ -844,6 +846,64 @@ class _TurnRunLoop:
             reason="react_no_progress",
         )
 
+    @staticmethod
+    def _is_empty_internal_ops_search_result(result: ToolResult) -> bool:
+        if result.name != "list_internal_operations" or not result.success:
+            return False
+        try:
+            payload = json.loads(result.output or "{}")
+        except (TypeError, ValueError):
+            return False
+        return int(payload.get("total") or 0) == 0
+
+    def _track_internal_ops_empty_searches(
+        self,
+        tool_results: list[ToolResult],
+    ) -> None:
+        """连续空 internal_ops 搜索后提示模型停止换词并直接答复用户。"""
+        if not tool_results:
+            return
+
+        should_notify = False
+        for result in tool_results:
+            if result.name != "list_internal_operations":
+                continue
+            if self._is_empty_internal_ops_search_result(result):
+                self.internal_ops_empty_search_count += 1
+                if self.internal_ops_empty_search_count >= 2:
+                    should_notify = True
+            else:
+                self.internal_ops_empty_search_count = 0
+                self.internal_ops_empty_search_notice_count = 0
+
+        if not should_notify:
+            return
+        if (
+            self.internal_ops_empty_search_notice_count
+            >= self.internal_ops_empty_search_count
+        ):
+            return
+
+        self.internal_ops_empty_search_notice_count = (
+            self.internal_ops_empty_search_count
+        )
+        self.state.preparation_diagnostics[
+            "internal_ops_empty_search_stop_prompted"
+        ] = True
+        self.messages.append(
+            ChatMessage(
+                role="system",
+                content=(
+                    "`list_internal_operations` 已连续返回 0 个匹配操作。"
+                    "不要继续更换关键词调用该工具；请直接用简体中文告知用户："
+                    "当前权限范围内未找到相关后台操作，并说明可能原因包括"
+                    "权限不足、功能未开通或端点未注册。"
+                ),
+                metadata={"internal_ops_empty_search_stop_prompt": True},
+                internal_only=True,
+            )
+        )
+
     def _max_tool_rounds(self) -> int:
         """获取最大工具轮次数。"""
         if self.state.budget is None or self.state.budget.max_tool_rounds <= 0:
@@ -979,13 +1039,14 @@ class _TurnRunLoop:
             completion_tokens_used=self.completion_tokens_used,
         )
         self.tool_results.extend(extra_tool_results)
+        self._track_internal_ops_empty_searches(extra_tool_results)
 
     async def _check_consent_gate(self) -> bool:
         """检查是否需要用户确认，返回 True 表示已暂停。
 
         当工具执行需要用户确认时（consent_mode="ask"），
         构建 pause_for_consent decision 并暂停执行。
-        
+
         检查两层：
         1. 先从 intent_plan 检查（传统流程）
         2. 再从 messages 直接检查（ReAct 动态工具选择流程）
@@ -999,7 +1060,7 @@ class _TurnRunLoop:
         if decision is not None and decision.action == "pause_for_consent":
             self.decision = decision
             return True
-        
+
         # ReAct 补充检查：直接从 messages 检查 pending_consent
         # ReAct 流程中 intent_plan 可能未包含动态选择的工具，
         # 需要从 messages 直接提取 pending_consent payload
@@ -1023,7 +1084,7 @@ class _TurnRunLoop:
                 metadata={"pending_consent": pending_payload},
             )
             return True
-        
+
         return False
 
     async def _run_shortcircuit_summary(self) -> None:
