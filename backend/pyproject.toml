@@ -88,7 +88,7 @@ dependencies = [
     # SSL / ACME
     "acme>=2.0.0",
     "josepy>=1.14.0",
-    "cryptography>=46.0.7",
+    "cryptography>=50.0.0",
 
     # Template
     "jinja2>=3.1.3",
