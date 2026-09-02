@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@guolao/vue-monaco-editor": "^1.6.0",
-    "@tiptap/core": "^3.20.0",
+    "@tiptap/core": "^3.30.4",
     "@tiptap/extension-character-count": "^3.20.0",
     "@tiptap/extension-code-block-lowlight": "^3.20.0",
     "@tiptap/extension-color": "^3.20.0",
